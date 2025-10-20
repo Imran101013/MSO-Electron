@@ -12,9 +12,11 @@ import { useToast } from "@/hooks/use-toast";
 
 const formSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
+  fatherName: z.string().min(2, "Father name must be at least 2 characters"),
+  dob: z.string().min(1, "Date of birth is required"),
   email: z.string().email("Invalid email address"),
   phone: z.string().min(10, "Phone number must be at least 10 characters"),
-  contribution: z.string().min(1, "Monthly contribution is required"),
+  address: z.string().min(5, "Address must be at least 5 characters"),
 });
 
 type MemberFormValues = z.infer<typeof formSchema>;
@@ -22,17 +24,19 @@ type MemberFormValues = z.infer<typeof formSchema>;
 interface Member {
   id: number;
   name: string;
+  fatherName: string;
+  dob: string;
   email: string;
   phone: string;
+  address: string;
   joinDate: string;
-  contribution: string;
 }
 
 const initialMembers: Member[] = [
-  { id: 1, name: "Muhammad Ahmed", email: "ahmed@email.com", phone: "+92 300 1234567", joinDate: "Jan 2024", contribution: "PKR 20,000" },
-  { id: 2, name: "Ali Hassan", email: "ali@email.com", phone: "+92 301 2345678", joinDate: "Feb 2024", contribution: "PKR 20,000" },
-  { id: 3, name: "Usman Khan", email: "usman@email.com", phone: "+92 302 3456789", joinDate: "Mar 2024", contribution: "PKR 20,000" },
-  { id: 4, name: "Imran Malik", email: "imran@email.com", phone: "+92 303 4567890", joinDate: "Jan 2024", contribution: "PKR 20,000" },
+  { id: 1, name: "Muhammad Ahmed", fatherName: "Ahmed Ali", dob: "1990-05-15", email: "ahmed@email.com", phone: "+92 300 1234567", address: "Street 12, Block A, Lahore", joinDate: "Jan 2024" },
+  { id: 2, name: "Ali Hassan", fatherName: "Hassan Mahmood", dob: "1988-08-22", email: "ali@email.com", phone: "+92 301 2345678", address: "House 45, Garden Town, Lahore", joinDate: "Feb 2024" },
+  { id: 3, name: "Usman Khan", fatherName: "Khan Sahib", dob: "1992-03-10", email: "usman@email.com", phone: "+92 302 3456789", address: "Flat 3, Model Town, Karachi", joinDate: "Mar 2024" },
+  { id: 4, name: "Imran Malik", fatherName: "Malik Abbas", dob: "1985-12-01", email: "imran@email.com", phone: "+92 303 4567890", address: "Plot 78, DHA Phase 5, Islamabad", joinDate: "Jan 2024" },
 ];
 
 export default function Members() {
@@ -44,9 +48,11 @@ export default function Members() {
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: "",
+      fatherName: "",
+      dob: "",
       email: "",
       phone: "",
-      contribution: "",
+      address: "",
     },
   });
 
@@ -54,10 +60,12 @@ export default function Members() {
     const newMember: Member = {
       id: members.length + 1,
       name: data.name,
+      fatherName: data.fatherName,
+      dob: data.dob,
       email: data.email,
       phone: data.phone,
+      address: data.address,
       joinDate: new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
-      contribution: data.contribution,
     };
 
     setMembers([...members, newMember]);
@@ -103,6 +111,32 @@ export default function Members() {
                 />
                 <FormField
                   control={form.control}
+                  name="fatherName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Father Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Enter father name" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="dob"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Date of Birth</FormLabel>
+                      <FormControl>
+                        <Input type="date" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
                   name="email"
                   render={({ field }) => (
                     <FormItem>
@@ -129,12 +163,12 @@ export default function Members() {
                 />
                 <FormField
                   control={form.control}
-                  name="contribution"
+                  name="address"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Monthly Contribution</FormLabel>
+                      <FormLabel>Address</FormLabel>
                       <FormControl>
-                        <Input placeholder="PKR 20,000" {...field} />
+                        <Input placeholder="Enter full address" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -192,7 +226,7 @@ export default function Members() {
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm font-medium text-foreground">{member.contribution}</p>
+                  <p className="text-sm font-medium text-foreground">DOB: {new Date(member.dob).toLocaleDateString()}</p>
                   <p className="text-xs text-muted-foreground">Joined {member.joinDate}</p>
                 </div>
               </div>
