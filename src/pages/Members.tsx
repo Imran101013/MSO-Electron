@@ -1,8 +1,9 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Search, Mail, Phone } from "lucide-react";
+import { Plus, Search, Mail, Phone, Pencil, Trash2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -42,6 +43,9 @@ const initialMembers: Member[] = [
 export default function Members() {
   const [members, setMembers] = useState<Member[]>(initialMembers);
   const [open, setOpen] = useState(false);
+  const [editingMember, setEditingMember] = useState<Member | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [memberToDelete, setMemberToDelete] = useState<Member | null>(null);
   const { toast } = useToast();
 
   const form = useForm<MemberFormValues>({
@@ -57,24 +61,77 @@ export default function Members() {
   });
 
   const onSubmit = (data: MemberFormValues) => {
-    const newMember: Member = {
-      id: members.length + 1,
-      name: data.name,
-      fatherName: data.fatherName,
-      dob: data.dob,
-      email: data.email,
-      phone: data.phone,
-      address: data.address,
-      joinDate: new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
-    };
-
-    setMembers([...members, newMember]);
-    toast({
-      title: "Member Added",
-      description: `${data.name} has been successfully added.`,
-    });
+    if (editingMember) {
+      // Update existing member
+      const updatedMembers = members.map(m => 
+        m.id === editingMember.id 
+          ? { ...m, ...data }
+          : m
+      );
+      setMembers(updatedMembers);
+      toast({
+        title: "Member Updated",
+        description: `${data.name} has been successfully updated.`,
+      });
+      setEditingMember(null);
+    } else {
+      // Add new member
+      const newMember: Member = {
+        id: members.length + 1,
+        name: data.name,
+        fatherName: data.fatherName,
+        dob: data.dob,
+        email: data.email,
+        phone: data.phone,
+        address: data.address,
+        joinDate: new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+      };
+      setMembers([...members, newMember]);
+      toast({
+        title: "Member Added",
+        description: `${data.name} has been successfully added.`,
+      });
+    }
     form.reset();
     setOpen(false);
+  };
+
+  const handleEdit = (member: Member) => {
+    setEditingMember(member);
+    form.reset({
+      name: member.name,
+      fatherName: member.fatherName,
+      dob: member.dob,
+      email: member.email,
+      phone: member.phone,
+      address: member.address,
+    });
+    setOpen(true);
+  };
+
+  const handleDeleteClick = (member: Member) => {
+    setMemberToDelete(member);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = () => {
+    if (memberToDelete) {
+      setMembers(members.filter(m => m.id !== memberToDelete.id));
+      toast({
+        title: "Member Deleted",
+        description: `${memberToDelete.name} has been removed.`,
+      });
+      setMemberToDelete(null);
+    }
+    setDeleteDialogOpen(false);
+  };
+
+  const handleDialogClose = (isOpen: boolean) => {
+    setOpen(isOpen);
+    if (!isOpen) {
+      setEditingMember(null);
+      form.reset();
+    }
   };
   return (
     <div className="space-y-6">
@@ -83,7 +140,7 @@ export default function Members() {
           <h2 className="text-3xl font-bold text-foreground">Members</h2>
           <p className="text-muted-foreground mt-1">Manage organization members</p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog open={open} onOpenChange={handleDialogClose}>
           <DialogTrigger asChild>
             <Button className="gap-2">
               <Plus className="w-4 h-4" />
@@ -92,7 +149,7 @@ export default function Members() {
           </DialogTrigger>
           <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Add New Member</DialogTitle>
+              <DialogTitle>{editingMember ? "Edit Member" : "Add New Member"}</DialogTitle>
             </DialogHeader>
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -175,10 +232,10 @@ export default function Members() {
                   )}
                 />
                 <div className="flex justify-end gap-3 pt-4">
-                  <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+                  <Button type="button" variant="outline" onClick={() => handleDialogClose(false)}>
                     Cancel
                   </Button>
-                  <Button type="submit">Add Member</Button>
+                  <Button type="submit">{editingMember ? "Update Member" : "Add Member"}</Button>
                 </div>
               </form>
             </Form>
@@ -225,15 +282,52 @@ export default function Members() {
                     </div>
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-sm font-medium text-foreground">DOB: {new Date(member.dob).toLocaleDateString()}</p>
-                  <p className="text-xs text-muted-foreground">Joined {member.joinDate}</p>
+                <div className="flex items-center gap-3">
+                  <div className="text-right">
+                    <p className="text-sm font-medium text-foreground">DOB: {new Date(member.dob).toLocaleDateString()}</p>
+                    <p className="text-xs text-muted-foreground">Joined {member.joinDate}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleEdit(member)}
+                      className="h-8 w-8"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDeleteClick(member)}
+                      className="h-8 w-8 text-destructive hover:text-destructive"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
               </div>
             ))}
           </div>
         </CardContent>
       </Card>
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Member</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete {memberToDelete?.name}? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteConfirm} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
