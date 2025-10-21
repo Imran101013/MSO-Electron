@@ -23,7 +23,14 @@ const formSchema = z.object({
   address: z.string().min(5, "Address must be at least 5 characters"),
 });
 
+const contributionSchema = z.object({
+  month: z.string().min(1, "Month is required"),
+  amount: z.number().min(1, "Amount must be greater than 0"),
+  paid: z.boolean(),
+});
+
 type MemberFormValues = z.infer<typeof formSchema>;
+type ContributionFormValues = z.infer<typeof contributionSchema>;
 
 interface MonthlyContribution {
   month: string;
@@ -156,6 +163,7 @@ export default function Members() {
   const [memberToDelete, setMemberToDelete] = useState<Member | null>(null);
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
+  const [contributionDialogOpen, setContributionDialogOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const { toast } = useToast();
 
@@ -174,6 +182,15 @@ export default function Members() {
       email: "",
       phone: "",
       address: "",
+    },
+  });
+
+  const contributionForm = useForm<ContributionFormValues>({
+    resolver: zodResolver(contributionSchema),
+    defaultValues: {
+      month: "",
+      amount: 0,
+      paid: false,
     },
   });
 
@@ -245,6 +262,46 @@ export default function Members() {
       setMemberToDelete(null);
     }
     setDeleteDialogOpen(false);
+  };
+
+  const handleAddContribution = (data: ContributionFormValues) => {
+    if (!selectedMember) return;
+
+    const updatedMembers = members.map(m => {
+      if (m.id === selectedMember.id) {
+        const newContribution: MonthlyContribution = {
+          month: data.month,
+          amount: data.amount,
+          paid: data.paid,
+        };
+        
+        const updatedContributions = [...m.monthlyContributions, newContribution];
+        const updatedBudget = data.paid ? m.totalBudget + data.amount : m.totalBudget;
+        
+        return {
+          ...m,
+          monthlyContributions: updatedContributions,
+          totalBudget: updatedBudget,
+        };
+      }
+      return m;
+    });
+
+    setMembers(updatedMembers);
+    
+    // Update selected member to reflect changes in the details dialog
+    const updatedSelectedMember = updatedMembers.find(m => m.id === selectedMember.id);
+    if (updatedSelectedMember) {
+      setSelectedMember(updatedSelectedMember);
+    }
+
+    toast({
+      title: "Contribution Added",
+      description: `Monthly contribution for ${data.month} has been added${data.paid ? ' and budget updated' : ''}.`,
+    });
+
+    contributionForm.reset();
+    setContributionDialogOpen(false);
   };
 
   const handleViewDetails = (member: Member) => {
@@ -552,8 +609,16 @@ export default function Members() {
                 
                 <TabsContent value="contributions" className="space-y-4">
                   <Card>
-                    <CardHeader>
+                    <CardHeader className="flex flex-row items-center justify-between">
                       <CardDescription>Monthly contribution history</CardDescription>
+                      <Button 
+                        size="sm" 
+                        onClick={() => setContributionDialogOpen(true)}
+                        className="gap-2"
+                      >
+                        <Plus className="w-4 h-4" />
+                        Add Contribution
+                      </Button>
                     </CardHeader>
                     <CardContent>
                       {selectedMember.monthlyContributions.length > 0 ? (
@@ -672,6 +737,79 @@ export default function Members() {
               </Tabs>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={contributionDialogOpen} onOpenChange={setContributionDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Add Monthly Contribution</DialogTitle>
+          </DialogHeader>
+          <Form {...contributionForm}>
+            <form onSubmit={contributionForm.handleSubmit(handleAddContribution)} className="space-y-4">
+              <FormField
+                control={contributionForm.control}
+                name="month"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Month</FormLabel>
+                    <FormControl>
+                      <Input type="month" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={contributionForm.control}
+                name="amount"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Amount (PKR)</FormLabel>
+                    <FormControl>
+                      <Input 
+                        type="number" 
+                        placeholder="5000" 
+                        {...field}
+                        onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={contributionForm.control}
+                name="paid"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                    <FormControl>
+                      <input
+                        type="checkbox"
+                        checked={field.value}
+                        onChange={field.onChange}
+                        className="h-4 w-4 rounded border-gray-300"
+                      />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel>
+                        Mark as Paid
+                      </FormLabel>
+                      <p className="text-sm text-muted-foreground">
+                        This will automatically add the amount to total budget
+                      </p>
+                    </div>
+                  </FormItem>
+                )}
+              />
+              <div className="flex justify-end gap-3 pt-4">
+                <Button type="button" variant="outline" onClick={() => setContributionDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit">Add Contribution</Button>
+              </div>
+            </form>
+          </Form>
         </DialogContent>
       </Dialog>
     </div>
