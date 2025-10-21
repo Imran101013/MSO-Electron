@@ -1,8 +1,10 @@
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardDescription } from "@/components/ui/card";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Search, Mail, Phone, Pencil, Trash2 } from "lucide-react";
+import { Plus, Search, Mail, Phone, Pencil, Trash2, Eye } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -23,6 +25,25 @@ const formSchema = z.object({
 
 type MemberFormValues = z.infer<typeof formSchema>;
 
+interface MonthlyContribution {
+  month: string;
+  amount: number;
+  paid: boolean;
+}
+
+interface Attendance {
+  date: string;
+  present: boolean;
+}
+
+interface Loan {
+  id: number;
+  amount: number;
+  date: string;
+  status: "Active" | "Paid";
+  remainingAmount: number;
+}
+
 interface Member {
   id: number;
   name: string;
@@ -32,13 +53,99 @@ interface Member {
   phone: string;
   address: string;
   joinDate: string;
+  monthlyContributions: MonthlyContribution[];
+  attendance: Attendance[];
+  loans: Loan[];
+  totalBudget: number;
 }
 
 const initialMembers: Member[] = [
-  { id: 1, name: "Muhammad Ahmed", fatherName: "Ahmed Ali", dob: "1990-05-15", email: "ahmed@email.com", phone: "+92 300 1234567", address: "Street 12, Block A, Lahore", joinDate: "Jan 2024" },
-  { id: 2, name: "Ali Hassan", fatherName: "Hassan Mahmood", dob: "1988-08-22", email: "ali@email.com", phone: "+92 301 2345678", address: "House 45, Garden Town, Lahore", joinDate: "Feb 2024" },
-  { id: 3, name: "Usman Khan", fatherName: "Khan Sahib", dob: "1992-03-10", email: "usman@email.com", phone: "+92 302 3456789", address: "Flat 3, Model Town, Karachi", joinDate: "Mar 2024" },
-  { id: 4, name: "Imran Malik", fatherName: "Malik Abbas", dob: "1985-12-01", email: "imran@email.com", phone: "+92 303 4567890", address: "Plot 78, DHA Phase 5, Islamabad", joinDate: "Jan 2024" },
+  { 
+    id: 1, 
+    name: "Muhammad Ahmed", 
+    fatherName: "Ahmed Ali", 
+    dob: "1990-05-15", 
+    email: "ahmed@email.com", 
+    phone: "+92 300 1234567", 
+    address: "Street 12, Block A, Lahore", 
+    joinDate: "Jan 2024",
+    monthlyContributions: [
+      { month: "January 2024", amount: 5000, paid: true },
+      { month: "February 2024", amount: 5000, paid: true },
+      { month: "March 2024", amount: 5000, paid: false },
+    ],
+    attendance: [
+      { date: "2024-01-15", present: true },
+      { date: "2024-02-15", present: true },
+      { date: "2024-03-15", present: false },
+    ],
+    loans: [
+      { id: 1, amount: 50000, date: "2024-02-01", status: "Active", remainingAmount: 30000 },
+    ],
+    totalBudget: 10000
+  },
+  { 
+    id: 2, 
+    name: "Ali Hassan", 
+    fatherName: "Hassan Mahmood", 
+    dob: "1988-08-22", 
+    email: "ali@email.com", 
+    phone: "+92 301 2345678", 
+    address: "House 45, Garden Town, Lahore", 
+    joinDate: "Feb 2024",
+    monthlyContributions: [
+      { month: "February 2024", amount: 5000, paid: true },
+      { month: "March 2024", amount: 5000, paid: true },
+    ],
+    attendance: [
+      { date: "2024-02-15", present: true },
+      { date: "2024-03-15", present: true },
+    ],
+    loans: [],
+    totalBudget: 10000
+  },
+  { 
+    id: 3, 
+    name: "Usman Khan", 
+    fatherName: "Khan Sahib", 
+    dob: "1992-03-10", 
+    email: "usman@email.com", 
+    phone: "+92 302 3456789", 
+    address: "Flat 3, Model Town, Karachi", 
+    joinDate: "Mar 2024",
+    monthlyContributions: [
+      { month: "March 2024", amount: 5000, paid: true },
+    ],
+    attendance: [
+      { date: "2024-03-15", present: true },
+    ],
+    loans: [
+      { id: 2, amount: 30000, date: "2024-03-10", status: "Paid", remainingAmount: 0 },
+    ],
+    totalBudget: 5000
+  },
+  { 
+    id: 4, 
+    name: "Imran Malik", 
+    fatherName: "Malik Abbas", 
+    dob: "1985-12-01", 
+    email: "imran@email.com", 
+    phone: "+92 303 4567890", 
+    address: "Plot 78, DHA Phase 5, Islamabad", 
+    joinDate: "Jan 2024",
+    monthlyContributions: [
+      { month: "January 2024", amount: 5000, paid: true },
+      { month: "February 2024", amount: 5000, paid: true },
+      { month: "March 2024", amount: 5000, paid: true },
+    ],
+    attendance: [
+      { date: "2024-01-15", present: true },
+      { date: "2024-02-15", present: true },
+      { date: "2024-03-15", present: true },
+    ],
+    loans: [],
+    totalBudget: 15000
+  },
 ];
 
 export default function Members() {
@@ -47,6 +154,8 @@ export default function Members() {
   const [editingMember, setEditingMember] = useState<Member | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [memberToDelete, setMemberToDelete] = useState<Member | null>(null);
+  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
+  const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const { toast } = useToast();
 
@@ -93,6 +202,10 @@ export default function Members() {
         phone: data.phone,
         address: data.address,
         joinDate: new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+        monthlyContributions: [],
+        attendance: [],
+        loans: [],
+        totalBudget: 0,
       };
       setMembers([...members, newMember]);
       toast({
@@ -132,6 +245,11 @@ export default function Members() {
       setMemberToDelete(null);
     }
     setDeleteDialogOpen(false);
+  };
+
+  const handleViewDetails = (member: Member) => {
+    setSelectedMember(member);
+    setDetailsDialogOpen(true);
   };
 
   const handlePageChange = (page: number) => {
@@ -303,6 +421,14 @@ export default function Members() {
                     <Button
                       variant="ghost"
                       size="icon"
+                      onClick={() => handleViewDetails(member)}
+                      className="h-8 w-8"
+                    >
+                      <Eye className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
                       onClick={() => handleEdit(member)}
                       className="h-8 w-8"
                     >
@@ -370,6 +496,184 @@ export default function Members() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={detailsDialogOpen} onOpenChange={setDetailsDialogOpen}>
+        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Member Details</DialogTitle>
+          </DialogHeader>
+          {selectedMember && (
+            <div className="space-y-6">
+              <div className="flex items-center gap-4 pb-4 border-b">
+                <div className="w-16 h-16 rounded-full bg-gradient-primary flex items-center justify-center">
+                  <span className="text-primary-foreground font-semibold text-xl">
+                    {selectedMember.name.split(' ').map(n => n[0]).join('')}
+                  </span>
+                </div>
+                <div>
+                  <h3 className="text-2xl font-bold text-foreground">{selectedMember.name}</h3>
+                  <p className="text-muted-foreground">Father: {selectedMember.fatherName}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-muted-foreground">Email</p>
+                  <p className="font-medium">{selectedMember.email}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Phone</p>
+                  <p className="font-medium">{selectedMember.phone}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Date of Birth</p>
+                  <p className="font-medium">{new Date(selectedMember.dob).toLocaleDateString()}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Joined</p>
+                  <p className="font-medium">{selectedMember.joinDate}</p>
+                </div>
+                <div className="col-span-2">
+                  <p className="text-sm text-muted-foreground">Address</p>
+                  <p className="font-medium">{selectedMember.address}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Total Budget</p>
+                  <p className="font-medium text-lg text-primary">PKR {selectedMember.totalBudget.toLocaleString()}</p>
+                </div>
+              </div>
+
+              <Tabs defaultValue="contributions" className="w-full">
+                <TabsList className="grid w-full grid-cols-3">
+                  <TabsTrigger value="contributions">Contributions</TabsTrigger>
+                  <TabsTrigger value="attendance">Attendance</TabsTrigger>
+                  <TabsTrigger value="loans">Loans</TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="contributions" className="space-y-4">
+                  <Card>
+                    <CardHeader>
+                      <CardDescription>Monthly contribution history</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {selectedMember.monthlyContributions.length > 0 ? (
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Month</TableHead>
+                              <TableHead>Amount</TableHead>
+                              <TableHead>Status</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {selectedMember.monthlyContributions.map((contribution, index) => (
+                              <TableRow key={index}>
+                                <TableCell>{contribution.month}</TableCell>
+                                <TableCell>PKR {contribution.amount.toLocaleString()}</TableCell>
+                                <TableCell>
+                                  <span className={`px-2 py-1 rounded-full text-xs ${
+                                    contribution.paid 
+                                      ? 'bg-green-100 text-green-700' 
+                                      : 'bg-red-100 text-red-700'
+                                  }`}>
+                                    {contribution.paid ? 'Paid' : 'Pending'}
+                                  </span>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      ) : (
+                        <p className="text-muted-foreground text-center py-4">No contributions recorded</p>
+                      )}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                <TabsContent value="attendance" className="space-y-4">
+                  <Card>
+                    <CardHeader>
+                      <CardDescription>Meeting attendance record</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {selectedMember.attendance.length > 0 ? (
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Date</TableHead>
+                              <TableHead>Status</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {selectedMember.attendance.map((record, index) => (
+                              <TableRow key={index}>
+                                <TableCell>{new Date(record.date).toLocaleDateString()}</TableCell>
+                                <TableCell>
+                                  <span className={`px-2 py-1 rounded-full text-xs ${
+                                    record.present 
+                                      ? 'bg-green-100 text-green-700' 
+                                      : 'bg-red-100 text-red-700'
+                                  }`}>
+                                    {record.present ? 'Present' : 'Absent'}
+                                  </span>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      ) : (
+                        <p className="text-muted-foreground text-center py-4">No attendance records</p>
+                      )}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                <TabsContent value="loans" className="space-y-4">
+                  <Card>
+                    <CardHeader>
+                      <CardDescription>Loan history and status</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {selectedMember.loans.length > 0 ? (
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Date</TableHead>
+                              <TableHead>Amount</TableHead>
+                              <TableHead>Remaining</TableHead>
+                              <TableHead>Status</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {selectedMember.loans.map((loan) => (
+                              <TableRow key={loan.id}>
+                                <TableCell>{new Date(loan.date).toLocaleDateString()}</TableCell>
+                                <TableCell>PKR {loan.amount.toLocaleString()}</TableCell>
+                                <TableCell>PKR {loan.remainingAmount.toLocaleString()}</TableCell>
+                                <TableCell>
+                                  <span className={`px-2 py-1 rounded-full text-xs ${
+                                    loan.status === 'Paid' 
+                                      ? 'bg-green-100 text-green-700' 
+                                      : 'bg-orange-100 text-orange-700'
+                                  }`}>
+                                    {loan.status}
+                                  </span>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      ) : (
+                        <p className="text-muted-foreground text-center py-4">No loans recorded</p>
+                      )}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+              </Tabs>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
