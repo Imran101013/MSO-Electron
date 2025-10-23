@@ -337,7 +337,10 @@ export default function Members() {
   const handleSelectMember = (member: Member) => {
     setSearchQuery(member.name);
     setShowSuggestions(false);
-    handleViewDetails(member);
+    // Small delay to ensure state updates before opening dialog
+    setTimeout(() => {
+      handleViewDetails(member);
+    }, 100);
   };
 
   const handleDialogClose = (isOpen: boolean) => {
@@ -468,12 +471,20 @@ export default function Members() {
                 value={searchQuery}
                 onChange={(e) => handleSearchChange(e.target.value)}
                 onFocus={() => searchQuery.length > 0 && setShowSuggestions(true)}
+                onBlur={() => {
+                  // Delay to allow click on suggestion to register
+                  setTimeout(() => setShowSuggestions(false), 200);
+                }}
               />
               {showSuggestions && suggestions.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-2 bg-popover border border-border rounded-md shadow-lg z-50 max-h-60 overflow-y-auto">
+                <div 
+                  className="absolute top-full left-0 right-0 mt-2 bg-background border border-border rounded-md shadow-lg z-50 max-h-60 overflow-y-auto"
+                  onMouseDown={(e) => e.preventDefault()} // Prevent input blur on click
+                >
                   {suggestions.map((member) => (
                     <button
                       key={member.id}
+                      type="button"
                       onClick={() => handleSelectMember(member)}
                       className="w-full text-left px-4 py-3 hover:bg-accent transition-colors flex items-center gap-3 border-b border-border last:border-b-0"
                     >
