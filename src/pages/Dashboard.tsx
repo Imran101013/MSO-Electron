@@ -1,8 +1,11 @@
 import StatCard from "@/components/StatCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, Wallet, HandCoins, PiggyBank, Calendar, TrendingUp } from "lucide-react";
+import { useOrganization } from "@/contexts/OrganizationContext";
 
 export default function Dashboard() {
+  const { totalBudget, totalMembers, activeLoans, reserveFund } = useOrganization();
+
   return (
     <div className="space-y-8">
       {/* Page Header */}
@@ -15,27 +18,27 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard
           title="Total Members"
-          value="42"
+          value={totalMembers.toString()}
           icon={Users}
           trend="+3 this month"
           trendUp={true}
         />
         <StatCard
           title="Total Budget"
-          value="PKR 850,000"
+          value={`PKR ${totalBudget.toLocaleString()}`}
           icon={Wallet}
           trend="+PKR 42,000"
           trendUp={true}
         />
         <StatCard
           title="Active Loans"
-          value="PKR 320,000"
+          value={`PKR ${activeLoans.toLocaleString()}`}
           icon={HandCoins}
           trend="8 members"
         />
         <StatCard
           title="Reserve Fund"
-          value="PKR 125,000"
+          value={`PKR ${reserveFund.toLocaleString()}`}
           icon={PiggyBank}
           trend="+PKR 15,000"
           trendUp={true}
