@@ -165,13 +165,28 @@ export default function Members() {
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [contributionDialogOpen, setContributionDialogOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const { toast } = useToast();
 
   const MEMBERS_PER_PAGE = 5;
-  const totalPages = Math.ceil(members.length / MEMBERS_PER_PAGE);
+  
+  // Filter members based on search query
+  const filteredMembers = members.filter(member => 
+    member.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+  
+  const totalPages = Math.ceil(filteredMembers.length / MEMBERS_PER_PAGE);
   const startIndex = (currentPage - 1) * MEMBERS_PER_PAGE;
   const endIndex = startIndex + MEMBERS_PER_PAGE;
-  const currentMembers = members.slice(startIndex, endIndex);
+  const currentMembers = filteredMembers.slice(startIndex, endIndex);
+  
+  // Get suggestions for autocomplete
+  const suggestions = searchQuery.length > 0 
+    ? members.filter(member => 
+        member.name.toLowerCase().includes(searchQuery.toLowerCase())
+      ).slice(0, 5)
+    : [];
 
   const form = useForm<MemberFormValues>({
     resolver: zodResolver(formSchema),
@@ -313,6 +328,18 @@ export default function Members() {
     setCurrentPage(page);
   };
 
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    setShowSuggestions(value.length > 0);
+    setCurrentPage(1); // Reset to first page on search
+  };
+
+  const handleSelectMember = (member: Member) => {
+    setSearchQuery(member.name);
+    setShowSuggestions(false);
+    handleViewDetails(member);
+  };
+
   const handleDialogClose = (isOpen: boolean) => {
     setOpen(isOpen);
     if (!isOpen) {
@@ -438,7 +465,31 @@ export default function Members() {
               <Input 
                 placeholder="Search members..." 
                 className="pl-10"
+                value={searchQuery}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                onFocus={() => searchQuery.length > 0 && setShowSuggestions(true)}
               />
+              {showSuggestions && suggestions.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-2 bg-popover border border-border rounded-md shadow-lg z-50 max-h-60 overflow-y-auto">
+                  {suggestions.map((member) => (
+                    <button
+                      key={member.id}
+                      onClick={() => handleSelectMember(member)}
+                      className="w-full text-left px-4 py-3 hover:bg-accent transition-colors flex items-center gap-3 border-b border-border last:border-b-0"
+                    >
+                      <div className="w-8 h-8 rounded-full bg-gradient-primary flex items-center justify-center flex-shrink-0">
+                        <span className="text-primary-foreground text-sm font-semibold">
+                          {member.name.split(' ').map(n => n[0]).join('')}
+                        </span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-foreground truncate">{member.name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{member.email}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </CardHeader>
