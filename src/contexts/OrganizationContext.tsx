@@ -28,6 +28,7 @@ export interface Member {
   phone: string;
   address: string;
   joinDate: string;
+  profilePicture?: string;
   monthlyContributions: MonthlyContribution[];
   attendance: Attendance[];
   loans: Loan[];

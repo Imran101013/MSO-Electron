@@ -4,16 +4,18 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Search, Mail, Phone, Pencil, Trash2, Eye } from "lucide-react";
+import { Plus, Search, Mail, Phone, Pencil, Trash2, Eye, Upload, X, Calendar } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { useForm } from "react-hook-form";
+import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useOrganization, Member, MonthlyContribution } from "@/contexts/OrganizationContext";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Label } from "@/components/ui/label";
 
 const formSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
@@ -22,6 +24,12 @@ const formSchema = z.object({
   email: z.string().email("Invalid email address"),
   phone: z.string().min(10, "Phone number must be at least 10 characters"),
   address: z.string().min(5, "Address must be at least 5 characters"),
+  joinDate: z.string().min(1, "Join date is required"),
+  profilePicture: z.string().optional(),
+  pastMeetings: z.array(z.object({
+    date: z.string().min(1, "Date is required"),
+    present: z.boolean(),
+  })).default([]),
 });
 
 const contributionSchema = z.object({
@@ -45,6 +53,7 @@ export default function Members() {
   const [currentPage, setCurrentPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [profilePicturePreview, setProfilePicturePreview] = useState<string>("");
   const { toast } = useToast();
 
   const MEMBERS_PER_PAGE = 5;
@@ -75,7 +84,15 @@ export default function Members() {
       email: "",
       phone: "",
       address: "",
+      joinDate: "",
+      profilePicture: "",
+      pastMeetings: [],
     },
+  });
+
+  const { fields: pastMeetingFields, append: appendMeeting, remove: removeMeeting } = useFieldArray({
+    control: form.control,
+    name: "pastMeetings",
   });
 
   const contributionForm = useForm<ContributionFormValues>({
@@ -111,9 +128,10 @@ export default function Members() {
         email: data.email,
         phone: data.phone,
         address: data.address,
-        joinDate: new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+        joinDate: data.joinDate,
+        profilePicture: data.profilePicture,
         monthlyContributions: [],
-        attendance: [],
+        attendance: (data.pastMeetings || []).map(m => ({ date: m.date || "", present: m.present })),
         loans: [],
         totalBudget: 0,
       };
@@ -136,6 +154,9 @@ export default function Members() {
       email: member.email,
       phone: member.phone,
       address: member.address,
+      joinDate: member.joinDate,
+      profilePicture: member.profilePicture || "",
+      pastMeetings: member.attendance,
     });
     setOpen(true);
   };
@@ -225,7 +246,21 @@ export default function Members() {
     setOpen(isOpen);
     if (!isOpen) {
       setEditingMember(null);
+      setProfilePicturePreview("");
       form.reset();
+    }
+  };
+
+  const handleProfilePictureChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result as string;
+        setProfilePicturePreview(base64String);
+        form.setValue("profilePicture", base64String);
+      };
+      reader.readAsDataURL(file);
     }
   };
   return (
@@ -326,6 +361,117 @@ export default function Members() {
                     </FormItem>
                   )}
                 />
+                <FormField
+                  control={form.control}
+                  name="joinDate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Joining Date</FormLabel>
+                      <FormControl>
+                        <Input type="date" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                {/* Profile Picture Upload */}
+                <div className="space-y-2">
+                  <Label>Profile Picture</Label>
+                  <div className="flex items-center gap-4">
+                    <Avatar className="h-20 w-20">
+                      <AvatarImage src={profilePicturePreview || editingMember?.profilePicture} />
+                      <AvatarFallback className="bg-gradient-primary">
+                        <Upload className="w-8 h-8 text-primary-foreground" />
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1">
+                      <Input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleProfilePictureChange}
+                        className="cursor-pointer"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">Upload a profile picture (optional)</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Past Meeting Records */}
+                {!editingMember && (
+                  <div className="space-y-3 pt-2">
+                    <div className="flex items-center justify-between">
+                      <Label>Past Meeting Records (Optional)</Label>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => appendMeeting({ date: "", present: true })}
+                        className="gap-2"
+                      >
+                        <Calendar className="w-4 h-4" />
+                        Add Meeting
+                      </Button>
+                    </div>
+                    {pastMeetingFields.length > 0 && (
+                      <div className="space-y-3 max-h-60 overflow-y-auto border border-border rounded-md p-3">
+                        {pastMeetingFields.map((field, index) => (
+                          <div key={field.id} className="flex items-center gap-3 p-3 border border-border rounded-md bg-muted/30">
+                            <div className="flex-1 grid grid-cols-2 gap-3">
+                              <FormField
+                                control={form.control}
+                                name={`pastMeetings.${index}.date`}
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel className="text-xs">Meeting Date</FormLabel>
+                                    <FormControl>
+                                      <Input type="date" {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                              <FormField
+                                control={form.control}
+                                name={`pastMeetings.${index}.present`}
+                                render={({ field }) => (
+                                  <FormItem className="flex items-center gap-2 space-y-0 pt-8">
+                                    <FormControl>
+                                      <input
+                                        type="checkbox"
+                                        checked={field.value}
+                                        onChange={field.onChange}
+                                        className="w-4 h-4 rounded border-border"
+                                      />
+                                    </FormControl>
+                                    <FormLabel className="text-xs font-normal cursor-pointer">
+                                      Present
+                                    </FormLabel>
+                                  </FormItem>
+                                )}
+                              />
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => removeMeeting(index)}
+                              className="text-destructive hover:text-destructive"
+                            >
+                              <X className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {pastMeetingFields.length === 0 && (
+                      <p className="text-xs text-muted-foreground text-center py-4 border border-dashed border-border rounded-md">
+                        No past meetings added. Click "Add Meeting" to record attendance history.
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 <div className="flex justify-end gap-3 pt-4">
                   <Button type="button" variant="outline" onClick={() => handleDialogClose(false)}>
                     Cancel
@@ -366,11 +512,14 @@ export default function Members() {
                       onClick={() => handleSelectMember(member)}
                       className="w-full text-left px-4 py-3 hover:bg-accent transition-colors flex items-center gap-3 border-b border-border last:border-b-0"
                     >
-                      <div className="w-8 h-8 rounded-full bg-gradient-primary flex items-center justify-center flex-shrink-0">
-                        <span className="text-primary-foreground text-sm font-semibold">
-                          {member.name.split(' ').map(n => n[0]).join('')}
-                        </span>
-                      </div>
+                      <Avatar className="h-8 w-8 flex-shrink-0">
+                        <AvatarImage src={member.profilePicture} />
+                        <AvatarFallback className="bg-gradient-primary">
+                          <span className="text-primary-foreground text-sm font-semibold">
+                            {member.name.split(' ').map(n => n[0]).join('')}
+                          </span>
+                        </AvatarFallback>
+                      </Avatar>
                       <div className="flex-1 min-w-0">
                         <p className="font-medium text-foreground truncate">{member.name}</p>
                         <p className="text-xs text-muted-foreground truncate">{member.email}</p>
@@ -390,11 +539,14 @@ export default function Members() {
                 className="flex items-center justify-between p-4 rounded-lg border border-border hover:bg-muted/50 transition-colors"
               >
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-full bg-gradient-primary flex items-center justify-center">
-                    <span className="text-primary-foreground font-semibold">
-                      {member.name.split(' ').map(n => n[0]).join('')}
-                    </span>
-                  </div>
+                  <Avatar className="h-12 w-12">
+                    <AvatarImage src={member.profilePicture} />
+                    <AvatarFallback className="bg-gradient-primary">
+                      <span className="text-primary-foreground font-semibold">
+                        {member.name.split(' ').map(n => n[0]).join('')}
+                      </span>
+                    </AvatarFallback>
+                  </Avatar>
                   <div>
                     <h3 className="font-semibold text-foreground">{member.name}</h3>
                     <div className="flex items-center gap-4 mt-1">
@@ -502,15 +654,53 @@ export default function Members() {
           {selectedMember && (
             <div className="space-y-6">
               <div className="flex items-center gap-4 pb-4 border-b">
-                <div className="w-16 h-16 rounded-full bg-gradient-primary flex items-center justify-center">
-                  <span className="text-primary-foreground font-semibold text-xl">
-                    {selectedMember.name.split(' ').map(n => n[0]).join('')}
-                  </span>
-                </div>
-                <div>
+                <Avatar className="h-20 w-20">
+                  <AvatarImage src={selectedMember.profilePicture} />
+                  <AvatarFallback className="bg-gradient-primary">
+                    <span className="text-primary-foreground font-semibold text-xl">
+                      {selectedMember.name.split(' ').map(n => n[0]).join('')}
+                    </span>
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1">
                   <h3 className="text-2xl font-bold text-foreground">{selectedMember.name}</h3>
                   <p className="text-muted-foreground">Father: {selectedMember.fatherName}</p>
                 </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const input = document.createElement('input');
+                    input.type = 'file';
+                    input.accept = 'image/*';
+                    input.onchange = (e) => {
+                      const file = (e.target as HTMLInputElement).files?.[0];
+                      if (file && selectedMember) {
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                          const base64String = reader.result as string;
+                          const updatedMembers = members.map(m =>
+                            m.id === selectedMember.id
+                              ? { ...m, profilePicture: base64String }
+                              : m
+                          );
+                          setMembers(updatedMembers);
+                          setSelectedMember({ ...selectedMember, profilePicture: base64String });
+                          toast({
+                            title: "Profile Picture Updated",
+                            description: "The member's profile picture has been updated.",
+                          });
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                    };
+                    input.click();
+                  }}
+                  className="gap-2"
+                >
+                  <Upload className="w-4 h-4" />
+                  Update Photo
+                </Button>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
