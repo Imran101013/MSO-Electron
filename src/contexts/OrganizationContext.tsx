@@ -19,6 +19,34 @@ export interface Loan {
   remainingAmount: number;
 }
 
+export interface MeetingContribution {
+  memberId: number;
+  amount: number;
+  present: boolean;
+}
+
+export interface MeetingLoanCollection {
+  memberId: number;
+  loanId: number;
+  amount: number;
+}
+
+export interface MeetingLoanIssue {
+  memberId: number;
+  amount: number;
+  loanId: number;
+}
+
+export interface Meeting {
+  id: number;
+  date: string;
+  agenda: string;
+  decisions: string;
+  contributions: MeetingContribution[];
+  loanCollections: MeetingLoanCollection[];
+  loanIssues: MeetingLoanIssue[];
+}
+
 export interface Member {
   id: number;
   name: string;
@@ -38,24 +66,48 @@ export interface Member {
 interface OrganizationContextType {
   members: Member[];
   setMembers: (members: Member[]) => void;
+  meetings: Meeting[];
+  setMeetings: (meetings: Meeting[]) => void;
   totalBudget: number;
   totalMembers: number;
   activeLoans: number;
   reserveFund: number;
+  totalLoanCollected: number;
+  totalLoanOutstanding: number;
 }
 
 const OrganizationContext = createContext<OrganizationContextType | undefined>(undefined);
 
 const initialMembers: Member[] = [];
+const initialMeetings: Meeting[] = [];
 
 export function OrganizationProvider({ children }: { children: ReactNode }) {
   const [members, setMembers] = useState<Member[]>(initialMembers);
+  const [meetings, setMeetings] = useState<Meeting[]>(initialMeetings);
 
-  // Calculate total budget from all members
-  const totalBudget = members.reduce((sum, member) => sum + member.totalBudget, 0);
+  // Calculate total budget from all meetings contributions
+  const totalBudget = meetings.reduce((sum, meeting) => {
+    const meetingTotal = meeting.contributions.reduce((mSum, c) => mSum + c.amount, 0);
+    return sum + meetingTotal;
+  }, 0);
   
   // Calculate total members
   const totalMembers = members.length;
+  
+  // Calculate total loan collected from meetings
+  const totalLoanCollected = meetings.reduce((sum, meeting) => {
+    const meetingLoans = meeting.loanCollections.reduce((mSum, l) => mSum + l.amount, 0);
+    return sum + meetingLoans;
+  }, 0);
+
+  // Calculate total loan issued from meetings
+  const totalLoanIssued = meetings.reduce((sum, meeting) => {
+    const meetingLoans = meeting.loanIssues.reduce((mSum, l) => mSum + l.amount, 0);
+    return sum + meetingLoans;
+  }, 0);
+
+  // Total loan outstanding = issued - collected
+  const totalLoanOutstanding = totalLoanIssued - totalLoanCollected;
   
   // Calculate active loans total
   const activeLoans = members.reduce((sum, member) => {
@@ -72,11 +124,15 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     <OrganizationContext.Provider 
       value={{ 
         members, 
-        setMembers, 
+        setMembers,
+        meetings,
+        setMeetings,
         totalBudget, 
         totalMembers,
         activeLoans,
-        reserveFund
+        reserveFund,
+        totalLoanCollected,
+        totalLoanOutstanding
       }}
     >
       {children}

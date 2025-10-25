@@ -1,64 +1,83 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Plus, Download } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { useMemo } from "react";
+import { DollarSign, TrendingUp, Wallet, Users, Building2 } from "lucide-react";
+import { useMemo, useState } from "react";
+import StatCard from "@/components/StatCard";
+import { Button } from "@/components/ui/button";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 export default function Budget() {
-  const { members, totalBudget } = useOrganization();
+  const { members, meetings, totalBudget, totalLoanCollected, totalLoanOutstanding } = useOrganization();
+  const [currentPage, setCurrentPage] = useState(1);
+  const [selectedMember, setSelectedMember] = useState<number | null>(null);
+  const itemsPerPage = 5;
 
-  // Calculate budget statistics from members
-  const budgetStats = useMemo(() => {
-    const allContributions = members.flatMap(m => m.monthlyContributions);
-    const paidContributions = allContributions.filter(c => c.paid);
-    
-    const totalCollected = paidContributions.reduce((sum, c) => sum + c.amount, 0);
-    const averagePerMember = members.length > 0 ? Math.floor(totalCollected / members.length) : 0;
-    
-    // Get current month contributions
-    const currentMonth = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-    const currentMonthContributions = paidContributions.filter(c => c.month === currentMonth);
-    const currentMonthTotal = currentMonthContributions.reduce((sum, c) => sum + c.amount, 0);
-    const currentMonthMembers = new Set(
-      members.filter(m => 
-        m.monthlyContributions.some(c => c.month === currentMonth && c.paid)
-      ).map(m => m.id)
-    ).size;
+  // Get latest meeting
+  const latestMeeting = useMemo(() => {
+    if (meetings.length === 0) return null;
+    return meetings.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+  }, [meetings]);
 
-    return {
-      currentMonthTotal,
-      currentMonthMembers,
-      averagePerMember,
-      totalCollected
-    };
-  }, [members]);
+  // Calculate this month's total from latest meeting
+  const thisMonthTotal = useMemo(() => {
+    if (!latestMeeting) return 0;
+    return latestMeeting.contributions.reduce((sum, c) => sum + c.amount, 0);
+  }, [latestMeeting]);
 
-  // Group contributions by month for history
-  const monthlyHistory = useMemo(() => {
-    const monthMap = new Map<string, { total: number; memberIds: Set<number> }>();
+  // Calculate member budgets
+  const memberBudgets = useMemo(() => {
+    const budgetMap = new Map<number, number>();
     
-    members.forEach(member => {
-      member.monthlyContributions
-        .filter(c => c.paid)
-        .forEach(contribution => {
-          if (!monthMap.has(contribution.month)) {
-            monthMap.set(contribution.month, { total: 0, memberIds: new Set() });
-          }
-          const data = monthMap.get(contribution.month)!;
-          data.total += contribution.amount;
-          data.memberIds.add(member.id);
-        });
+    meetings.forEach(meeting => {
+      meeting.contributions.forEach(contrib => {
+        const current = budgetMap.get(contrib.memberId) || 0;
+        budgetMap.set(contrib.memberId, current + contrib.amount);
+      });
     });
 
-    return Array.from(monthMap.entries())
-      .map(([month, data]) => ({
-        month,
-        collected: data.total,
-        members: data.memberIds.size,
-        status: "Completed"
-      }))
-      .sort((a, b) => new Date(b.month).getTime() - new Date(a.month).getTime());
-  }, [members]);
+    return Array.from(budgetMap.entries())
+      .map(([memberId, total]) => {
+        const member = members.find(m => m.id === memberId);
+        return {
+          memberId,
+          memberName: member?.name || 'Unknown',
+          totalBudget: total
+        };
+      })
+      .sort((a, b) => b.totalBudget - a.totalBudget);
+  }, [meetings, members]);
+
+  // Top 5 highest budgets
+  const topFiveBudgets = useMemo(() => {
+    return memberBudgets.slice(0, 5);
+  }, [memberBudgets]);
+
+  // Paginated member budgets
+  const paginatedMembers = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return memberBudgets.slice(startIndex, startIndex + itemsPerPage);
+  }, [memberBudgets, currentPage]);
+
+  const totalPages = Math.ceil(memberBudgets.length / itemsPerPage);
+
+  // Get member contributions by month
+  const getMemberMonthlyContributions = (memberId: number) => {
+    const monthlyContribs = new Map<string, number>();
+    
+    meetings.forEach(meeting => {
+      const contrib = meeting.contributions.find(c => c.memberId === memberId);
+      if (contrib) {
+        const month = new Date(meeting.date).toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+        const current = monthlyContribs.get(month) || 0;
+        monthlyContribs.set(month, current + contrib.amount);
+      }
+    });
+
+    return Array.from(monthlyContribs.entries())
+      .map(([month, amount]) => ({ month, amount }))
+      .sort((a, b) => b.month.localeCompare(a.month));
+  };
 
   return (
     <div className="space-y-6">
@@ -67,65 +86,130 @@ export default function Budget() {
           <h2 className="text-3xl font-bold text-foreground">Monthly Budget</h2>
           <p className="text-muted-foreground mt-1">Track monthly contributions</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" className="gap-2">
-            <Download className="w-4 h-4" />
-            Export
-          </Button>
-        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="shadow-md">
-          <CardContent className="p-6">
-            <p className="text-sm text-muted-foreground">This Month</p>
-            <p className="text-3xl font-bold text-foreground mt-2">PKR {budgetStats.currentMonthTotal.toLocaleString()}</p>
-            <p className="text-sm text-secondary mt-2">{budgetStats.currentMonthMembers} members contributed</p>
-          </CardContent>
-        </Card>
-        <Card className="shadow-md">
-          <CardContent className="p-6">
-            <p className="text-sm text-muted-foreground">Average/Member</p>
-            <p className="text-3xl font-bold text-foreground mt-2">PKR {budgetStats.averagePerMember.toLocaleString()}</p>
-            <p className="text-sm text-muted-foreground mt-2">All time</p>
-          </CardContent>
-        </Card>
-        <Card className="shadow-md">
-          <CardContent className="p-6">
-            <p className="text-sm text-muted-foreground">Total Collected</p>
-            <p className="text-3xl font-bold text-foreground mt-2">PKR {budgetStats.totalCollected.toLocaleString()}</p>
-            <p className="text-sm text-muted-foreground mt-2">All time</p>
-          </CardContent>
-        </Card>
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          title="This Month"
+          value={`PKR ${thisMonthTotal.toLocaleString()}`}
+          icon={DollarSign}
+          trend={latestMeeting ? `Meeting on ${new Date(latestMeeting.date).toLocaleDateString()}` : 'No meeting yet'}
+          trendUp={true}
+        />
+        <StatCard
+          title="Total Loan Collected"
+          value={`PKR ${totalLoanCollected.toLocaleString()}`}
+          icon={TrendingUp}
+        />
+        <StatCard
+          title="Total Loan Outstanding"
+          value={`PKR ${totalLoanOutstanding.toLocaleString()}`}
+          icon={Wallet}
+        />
+        <StatCard
+          title="Total Organization Budget"
+          value={`PKR ${totalBudget.toLocaleString()}`}
+          icon={Building2}
+        />
       </div>
 
       <Card className="shadow-md">
         <CardHeader>
-          <CardTitle>Collection History</CardTitle>
+          <CardTitle>Top 5 Highest Contributors</CardTitle>
         </CardHeader>
         <CardContent>
-          {monthlyHistory.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">No contribution history yet. Add members and record their contributions.</p>
-          ) : (
-            <div className="space-y-3">
-              {monthlyHistory.map((data, index) => (
-                <div 
-                  key={index}
-                  className="flex items-center justify-between p-4 rounded-lg border border-border"
-                >
-                  <div>
-                    <h3 className="font-semibold text-foreground">{data.month}</h3>
-                    <p className="text-sm text-muted-foreground">{data.members} members</p>
+          {topFiveBudgets.length > 0 ? (
+            <div className="space-y-4">
+              {topFiveBudgets.map((member, index) => (
+                <div key={member.memberId} className="flex items-center justify-between p-4 rounded-lg bg-muted/50">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-bold">
+                      {index + 1}
+                    </div>
+                    <div>
+                      <p className="font-semibold text-foreground">{member.memberName}</p>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-lg font-bold text-foreground">PKR {data.collected.toLocaleString()}</p>
-                    <span className="inline-block px-3 py-1 bg-secondary/10 text-secondary text-xs font-medium rounded-full">
-                      {data.status}
-                    </span>
-                  </div>
+                  <p className="text-lg font-bold text-foreground">PKR {member.totalBudget.toLocaleString()}</p>
                 </div>
               ))}
             </div>
+          ) : (
+            <p className="text-center text-muted-foreground py-8">No contributions yet</p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="shadow-md">
+        <CardHeader>
+          <CardTitle>Member Contributions</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {memberBudgets.length > 0 ? (
+            <>
+              <div className="space-y-4">
+                {paginatedMembers.map((member) => (
+                  <div key={member.memberId} className="border rounded-lg p-4">
+                    <div className="flex justify-between items-center mb-2">
+                      <div>
+                        <p className="font-semibold text-foreground">{member.memberName}</p>
+                        <p className="text-sm text-muted-foreground">Total Budget</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-lg font-bold text-foreground">PKR {member.totalBudget.toLocaleString()}</p>
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => setSelectedMember(selectedMember === member.memberId ? null : member.memberId)}
+                        >
+                          {selectedMember === member.memberId ? 'Hide' : 'View'} Monthly
+                        </Button>
+                      </div>
+                    </div>
+                    
+                    {selectedMember === member.memberId && (
+                      <div className="mt-4 pt-4 border-t space-y-2">
+                        <p className="font-semibold text-sm text-muted-foreground mb-2">Monthly Contributions:</p>
+                        {getMemberMonthlyContributions(member.memberId).map((monthly) => (
+                          <div key={monthly.month} className="flex justify-between items-center p-2 rounded bg-muted/50">
+                            <span className="text-sm">{monthly.month}</span>
+                            <Badge variant="secondary">PKR {monthly.amount.toLocaleString()}</Badge>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between mt-6">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                  >
+                    <ChevronLeft className="w-4 h-4 mr-2" />
+                    Previous
+                  </Button>
+                  <span className="text-sm text-muted-foreground">
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                  >
+                    Next
+                    <ChevronRight className="w-4 h-4 ml-2" />
+                  </Button>
+                </div>
+              )}
+            </>
+          ) : (
+            <p className="text-center text-muted-foreground py-8">No contributions recorded yet</p>
           )}
         </CardContent>
       </Card>
