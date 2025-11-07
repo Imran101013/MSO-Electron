@@ -47,6 +47,13 @@ export interface Meeting {
   loanIssues: MeetingLoanIssue[];
 }
 
+export interface UpcomingMeeting {
+  id: number;
+  date: string;
+  time: string;
+  agenda: string;
+}
+
 export interface Member {
   id: number;
   name: string;
@@ -68,6 +75,8 @@ interface OrganizationContextType {
   setMembers: (members: Member[]) => void;
   meetings: Meeting[];
   setMeetings: (meetings: Meeting[]) => void;
+  upcomingMeetings: UpcomingMeeting[];
+  setUpcomingMeetings: (meetings: UpcomingMeeting[]) => void;
   totalBudget: number;
   totalMembers: number;
   activeLoans: number;
@@ -80,10 +89,12 @@ const OrganizationContext = createContext<OrganizationContextType | undefined>(u
 
 const initialMembers: Member[] = [];
 const initialMeetings: Meeting[] = [];
+const initialUpcomingMeetings: UpcomingMeeting[] = [];
 
 export function OrganizationProvider({ children }: { children: ReactNode }) {
   const [members, setMembers] = useState<Member[]>(initialMembers);
   const [meetings, setMeetings] = useState<Meeting[]>(initialMeetings);
+  const [upcomingMeetings, setUpcomingMeetings] = useState<UpcomingMeeting[]>(initialUpcomingMeetings);
 
   // Calculate total budget from all meetings contributions
   const totalBudget = meetings.reduce((sum, meeting) => {
@@ -127,6 +138,8 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         setMembers,
         meetings,
         setMeetings,
+        upcomingMeetings,
+        setUpcomingMeetings,
         totalBudget, 
         totalMembers,
         activeLoans,

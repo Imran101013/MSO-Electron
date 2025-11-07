@@ -1,10 +1,24 @@
 import StatCard from "@/components/StatCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, Wallet, HandCoins, PiggyBank, Calendar, TrendingUp } from "lucide-react";
+import { Users, Wallet, HandCoins, PiggyBank, Calendar, TrendingUp, Clock } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { format, parseISO, isPast } from "date-fns";
+import { useEffect } from "react";
 
 export default function Dashboard() {
-  const { totalBudget, totalMembers, activeLoans, reserveFund } = useOrganization();
+  const { totalBudget, totalMembers, activeLoans, reserveFund, upcomingMeetings, setUpcomingMeetings } = useOrganization();
+
+  // Filter out past meetings
+  useEffect(() => {
+    const filteredMeetings = upcomingMeetings.filter(meeting => {
+      const meetingDateTime = parseISO(`${meeting.date}T${meeting.time}`);
+      return !isPast(meetingDateTime);
+    });
+    
+    if (filteredMeetings.length !== upcomingMeetings.length) {
+      setUpcomingMeetings(filteredMeetings);
+    }
+  }, [upcomingMeetings, setUpcomingMeetings]);
 
   return (
     <div className="space-y-8">
@@ -51,21 +65,37 @@ export default function Dashboard() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Calendar className="w-5 h-5 text-primary" />
-              Getting Started
+              Upcoming Meetings
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">
-                Welcome to AL-Hilal Organization Management System. Start by adding members to your organization.
-              </p>
-              <ul className="list-disc list-inside space-y-2 text-sm text-muted-foreground">
-                <li>Add members from the Members page</li>
-                <li>Track monthly contributions</li>
-                <li>Manage loans and reserve funds</li>
-                <li>Schedule and record meetings</li>
-              </ul>
-            </div>
+            {upcomingMeetings.length > 0 ? (
+              <div className="space-y-4">
+                {upcomingMeetings.map(meeting => (
+                  <div key={meeting.id} className="p-4 rounded-lg border bg-card">
+                    <div className="flex items-start gap-3">
+                      <Clock className="w-5 h-5 text-primary mt-0.5" />
+                      <div className="flex-1">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <h4 className="font-semibold text-foreground">{meeting.agenda}</h4>
+                            <p className="text-sm text-muted-foreground mt-1">
+                              {format(parseISO(meeting.date), "PPP")} at {meeting.time}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <Calendar className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                <p className="text-sm text-muted-foreground">No upcoming meetings scheduled</p>
+                <p className="text-xs text-muted-foreground mt-1">Schedule a meeting from the Meetings page</p>
+              </div>
+            )}
           </CardContent>
         </Card>
 
