@@ -34,28 +34,21 @@ export default function Dashboard() {
           title="Total Members"
           value={totalMembers.toString()}
           icon={Users}
-          trend="+3 this month"
-          trendUp={true}
         />
         <StatCard
           title="Total Budget"
           value={`PKR ${totalBudget.toLocaleString()}`}
           icon={Wallet}
-          trend="+PKR 42,000"
-          trendUp={true}
         />
         <StatCard
           title="Active Loans"
           value={`PKR ${activeLoans.toLocaleString()}`}
           icon={HandCoins}
-          trend="8 members"
         />
         <StatCard
           title="Reserve Fund"
           value={`PKR ${reserveFund.toLocaleString()}`}
           icon={PiggyBank}
-          trend="+PKR 15,000"
-          trendUp={true}
         />
       </div>
 
