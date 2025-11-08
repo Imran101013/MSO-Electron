@@ -6,7 +6,18 @@ import { format, parseISO, isPast } from "date-fns";
 import { useEffect } from "react";
 
 export default function Dashboard() {
-  const { totalBudget, totalMembers, activeLoans, reserveFund, upcomingMeetings, setUpcomingMeetings } = useOrganization();
+  const { 
+    totalBudget, 
+    totalMembers, 
+    activeLoans, 
+    reserveFund, 
+    upcomingMeetings, 
+    setUpcomingMeetings,
+    budgetTrend,
+    membersTrend,
+    loansTrend,
+    reserveTrend
+  } = useOrganization();
 
   // Filter out past meetings
   useEffect(() => {
@@ -34,21 +45,29 @@ export default function Dashboard() {
           title="Total Members"
           value={totalMembers.toString()}
           icon={Users}
+          trend={membersTrend ? `${membersTrend.amount >= 0 ? '+' : ''}${membersTrend.amount} this month` : undefined}
+          trendUp={membersTrend ? membersTrend.amount >= 0 : undefined}
         />
         <StatCard
           title="Total Budget"
           value={`PKR ${totalBudget.toLocaleString()}`}
           icon={Wallet}
+          trend={budgetTrend ? `${budgetTrend.amount >= 0 ? '+' : ''}PKR ${Math.abs(budgetTrend.amount).toLocaleString()} (${budgetTrend.percentage.toFixed(1)}%)` : undefined}
+          trendUp={budgetTrend ? budgetTrend.amount >= 0 : undefined}
         />
         <StatCard
           title="Active Loans"
           value={`PKR ${activeLoans.toLocaleString()}`}
           icon={HandCoins}
+          trend={loansTrend ? `${loansTrend.amount >= 0 ? '+' : ''}PKR ${Math.abs(loansTrend.amount).toLocaleString()} net change` : undefined}
+          trendUp={loansTrend ? loansTrend.amount < 0 : undefined}
         />
         <StatCard
           title="Reserve Fund"
           value={`PKR ${reserveFund.toLocaleString()}`}
           icon={PiggyBank}
+          trend={reserveTrend ? `${reserveTrend.amount >= 0 ? '+' : ''}PKR ${Math.abs(reserveTrend.amount).toLocaleString()}` : undefined}
+          trendUp={reserveTrend ? reserveTrend.amount >= 0 : undefined}
         />
       </div>
 
