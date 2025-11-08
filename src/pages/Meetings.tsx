@@ -48,7 +48,7 @@ type MeetingFormValues = z.infer<typeof meetingSchema>;
 type UpcomingMeetingFormValues = z.infer<typeof upcomingMeetingSchema>;
 
 export default function Meetings() {
-  const { members, meetings, setMeetings, upcomingMeetings, setUpcomingMeetings } = useOrganization();
+  const { members, setMembers, meetings, setMeetings, upcomingMeetings, setUpcomingMeetings } = useOrganization();
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isScheduleOpen, setIsScheduleOpen] = useState(false);
   const [viewMeetingId, setViewMeetingId] = useState<number | null>(null);
@@ -105,8 +105,53 @@ export default function Meetings() {
       loanIssues: data.loanIssues as typeof meetings[0]['loanIssues']
     };
 
+    // Update members' budget and contribution history
+    const updatedMembers = members.map(member => {
+      const contribution = data.contributions.find(c => c.memberId === member.id);
+      
+      if (contribution && contribution.present && contribution.amount > 0) {
+        return {
+          ...member,
+          totalBudget: member.totalBudget + contribution.amount,
+          monthlyContributions: [
+            ...member.monthlyContributions,
+            {
+              month: data.date,
+              amount: contribution.amount,
+              paid: true
+            }
+          ],
+          attendance: [
+            ...member.attendance,
+            {
+              date: data.date,
+              present: true
+            }
+          ]
+        };
+      } else if (contribution) {
+        // Mark attendance even if no contribution
+        return {
+          ...member,
+          attendance: [
+            ...member.attendance,
+            {
+              date: data.date,
+              present: contribution.present
+            }
+          ]
+        };
+      }
+      
+      return member;
+    });
+
+    setMembers(updatedMembers);
     setMeetings([...meetings, newMeeting]);
-    toast.success("Meeting added successfully");
+    
+    const totalContributed = data.contributions.reduce((sum, c) => sum + (c.present ? c.amount : 0), 0);
+    toast.success(`Meeting added successfully! Total contributions: PKR ${totalContributed.toLocaleString()}`);
+    
     setIsAddOpen(false);
     form.reset();
   };
