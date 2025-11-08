@@ -26,8 +26,9 @@ const formSchema = z.object({
   address: z.string().min(5, "Address must be at least 5 characters"),
   joinDate: z.string().min(1, "Join date is required"),
   profilePicture: z.string().optional(),
-  pastMeetings: z.array(z.object({
+  pastContributions: z.array(z.object({
     date: z.string().min(1, "Date is required"),
+    amount: z.coerce.number().min(0, "Amount must be positive"),
     present: z.boolean(),
   })).default([]),
 });
@@ -86,13 +87,13 @@ export default function Members() {
       address: "",
       joinDate: "",
       profilePicture: "",
-      pastMeetings: [],
+      pastContributions: [],
     },
   });
 
-  const { fields: pastMeetingFields, append: appendMeeting, remove: removeMeeting } = useFieldArray({
+  const { fields: pastContributionFields, append: appendContribution, remove: removeContribution } = useFieldArray({
     control: form.control,
-    name: "pastMeetings",
+    name: "pastContributions",
   });
 
   const contributionForm = useForm<ContributionFormValues>({
@@ -119,6 +120,11 @@ export default function Members() {
       });
       setEditingMember(null);
     } else {
+      // Calculate total budget from past contributions
+      const pastContributionsTotal = (data.pastContributions || [])
+        .filter(c => c.present)
+        .reduce((sum, c) => sum + (c.amount || 0), 0);
+
       // Add new member
       const newMember: Member = {
         id: members.length + 1,
@@ -130,15 +136,19 @@ export default function Members() {
         address: data.address,
         joinDate: data.joinDate,
         profilePicture: data.profilePicture,
-        monthlyContributions: [],
-        attendance: (data.pastMeetings || []).map(m => ({ date: m.date || "", present: m.present })),
+        monthlyContributions: (data.pastContributions || []).map(c => ({
+          month: c.date,
+          amount: c.amount || 0,
+          paid: c.present,
+        })),
+        attendance: (data.pastContributions || []).map(c => ({ date: c.date || "", present: c.present })),
         loans: [],
-        totalBudget: 0,
+        totalBudget: pastContributionsTotal,
       };
       setMembers([...members, newMember]);
       toast({
         title: "Member Added",
-        description: `${data.name} has been successfully added.`,
+        description: `${data.name} has been successfully added with PKR ${pastContributionsTotal.toLocaleString()} from past contributions.`,
       });
     }
     form.reset();
@@ -156,7 +166,7 @@ export default function Members() {
       address: member.address,
       joinDate: member.joinDate,
       profilePicture: member.profilePicture || "",
-      pastMeetings: member.attendance,
+      pastContributions: [],
     });
     setOpen(true);
   };
@@ -397,30 +407,30 @@ export default function Members() {
                   </div>
                 </div>
 
-                {/* Past Meeting Records */}
+                {/* Past Contributions */}
                 {!editingMember && (
                   <div className="space-y-3 pt-2">
                     <div className="flex items-center justify-between">
-                      <Label>Past Meeting Records (Optional)</Label>
+                      <Label>Past Meeting Contributions (Optional)</Label>
                       <Button
                         type="button"
                         variant="outline"
                         size="sm"
-                        onClick={() => appendMeeting({ date: "", present: true })}
+                        onClick={() => appendContribution({ date: "", amount: 0, present: true })}
                         className="gap-2"
                       >
                         <Calendar className="w-4 h-4" />
-                        Add Meeting
+                        Add Contribution
                       </Button>
                     </div>
-                    {pastMeetingFields.length > 0 && (
+                    {pastContributionFields.length > 0 && (
                       <div className="space-y-3 max-h-60 overflow-y-auto border border-border rounded-md p-3">
-                        {pastMeetingFields.map((field, index) => (
+                        {pastContributionFields.map((field, index) => (
                           <div key={field.id} className="flex items-center gap-3 p-3 border border-border rounded-md bg-muted/30">
-                            <div className="flex-1 grid grid-cols-2 gap-3">
+                            <div className="flex-1 grid grid-cols-3 gap-3">
                               <FormField
                                 control={form.control}
-                                name={`pastMeetings.${index}.date`}
+                                name={`pastContributions.${index}.date`}
                                 render={({ field }) => (
                                   <FormItem>
                                     <FormLabel className="text-xs">Meeting Date</FormLabel>
@@ -433,7 +443,25 @@ export default function Members() {
                               />
                               <FormField
                                 control={form.control}
-                                name={`pastMeetings.${index}.present`}
+                                name={`pastContributions.${index}.amount`}
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel className="text-xs">Amount (PKR)</FormLabel>
+                                    <FormControl>
+                                      <Input 
+                                        type="number" 
+                                        placeholder="0" 
+                                        {...field}
+                                        onChange={(e) => field.onChange(e.target.valueAsNumber || 0)}
+                                      />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                              <FormField
+                                control={form.control}
+                                name={`pastContributions.${index}.present`}
                                 render={({ field }) => (
                                   <FormItem className="flex items-center gap-2 space-y-0 pt-8">
                                     <FormControl>
@@ -445,7 +473,7 @@ export default function Members() {
                                       />
                                     </FormControl>
                                     <FormLabel className="text-xs font-normal cursor-pointer">
-                                      Present
+                                      Paid
                                     </FormLabel>
                                   </FormItem>
                                 )}
@@ -455,7 +483,7 @@ export default function Members() {
                               type="button"
                               variant="ghost"
                               size="icon"
-                              onClick={() => removeMeeting(index)}
+                              onClick={() => removeContribution(index)}
                               className="text-destructive hover:text-destructive"
                             >
                               <X className="w-4 h-4" />
@@ -464,9 +492,9 @@ export default function Members() {
                         ))}
                       </div>
                     )}
-                    {pastMeetingFields.length === 0 && (
+                    {pastContributionFields.length === 0 && (
                       <p className="text-xs text-muted-foreground text-center py-4 border border-dashed border-border rounded-md">
-                        No past meetings added. Click "Add Meeting" to record attendance history.
+                        No past contributions added. Click "Add Contribution" to record past meeting contributions.
                       </p>
                     )}
                   </div>

@@ -100,11 +100,11 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   const [meetings, setMeetings] = useState<Meeting[]>(initialMeetings);
   const [upcomingMeetings, setUpcomingMeetings] = useState<UpcomingMeeting[]>(initialUpcomingMeetings);
 
-  // Calculate total budget from all meetings contributions
+  // Calculate total budget from all meetings contributions + members' past contributions
   const totalBudget = meetings.reduce((sum, meeting) => {
     const meetingTotal = meeting.contributions.reduce((mSum, c) => mSum + c.amount, 0);
     return sum + meetingTotal;
-  }, 0);
+  }, 0) + members.reduce((sum, member) => sum + member.totalBudget, 0);
   
   // Calculate total members
   const totalMembers = members.length;
