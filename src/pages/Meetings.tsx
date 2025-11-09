@@ -105,16 +105,21 @@ export default function Meetings() {
       loanIssues: data.loanIssues as typeof meetings[0]['loanIssues']
     };
 
-    // Update members' budget and contribution history
+    // Update members' budget, contribution history, and loans
     const updatedMembers = members.map(member => {
       const contribution = data.contributions.find(c => c.memberId === member.id);
+      const loanCollection = data.loanCollections.find(c => c.memberId === member.id);
+      const loanIssue = data.loanIssues.find(l => l.memberId === member.id);
       
+      let updatedMember = { ...member };
+      
+      // Handle contributions and attendance
       if (contribution && contribution.present && contribution.amount > 0) {
-        return {
-          ...member,
-          totalBudget: member.totalBudget + contribution.amount,
+        updatedMember = {
+          ...updatedMember,
+          totalBudget: updatedMember.totalBudget + contribution.amount,
           monthlyContributions: [
-            ...member.monthlyContributions,
+            ...updatedMember.monthlyContributions,
             {
               month: data.date,
               amount: contribution.amount,
@@ -122,7 +127,7 @@ export default function Meetings() {
             }
           ],
           attendance: [
-            ...member.attendance,
+            ...updatedMember.attendance,
             {
               date: data.date,
               present: true
@@ -131,10 +136,10 @@ export default function Meetings() {
         };
       } else if (contribution) {
         // Mark attendance even if no contribution
-        return {
-          ...member,
+        updatedMember = {
+          ...updatedMember,
           attendance: [
-            ...member.attendance,
+            ...updatedMember.attendance,
             {
               date: data.date,
               present: contribution.present
@@ -143,7 +148,42 @@ export default function Meetings() {
         };
       }
       
-      return member;
+      // Handle loan collections (payments)
+      if (loanCollection && loanCollection.amount > 0) {
+        updatedMember = {
+          ...updatedMember,
+          loans: updatedMember.loans.map(loan => {
+            if (loan.status === "Active") {
+              const newRemaining = Math.max(0, loan.remainingAmount - loanCollection.amount);
+              return {
+                ...loan,
+                remainingAmount: newRemaining,
+                status: newRemaining === 0 ? "Paid" : "Active"
+              } as const;
+            }
+            return loan;
+          })
+        };
+      }
+      
+      // Handle loan issues (with 10% interest)
+      if (loanIssue && loanIssue.amount > 0) {
+        const loanWithInterest = loanIssue.amount * 1.1; // Add 10% interest
+        const newLoan = {
+          id: member.loans.length + 1,
+          amount: loanIssue.amount,
+          remainingAmount: loanWithInterest,
+          date: data.date,
+          status: "Active" as const
+        };
+        
+        updatedMember = {
+          ...updatedMember,
+          loans: [...updatedMember.loans, newLoan]
+        };
+      }
+      
+      return updatedMember;
     });
 
     setMembers(updatedMembers);
