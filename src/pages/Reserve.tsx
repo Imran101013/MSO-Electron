@@ -93,79 +93,86 @@ export default function Reserve() {
             </Button>
           </DialogTrigger>
           <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Add Transaction</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="type">Transaction Type</Label>
-                <Select value={formData.type} onValueChange={handleTypeChange}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="donation">Donation</SelectItem>
-                    <SelectItem value="expense">Expense</SelectItem>
-                  </SelectContent>
-                </Select>
+            <form
+              onSubmit={handleSubmit}
+              className="flex flex-col h-full max-h-[90vh]">
+              <DialogHeader>
+                <DialogTitle>Add Transaction</DialogTitle>
+              </DialogHeader>
+
+              <div className="flex-1 overflow-y-auto py-4 space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="type">Transaction Type</Label>
+                  <Select
+                    value={formData.type}
+                    onValueChange={handleTypeChange}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="donation">Donation</SelectItem>
+                      <SelectItem value="expense">Expense</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="amount">Amount (PKR)</Label>
+                  <Input
+                    id="amount"
+                    name="amount"
+                    type="number"
+                    placeholder="Enter amount"
+                    value={formData.amount}
+                    onChange={handleInputChange}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="date">Date</Label>
+                  <Input
+                    id="date"
+                    name="date"
+                    type="date"
+                    value={formData.date}
+                    onChange={handleInputChange}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="donorName">
+                    {formData.type === "donation"
+                      ? "Donor Name"
+                      : "Authorized By"}
+                  </Label>
+                  <Input
+                    id="donorName"
+                    name="donorName"
+                    placeholder={
+                      formData.type === "donation"
+                        ? "Enter donor name"
+                        : "Enter name"
+                    }
+                    value={formData.donorName}
+                    onChange={handleInputChange}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="notes">Notes</Label>
+                  <Textarea
+                    id="notes"
+                    name="notes"
+                    placeholder="Add any additional notes"
+                    value={formData.notes}
+                    onChange={handleInputChange}
+                  />
+                </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="amount">Amount (PKR)</Label>
-                <Input
-                  id="amount"
-                  name="amount"
-                  type="number"
-                  placeholder="Enter amount"
-                  value={formData.amount}
-                  onChange={handleInputChange}
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="date">Date</Label>
-                <Input
-                  id="date"
-                  name="date"
-                  type="date"
-                  value={formData.date}
-                  onChange={handleInputChange}
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="donorName">
-                  {formData.type === "donation"
-                    ? "Donor Name"
-                    : "Authorized By"}
-                </Label>
-                <Input
-                  id="donorName"
-                  name="donorName"
-                  placeholder={
-                    formData.type === "donation"
-                      ? "Enter donor name"
-                      : "Enter name"
-                  }
-                  value={formData.donorName}
-                  onChange={handleInputChange}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="notes">Notes</Label>
-                <Textarea
-                  id="notes"
-                  name="notes"
-                  placeholder="Add any additional notes"
-                  value={formData.notes}
-                  onChange={handleInputChange}
-                />
-              </div>
-
-              <div className="flex justify-end gap-4 pt-4">
+              <div className="flex justify-end gap-4 pt-4 border-t">
                 <Button
                   type="button"
                   variant="outline"
