@@ -33,14 +33,7 @@ const formSchema = z.object({
   })).default([]),
 });
 
-const contributionSchema = z.object({
-  month: z.string().min(1, "Month is required"),
-  amount: z.number().min(1, "Amount must be greater than 0"),
-  paid: z.boolean(),
-});
-
 type MemberFormValues = z.infer<typeof formSchema>;
-type ContributionFormValues = z.infer<typeof contributionSchema>;
 
 export default function Members() {
   const { members, setMembers } = useOrganization();
@@ -50,7 +43,6 @@ export default function Members() {
   const [memberToDelete, setMemberToDelete] = useState<Member | null>(null);
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
-  const [contributionDialogOpen, setContributionDialogOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -94,15 +86,6 @@ export default function Members() {
   const { fields: pastContributionFields, append: appendContribution, remove: removeContribution } = useFieldArray({
     control: form.control,
     name: "pastContributions",
-  });
-
-  const contributionForm = useForm<ContributionFormValues>({
-    resolver: zodResolver(contributionSchema),
-    defaultValues: {
-      month: "",
-      amount: 0,
-      paid: false,
-    },
   });
 
   const onSubmit = (data: MemberFormValues) => {
@@ -186,46 +169,6 @@ export default function Members() {
       setMemberToDelete(null);
     }
     setDeleteDialogOpen(false);
-  };
-
-  const handleAddContribution = (data: ContributionFormValues) => {
-    if (!selectedMember) return;
-
-    const updatedMembers = members.map(m => {
-      if (m.id === selectedMember.id) {
-        const newContribution: MonthlyContribution = {
-          month: data.month,
-          amount: data.amount,
-          paid: data.paid,
-        };
-        
-        const updatedContributions = [...m.monthlyContributions, newContribution];
-        const updatedBudget = data.paid ? m.totalBudget + data.amount : m.totalBudget;
-        
-        return {
-          ...m,
-          monthlyContributions: updatedContributions,
-          totalBudget: updatedBudget,
-        };
-      }
-      return m;
-    });
-
-    setMembers(updatedMembers);
-    
-    // Update selected member to reflect changes in the details dialog
-    const updatedSelectedMember = updatedMembers.find(m => m.id === selectedMember.id);
-    if (updatedSelectedMember) {
-      setSelectedMember(updatedSelectedMember);
-    }
-
-    toast({
-      title: "Contribution Added",
-      description: `Monthly contribution for ${data.month} has been added${data.paid ? ' and budget updated' : ''}.`,
-    });
-
-    contributionForm.reset();
-    setContributionDialogOpen(false);
   };
 
   const handleViewDetails = (member: Member) => {
@@ -759,93 +702,61 @@ export default function Members() {
               </div>
 
               <Tabs defaultValue="contributions" className="w-full">
-                <TabsList className="grid w-full grid-cols-3">
+                <TabsList className="grid w-full grid-cols-2">
                   <TabsTrigger value="contributions">Contributions</TabsTrigger>
-                  <TabsTrigger value="attendance">Attendance</TabsTrigger>
                   <TabsTrigger value="loans">Loans</TabsTrigger>
                 </TabsList>
                 
                 <TabsContent value="contributions" className="space-y-4">
                   <Card>
-                    <CardHeader className="flex flex-row items-center justify-between">
-                      <CardDescription>Monthly contribution history</CardDescription>
-                      <Button 
-                        size="sm" 
-                        onClick={() => setContributionDialogOpen(true)}
-                        className="gap-2"
-                      >
-                        <Plus className="w-4 h-4" />
-                        Add Contribution
-                      </Button>
+                    <CardHeader>
+                      <CardDescription>Monthly contribution and attendance history</CardDescription>
                     </CardHeader>
                     <CardContent>
                       {selectedMember.monthlyContributions.length > 0 ? (
                         <Table>
                           <TableHeader>
                             <TableRow>
-                              <TableHead>Month</TableHead>
+                              <TableHead>Date</TableHead>
                               <TableHead>Amount</TableHead>
                               <TableHead>Status</TableHead>
+                              <TableHead>Attendance</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {selectedMember.monthlyContributions.map((contribution, index) => (
-                              <TableRow key={index}>
-                                <TableCell>{contribution.month}</TableCell>
-                                <TableCell>PKR {contribution.amount.toLocaleString()}</TableCell>
-                                <TableCell>
-                                  <span className={`px-2 py-1 rounded-full text-xs ${
-                                    contribution.paid 
-                                      ? 'bg-green-100 text-green-700' 
-                                      : 'bg-red-100 text-red-700'
-                                  }`}>
-                                    {contribution.paid ? 'Paid' : 'Pending'}
-                                  </span>
-                                </TableCell>
-                              </TableRow>
-                            ))}
+                            {selectedMember.monthlyContributions.map((contribution, index) => {
+                              const attendanceRecord = selectedMember.attendance.find(
+                                a => a.date === contribution.month
+                              );
+                              return (
+                                <TableRow key={index}>
+                                  <TableCell>{new Date(contribution.month).toLocaleDateString()}</TableCell>
+                                  <TableCell>PKR {contribution.amount.toLocaleString()}</TableCell>
+                                  <TableCell>
+                                    <span className={`px-2 py-1 rounded-full text-xs ${
+                                      contribution.paid 
+                                        ? 'bg-green-100 text-green-700' 
+                                        : 'bg-red-100 text-red-700'
+                                    }`}>
+                                      {contribution.paid ? 'Paid' : 'Pending'}
+                                    </span>
+                                  </TableCell>
+                                  <TableCell>
+                                    <span className={`px-2 py-1 rounded-full text-xs ${
+                                      attendanceRecord?.present 
+                                        ? 'bg-green-100 text-green-700' 
+                                        : 'bg-red-100 text-red-700'
+                                    }`}>
+                                      {attendanceRecord?.present ? 'Present' : 'Absent'}
+                                    </span>
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
                           </TableBody>
                         </Table>
                       ) : (
                         <p className="text-muted-foreground text-center py-4">No contributions recorded</p>
-                      )}
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-
-                <TabsContent value="attendance" className="space-y-4">
-                  <Card>
-                    <CardHeader>
-                      <CardDescription>Meeting attendance record</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      {selectedMember.attendance.length > 0 ? (
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Date</TableHead>
-                              <TableHead>Status</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {selectedMember.attendance.map((record, index) => (
-                              <TableRow key={index}>
-                                <TableCell>{new Date(record.date).toLocaleDateString()}</TableCell>
-                                <TableCell>
-                                  <span className={`px-2 py-1 rounded-full text-xs ${
-                                    record.present 
-                                      ? 'bg-green-100 text-green-700' 
-                                      : 'bg-red-100 text-red-700'
-                                  }`}>
-                                    {record.present ? 'Present' : 'Absent'}
-                                  </span>
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      ) : (
-                        <p className="text-muted-foreground text-center py-4">No attendance records</p>
                       )}
                     </CardContent>
                   </Card>
@@ -898,78 +809,6 @@ export default function Members() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={contributionDialogOpen} onOpenChange={setContributionDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Add Monthly Contribution</DialogTitle>
-          </DialogHeader>
-          <Form {...contributionForm}>
-            <form onSubmit={contributionForm.handleSubmit(handleAddContribution)} className="space-y-4">
-              <FormField
-                control={contributionForm.control}
-                name="month"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Month</FormLabel>
-                    <FormControl>
-                      <Input type="month" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={contributionForm.control}
-                name="amount"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Amount (PKR)</FormLabel>
-                    <FormControl>
-                      <Input 
-                        type="number" 
-                        placeholder="5000" 
-                        {...field}
-                        onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={contributionForm.control}
-                name="paid"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
-                    <FormControl>
-                      <input
-                        type="checkbox"
-                        checked={field.value}
-                        onChange={field.onChange}
-                        className="h-4 w-4 rounded border-gray-300"
-                      />
-                    </FormControl>
-                    <div className="space-y-1 leading-none">
-                      <FormLabel>
-                        Mark as Paid
-                      </FormLabel>
-                      <p className="text-sm text-muted-foreground">
-                        This will automatically add the amount to total budget
-                      </p>
-                    </div>
-                  </FormItem>
-                )}
-              />
-              <div className="flex justify-end gap-3 pt-4">
-                <Button type="button" variant="outline" onClick={() => setContributionDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit">Add Contribution</Button>
-              </div>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
