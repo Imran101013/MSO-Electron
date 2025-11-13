@@ -11,8 +11,7 @@ export const ORGANIZATION_CONFIG = {
   MINIMUM_ADDRESS_LENGTH: 5,
 
   // Default date formats
-  DATE_FORMAT: "MM dd, yyyy",
-  SHORT_DATE_FORMAT: "MM dd, yyyy",
+  DATE_FORMAT: "dd/MM/yyyy",
 
   // Default currency
   CURRENCY: "PKR",

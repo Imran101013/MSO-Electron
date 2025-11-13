@@ -17,7 +17,6 @@ type FormState = {
   minimumPhoneLength: string;
   minimumAddressLength: string;
   dateFormat: string;
-  shortDateFormat: string;
   currency: string;
 };
 
@@ -31,7 +30,6 @@ export default function SettingsPage() {
     minimumPhoneLength: settings.minimumPhoneLength.toString(),
     minimumAddressLength: settings.minimumAddressLength.toString(),
     dateFormat: settings.dateFormat,
-    shortDateFormat: settings.shortDateFormat,
     currency: settings.currency,
   });
 
@@ -46,7 +44,6 @@ export default function SettingsPage() {
       minimumPhoneLength: Number(form.minimumPhoneLength) || 10,
       minimumAddressLength: Number(form.minimumAddressLength) || 5,
       dateFormat: form.dateFormat || settings.dateFormat,
-      shortDateFormat: form.shortDateFormat || settings.shortDateFormat,
       currency: form.currency || settings.currency,
     });
     toast.success("Settings saved");
@@ -61,7 +58,6 @@ export default function SettingsPage() {
       minimumPhoneLength: String(ORGANIZATION_CONFIG.MINIMUM_PHONE_LENGTH),
       minimumAddressLength: String(ORGANIZATION_CONFIG.MINIMUM_ADDRESS_LENGTH),
       dateFormat: ORGANIZATION_CONFIG.DATE_FORMAT,
-      shortDateFormat: ORGANIZATION_CONFIG.SHORT_DATE_FORMAT,
       currency: ORGANIZATION_CONFIG.CURRENCY,
     };
     setForm(defaults);
@@ -73,7 +69,6 @@ export default function SettingsPage() {
       minimumPhoneLength: ORGANIZATION_CONFIG.MINIMUM_PHONE_LENGTH,
       minimumAddressLength: ORGANIZATION_CONFIG.MINIMUM_ADDRESS_LENGTH,
       dateFormat: ORGANIZATION_CONFIG.DATE_FORMAT,
-      shortDateFormat: ORGANIZATION_CONFIG.SHORT_DATE_FORMAT,
       currency: ORGANIZATION_CONFIG.CURRENCY,
     });
     toast.success("Settings reset to defaults");
@@ -150,24 +145,6 @@ export default function SettingsPage() {
               value={form.dateFormat}
               onChange={(e) => onChange("dateFormat", e.target.value)}
             />
-            <p className="text-sm text-muted-foreground mt-2">
-              Preview:{" "}
-              {format(new Date(), form.dateFormat || settings.dateFormat)}
-            </p>
-          </div>
-          <div>
-            <Label>Short Date Format</Label>
-            <Input
-              value={form.shortDateFormat}
-              onChange={(e) => onChange("shortDateFormat", e.target.value)}
-            />
-            <p className="text-sm text-muted-foreground mt-2">
-              Preview:{" "}
-              {format(
-                new Date(),
-                form.shortDateFormat || settings.shortDateFormat
-              )}
-            </p>
           </div>
           <div>
             <Label>Currency</Label>

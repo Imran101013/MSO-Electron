@@ -15,7 +15,6 @@ export interface Settings {
   minimumPhoneLength: number;
   minimumAddressLength: number;
   dateFormat: string;
-  shortDateFormat: string;
   currency: string;
 }
 
@@ -46,7 +45,6 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       minimumPhoneLength: ORGANIZATION_CONFIG.MINIMUM_PHONE_LENGTH,
       minimumAddressLength: ORGANIZATION_CONFIG.MINIMUM_ADDRESS_LENGTH,
       dateFormat: ORGANIZATION_CONFIG.DATE_FORMAT,
-      shortDateFormat: ORGANIZATION_CONFIG.SHORT_DATE_FORMAT,
       currency: ORGANIZATION_CONFIG.CURRENCY,
     };
   });

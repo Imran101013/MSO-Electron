@@ -61,9 +61,7 @@ export default function Dashboard() {
       {/* Page Header */}
       <div>
         <h2 className="text-3xl font-bold text-foreground">Dashboard</h2>
-        <p className="text-muted-foreground mt-1">
-          Welcome to AL-Hilal Organization Management
-        </p>
+        <p className="text-muted-foreground mt-1">Welcome to AL-Hilal Organ</p>
       </div>
 
       {/* Stats Grid */}
@@ -80,6 +78,7 @@ export default function Dashboard() {
               : undefined
           }
           trendUp={membersTrend ? membersTrend.amount >= 0 : undefined}
+          bgColor="bg-blue-100"
         />
         <StatCard
           title="Total Budget"
@@ -93,6 +92,7 @@ export default function Dashboard() {
               : undefined
           }
           trendUp={budgetTrend ? budgetTrend.amount >= 0 : undefined}
+          bgColor="bg-green-100"
         />
         <StatCard
           title="Active Loans"
@@ -106,6 +106,7 @@ export default function Dashboard() {
               : undefined
           }
           trendUp={loansTrend ? loansTrend.amount < 0 : undefined}
+          bgColor="bg-yellow-100"
         />
         <StatCard
           title="Reserve Fund"
@@ -119,6 +120,7 @@ export default function Dashboard() {
               : undefined
           }
           trendUp={reserveTrend ? reserveTrend.amount >= 0 : undefined}
+          bgColor="bg-purple-100"
         />
       </div>
 

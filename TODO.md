@@ -1,0 +1,3 @@
+- [x] Update ChangePassword.tsx to use PasswordInput for all password fields
+- [x] Update ForgetPassword.tsx to use PasswordInput for the new password field
+- [x] Verify that Login.tsx and Signup.tsx already use PasswordInput

@@ -44,6 +44,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { format } from "date-fns";
+import { useAuth } from "@/contexts/AuthContext";
 
 const meetingSchema = z.object({
   date: z.string().min(1, "Date is required"),
@@ -78,6 +79,7 @@ export default function Meetings() {
     upcomingMeetings,
     setUpcomingMeetings,
   } = useOrganization();
+  const { isAdmin, user } = useAuth();
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isScheduleOpen, setIsScheduleOpen] = useState(false);
   const [viewMeetingId, setViewMeetingId] = useState<number | null>(null);
@@ -224,240 +226,249 @@ export default function Meetings() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Dialog open={isScheduleOpen} onOpenChange={setIsScheduleOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline" className="gap-2">
-                <Clock className="w-4 h-4" />
-                Schedule Meeting
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Schedule Upcoming Meeting</DialogTitle>
-              </DialogHeader>
-              <Form {...scheduleForm}>
-                <form
-                  onSubmit={scheduleForm.handleSubmit(onScheduleSubmit)}
-                  className="space-y-4">
-                  <FormField
-                    control={scheduleForm.control}
-                    name="date"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Meeting Date</FormLabel>
-                        <FormControl>
-                          <Input type="date" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={scheduleForm.control}
-                    name="time"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Meeting Time</FormLabel>
-                        <FormControl>
-                          <Input type="time" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={scheduleForm.control}
-                    name="venue"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Venue</FormLabel>
-                        <FormControl>
-                          <Textarea {...field} placeholder="Meeting venue..." />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <Button type="submit" className="w-full">
+          {isAdmin && (
+            <>
+              <Dialog open={isScheduleOpen} onOpenChange={setIsScheduleOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" className="gap-2">
+                    <Clock className="w-4 h-4" />
                     Schedule Meeting
                   </Button>
-                </form>
-              </Form>
-            </DialogContent>
-          </Dialog>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Schedule Upcoming Meeting</DialogTitle>
+                  </DialogHeader>
+                  <Form {...scheduleForm}>
+                    <form
+                      onSubmit={scheduleForm.handleSubmit(onScheduleSubmit)}
+                      className="space-y-4">
+                      <FormField
+                        control={scheduleForm.control}
+                        name="date"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Meeting Date</FormLabel>
+                            <FormControl>
+                              <Input type="date" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
 
-          <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-            <DialogTrigger asChild>
-              <Button className="gap-2">
-                <Plus className="w-4 h-4" />
-                Add New Meeting
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Add New Meeting</DialogTitle>
-              </DialogHeader>
-              <Form {...form}>
-                <form
-                  onSubmit={form.handleSubmit(onSubmit)}
-                  className="space-y-6">
-                  <FormField
-                    control={form.control}
-                    name="date"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Meeting Date</FormLabel>
-                        <FormControl>
-                          <Input type="date" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                      <FormField
+                        control={scheduleForm.control}
+                        name="time"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Meeting Time</FormLabel>
+                            <FormControl>
+                              <Input type="time" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
 
-                  <FormField
-                    control={form.control}
-                    name="agenda"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Agenda</FormLabel>
-                        <FormControl>
-                          <Textarea
-                            {...field}
-                            placeholder="Meeting agenda..."
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                      <FormField
+                        control={scheduleForm.control}
+                        name="venue"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Venue</FormLabel>
+                            <FormControl>
+                              <Textarea
+                                {...field}
+                                placeholder="Meeting venue..."
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
 
-                  <FormField
-                    control={form.control}
-                    name="decisions"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Decisions Made</FormLabel>
-                        <FormControl>
-                          <Textarea
-                            {...field}
-                            placeholder="Decisions made during the meeting..."
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                      <Button type="submit" className="w-full">
+                        Schedule Meeting
+                      </Button>
+                    </form>
+                  </Form>
+                </DialogContent>
+              </Dialog>
 
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-lg font-semibold">
-                        Member Contributions
-                      </h3>
-                      <div className="flex gap-2">
-                        <Input
-                          placeholder="Search member..."
-                          value={searchQuery}
-                          onChange={(e) => setSearchQuery(e.target.value)}
-                          className="w-48"
-                        />
-                      </div>
-                    </div>
+              <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+                <DialogTrigger asChild>
+                  <Button className="gap-2">
+                    <Plus className="w-4 h-4" />
+                    Add New Meeting
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>Add New Meeting</DialogTitle>
+                  </DialogHeader>
+                  <Form {...form}>
+                    <form
+                      onSubmit={form.handleSubmit(onSubmit)}
+                      className="space-y-6">
+                      <FormField
+                        control={form.control}
+                        name="date"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Meeting Date</FormLabel>
+                            <FormControl>
+                              <Input type="date" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
 
-                    {contributionFields.map((field, index) => {
-                      const member = members.find(
-                        (m) => m.id === field.memberId
-                      );
-                      return (
-                        <div
-                          key={field.id}
-                          className="flex gap-4 items-end p-4 border rounded-lg">
-                          <div className="flex-1">
-                            <Label>Member: {member?.name}</Label>
+                      <FormField
+                        control={form.control}
+                        name="agenda"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Agenda</FormLabel>
+                            <FormControl>
+                              <Textarea
+                                {...field}
+                                placeholder="Meeting agenda..."
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="decisions"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Decisions Made</FormLabel>
+                            <FormControl>
+                              <Textarea
+                                {...field}
+                                placeholder="Decisions made during the meeting..."
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-lg font-semibold">
+                            Member Contributions
+                          </h3>
+                          <div className="flex gap-2">
+                            <Input
+                              placeholder="Search member..."
+                              value={searchQuery}
+                              onChange={(e) => setSearchQuery(e.target.value)}
+                              className="w-48"
+                            />
                           </div>
-                          <FormField
-                            control={form.control}
-                            name={`contributions.${index}.amount`}
-                            render={({ field }) => (
-                              <FormItem className="flex-1">
-                                <FormLabel>Amount (PKR)</FormLabel>
-                                <FormControl>
-                                  <Input
-                                    type="number"
-                                    {...field}
-                                    onChange={(e) =>
-                                      field.onChange(Number(e.target.value))
-                                    }
-                                  />
-                                </FormControl>
-                              </FormItem>
-                            )}
-                          />
-                          <FormField
-                            control={form.control}
-                            name={`contributions.${index}.present`}
-                            render={({ field }) => (
-                              <FormItem className="flex items-center gap-2">
-                                <FormControl>
-                                  <Checkbox
-                                    checked={field.value}
-                                    onCheckedChange={field.onChange}
-                                  />
-                                </FormControl>
-                                <FormLabel className="!mt-0">Present</FormLabel>
-                              </FormItem>
-                            )}
-                          />
-                          <Button
-                            type="button"
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => removeContribution(index)}>
-                            Remove
-                          </Button>
                         </div>
-                      );
-                    })}
 
-                    {searchQuery && filteredMembers.length > 0 && (
-                      <div className="border rounded-lg p-2 max-h-48 overflow-y-auto">
-                        {filteredMembers.map((member) => (
-                          <Button
-                            key={member.id}
-                            type="button"
-                            variant="ghost"
-                            className="w-full justify-start"
-                            onClick={() => {
-                              appendContribution({
-                                memberId: member.id,
-                                amount: 0,
-                                present: true,
-                              });
-                              setSearchQuery("");
-                            }}>
-                            {member.name}
-                          </Button>
-                        ))}
+                        {contributionFields.map((field, index) => {
+                          const member = members.find(
+                            (m) => m.id === field.memberId
+                          );
+                          return (
+                            <div
+                              key={field.id}
+                              className="flex gap-4 items-end p-4 border rounded-lg">
+                              <div className="flex-1">
+                                <Label>Member: {member?.name}</Label>
+                              </div>
+                              <FormField
+                                control={form.control}
+                                name={`contributions.${index}.amount`}
+                                render={({ field }) => (
+                                  <FormItem className="flex-1">
+                                    <FormLabel>Amount (PKR)</FormLabel>
+                                    <FormControl>
+                                      <Input
+                                        type="number"
+                                        {...field}
+                                        onChange={(e) =>
+                                          field.onChange(Number(e.target.value))
+                                        }
+                                      />
+                                    </FormControl>
+                                  </FormItem>
+                                )}
+                              />
+                              <FormField
+                                control={form.control}
+                                name={`contributions.${index}.present`}
+                                render={({ field }) => (
+                                  <FormItem className="flex items-center gap-2">
+                                    <FormControl>
+                                      <Checkbox
+                                        checked={field.value}
+                                        onCheckedChange={field.onChange}
+                                      />
+                                    </FormControl>
+                                    <FormLabel className="!mt-0">
+                                      Present
+                                    </FormLabel>
+                                  </FormItem>
+                                )}
+                              />
+                              <Button
+                                type="button"
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => removeContribution(index)}>
+                                Remove
+                              </Button>
+                            </div>
+                          );
+                        })}
+
+                        {searchQuery && filteredMembers.length > 0 && (
+                          <div className="border rounded-lg p-2 max-h-48 overflow-y-auto">
+                            {filteredMembers.map((member) => (
+                              <Button
+                                key={member.id}
+                                type="button"
+                                variant="ghost"
+                                className="w-full justify-start"
+                                onClick={() => {
+                                  appendContribution({
+                                    memberId: member.id,
+                                    amount: 0,
+                                    present: true,
+                                  });
+                                  setSearchQuery("");
+                                }}>
+                                {member.name}
+                              </Button>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
 
-                  <div className="flex justify-end gap-4">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setIsAddOpen(false)}>
-                      Cancel
-                    </Button>
-                    <Button type="submit">Save Meeting</Button>
-                  </div>
-                </form>
-              </Form>
-            </DialogContent>
-          </Dialog>
+                      <div className="flex justify-end gap-4">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => setIsAddOpen(false)}>
+                          Cancel
+                        </Button>
+                        <Button type="submit">Save Meeting</Button>
+                      </div>
+                    </form>
+                  </Form>
+                </DialogContent>
+              </Dialog>
+            </>
+          )}
         </div>
       </div>
 

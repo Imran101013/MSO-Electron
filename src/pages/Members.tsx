@@ -74,6 +74,7 @@ import { ORGANIZATION_CONFIG } from "@/config/organization";
 import { useSettings } from "@/contexts/SettingsContext";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Label } from "@/components/ui/label";
+import { useAuth } from "@/contexts/AuthContext";
 
 const formSchema = z.object({
   name: z
@@ -119,12 +120,13 @@ type MemberFormValues = z.infer<typeof formSchema>;
 
 export default function Members() {
   const { members, setMembers } = useOrganization();
+  const { user, isMember } = useAuth();
   const [open, setOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<Member | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [memberToDelete, setMemberToDelete] = useState<Member | null>(null);
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
-  const [selectedMember, setSelectedMember] = useState<Member | null>(null);
+  const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -136,10 +138,22 @@ export default function Members() {
 
   const { settings } = useSettings();
 
-  // Filter members based on search query
-  const filteredMembers = members.filter((member) =>
-    member.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Derive selectedMember from current members array to keep it in sync
+  const selectedMember = selectedMemberId
+    ? members.find((m) => m.id === selectedMemberId) || null
+    : null;
+
+  // Filter members based on search query and role
+  const filteredMembers = members.filter((member) => {
+    const matchesSearch = member.name
+      .toLowerCase()
+      .includes(searchQuery.toLowerCase());
+    // If member role, only show their own details
+    if (isMember && user) {
+      return matchesSearch && member.email === user.email;
+    }
+    return matchesSearch;
+  });
 
   const totalPages = Math.ceil(filteredMembers.length / MEMBERS_PER_PAGE);
   const startIndex = (currentPage - 1) * MEMBERS_PER_PAGE;
@@ -269,7 +283,16 @@ export default function Members() {
   };
 
   const handleViewDetails = (member: Member) => {
-    setSelectedMember(member);
+    // Prevent members from viewing other members' details
+    if (isMember && user && member.email !== user.email) {
+      toast({
+        title: "Access Denied",
+        description: "You can only view your own details.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setSelectedMemberId(member.id);
     setDetailsDialogOpen(true);
   };
 
@@ -324,270 +347,273 @@ export default function Members() {
             Manage organization members
           </p>
         </div>
-        <Dialog open={open} onOpenChange={handleDialogClose}>
-          <DialogTrigger asChild>
-            <Button className="gap-2">
-              <Plus className="w-4 h-4" />
-              Add Member
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>
-                {editingMember ? "Edit Member" : "Add New Member"}
-              </DialogTitle>
-            </DialogHeader>
-            <Form {...form}>
-              <form
-                onSubmit={form.handleSubmit(onSubmit)}
-                className="space-y-4">
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Full Name</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Enter member name" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="fatherName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Father Name</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Enter father name" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="dob"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Date of Birth</FormLabel>
-                      <FormControl>
-                        <Input type="date" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Email</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="email"
-                          placeholder="member@email.com"
-                          {...field}
+        {!isMember && (
+          <Dialog open={open} onOpenChange={handleDialogClose}>
+            <DialogTrigger asChild>
+              <Button className="gap-2">
+                <Plus className="w-4 h-4" />
+                Add Member
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>
+                  {editingMember ? "Edit Member" : "Add New Member"}
+                </DialogTitle>
+              </DialogHeader>
+              <Form {...form}>
+                <form
+                  onSubmit={form.handleSubmit(onSubmit)}
+                  className="space-y-4">
+                  <FormField
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Full Name</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Enter member name" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="fatherName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Father Name</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Enter father name" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="dob"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Date of Birth</FormLabel>
+                        <FormControl>
+                          <Input type="date" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Email</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="email"
+                            placeholder="member@email.com"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="phone"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Phone Number</FormLabel>
+                        <FormControl>
+                          <Input placeholder="+92 300 1234567" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="address"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Address</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Enter full address" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="joinDate"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Joining Date</FormLabel>
+                        <FormControl>
+                          <Input type="date" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Profile Picture Upload */}
+                  <div className="space-y-2">
+                    <Label>Profile Picture</Label>
+                    <div className="flex items-center gap-4">
+                      <Avatar className="h-20 w-20">
+                        <AvatarImage
+                          src={
+                            profilePicturePreview ||
+                            editingMember?.profilePicture
+                          }
                         />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="phone"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Phone Number</FormLabel>
-                      <FormControl>
-                        <Input placeholder="+92 300 1234567" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="address"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Address</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Enter full address" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="joinDate"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Joining Date</FormLabel>
-                      <FormControl>
-                        <Input type="date" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                {/* Profile Picture Upload */}
-                <div className="space-y-2">
-                  <Label>Profile Picture</Label>
-                  <div className="flex items-center gap-4">
-                    <Avatar className="h-20 w-20">
-                      <AvatarImage
-                        src={
-                          profilePicturePreview || editingMember?.profilePicture
-                        }
-                      />
-                      <AvatarFallback className="bg-gradient-primary">
-                        <Upload className="w-8 h-8 text-primary-foreground" />
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1">
-                      <Input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleProfilePictureChange}
-                        className="cursor-pointer"
-                      />
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Upload a profile picture (optional)
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Past Contributions */}
-                {!editingMember && (
-                  <div className="space-y-3 pt-2">
-                    <div className="flex items-center justify-between">
-                      <Label>Past Meeting Contributions (Optional)</Label>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() =>
-                          appendContribution({
-                            date: "",
-                            amount: 0,
-                            present: true,
-                          })
-                        }
-                        className="gap-2">
-                        <Calendar className="w-4 h-4" />
-                        Add Contribution
-                      </Button>
-                    </div>
-                    {pastContributionFields.length > 0 && (
-                      <div className="space-y-3 max-h-60 overflow-y-auto border border-border rounded-md p-3">
-                        {pastContributionFields.map((field, index) => (
-                          <div
-                            key={field.id}
-                            className="flex items-center gap-3 p-3 border border-border rounded-md bg-muted/30">
-                            <div className="flex-1 grid grid-cols-3 gap-3">
-                              <FormField
-                                control={form.control}
-                                name={`pastContributions.${index}.date`}
-                                render={({ field }) => (
-                                  <FormItem>
-                                    <FormLabel className="text-xs">
-                                      Meeting Date
-                                    </FormLabel>
-                                    <FormControl>
-                                      <Input type="date" {...field} />
-                                    </FormControl>
-                                    <FormMessage />
-                                  </FormItem>
-                                )}
-                              />
-                              <FormField
-                                control={form.control}
-                                name={`pastContributions.${index}.amount`}
-                                render={({ field }) => (
-                                  <FormItem>
-                                    <FormLabel className="text-xs">
-                                      Amount (PKR)
-                                    </FormLabel>
-                                    <FormControl>
-                                      <Input
-                                        type="number"
-                                        placeholder="0"
-                                        {...field}
-                                        onChange={(e) =>
-                                          field.onChange(
-                                            e.target.valueAsNumber || 0
-                                          )
-                                        }
-                                      />
-                                    </FormControl>
-                                    <FormMessage />
-                                  </FormItem>
-                                )}
-                              />
-                              <FormField
-                                control={form.control}
-                                name={`pastContributions.${index}.present`}
-                                render={({ field }) => (
-                                  <FormItem className="flex items-center gap-2 space-y-0 pt-8">
-                                    <FormControl>
-                                      <input
-                                        type="checkbox"
-                                        checked={field.value}
-                                        onChange={field.onChange}
-                                        className="w-4 h-4 rounded border-border"
-                                      />
-                                    </FormControl>
-                                    <FormLabel className="text-xs font-normal cursor-pointer">
-                                      Present
-                                    </FormLabel>
-                                  </FormItem>
-                                )}
-                              />
-                            </div>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => removeContribution(index)}
-                              className="text-destructive hover:text-destructive">
-                              <X className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        ))}
+                        <AvatarFallback className="bg-gradient-primary">
+                          <Upload className="w-8 h-8 text-primary-foreground" />
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1">
+                        <Input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleProfilePictureChange}
+                          className="cursor-pointer"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Upload a profile picture (optional)
+                        </p>
                       </div>
-                    )}
-                    {pastContributionFields.length === 0 && (
-                      <p className="text-xs text-muted-foreground text-center py-4 border border-dashed border-border rounded-md">
-                        No past contributions added. Click "Add Contribution" to
-                        record past meeting contributions.
-                      </p>
-                    )}
+                    </div>
                   </div>
-                )}
 
-                <div className="flex justify-end gap-3 pt-4">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => handleDialogClose(false)}>
-                    Cancel
-                  </Button>
-                  <Button type="submit">
-                    {editingMember ? "Update Member" : "Add Member"}
-                  </Button>
-                </div>
-              </form>
-            </Form>
-          </DialogContent>
-        </Dialog>
+                  {/* Past Contributions */}
+                  {!editingMember && (
+                    <div className="space-y-3 pt-2">
+                      <div className="flex items-center justify-between">
+                        <Label>Past Meeting Contributions (Optional)</Label>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            appendContribution({
+                              date: "",
+                              amount: 0,
+                              present: true,
+                            })
+                          }
+                          className="gap-2">
+                          <Calendar className="w-4 h-4" />
+                          Add Contribution
+                        </Button>
+                      </div>
+                      {pastContributionFields.length > 0 && (
+                        <div className="space-y-3 max-h-60 overflow-y-auto border border-border rounded-md p-3">
+                          {pastContributionFields.map((field, index) => (
+                            <div
+                              key={field.id}
+                              className="flex items-center gap-3 p-3 border border-border rounded-md bg-muted/30">
+                              <div className="flex-1 grid grid-cols-3 gap-3">
+                                <FormField
+                                  control={form.control}
+                                  name={`pastContributions.${index}.date`}
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel className="text-xs">
+                                        Meeting Date
+                                      </FormLabel>
+                                      <FormControl>
+                                        <Input type="date" {...field} />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                                <FormField
+                                  control={form.control}
+                                  name={`pastContributions.${index}.amount`}
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel className="text-xs">
+                                        Amount (PKR)
+                                      </FormLabel>
+                                      <FormControl>
+                                        <Input
+                                          type="number"
+                                          placeholder="0"
+                                          {...field}
+                                          onChange={(e) =>
+                                            field.onChange(
+                                              e.target.valueAsNumber || 0
+                                            )
+                                          }
+                                        />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                                <FormField
+                                  control={form.control}
+                                  name={`pastContributions.${index}.present`}
+                                  render={({ field }) => (
+                                    <FormItem className="flex items-center gap-2 space-y-0 pt-8">
+                                      <FormControl>
+                                        <input
+                                          type="checkbox"
+                                          checked={field.value}
+                                          onChange={field.onChange}
+                                          className="w-4 h-4 rounded border-border"
+                                        />
+                                      </FormControl>
+                                      <FormLabel className="text-xs font-normal cursor-pointer">
+                                        Present
+                                      </FormLabel>
+                                    </FormItem>
+                                  )}
+                                />
+                              </div>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => removeContribution(index)}
+                                className="text-destructive hover:text-destructive">
+                                <X className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {pastContributionFields.length === 0 && (
+                        <p className="text-xs text-muted-foreground text-center py-4 border border-dashed border-border rounded-md">
+                          No past contributions added. Click "Add Contribution"
+                          to record past meeting contributions.
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="flex justify-end gap-3 pt-4">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => handleDialogClose(false)}>
+                      Cancel
+                    </Button>
+                    <Button type="submit">
+                      {editingMember ? "Update Member" : "Add Member"}
+                    </Button>
+                  </div>
+                </form>
+              </Form>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
 
       <Card className="shadow-md">
@@ -779,7 +805,14 @@ export default function Members() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <Dialog open={detailsDialogOpen} onOpenChange={setDetailsDialogOpen}>
+      <Dialog
+        open={detailsDialogOpen}
+        onOpenChange={(open) => {
+          setDetailsDialogOpen(open);
+          if (!open) {
+            setSelectedMemberId(null);
+          }
+        }}>
         <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Member Details</DialogTitle>
@@ -825,10 +858,6 @@ export default function Members() {
                               : m
                           );
                           setMembers(updatedMembers);
-                          setSelectedMember({
-                            ...selectedMember,
-                            profilePicture: base64String,
-                          });
                           toast({
                             title: "Profile Picture Updated",
                             description:
@@ -955,7 +984,7 @@ export default function Members() {
                           <TableHeader>
                             <TableRow>
                               <TableHead>Date</TableHead>
-                              <TableHead>Amount (with 10% Interest)</TableHead>
+                              <TableHead>Amount Payable</TableHead>
                               <TableHead>Remaining</TableHead>
                               <TableHead>Status</TableHead>
                             </TableRow>

@@ -364,7 +364,7 @@ export default function Loans() {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">
-                  Total Outstanding (with 10% Interest)
+                  Total Outstanding
                 </p>
                 <p className="text-2xl font-bold text-foreground">
                   PKR {loanStats.totalWithInterest.toLocaleString()}
@@ -425,9 +425,7 @@ export default function Loans() {
                     </div>
                     <div className="flex gap-6 text-sm">
                       <div>
-                        <p className="text-muted-foreground">
-                          Loan Amount (with 10% Interest)
-                        </p>
+                        <p className="text-muted-foreground">Amount Payable</p>
                         <p className="font-medium text-primary">
                           PKR {loan.amountWithInterest.toLocaleString()}
                         </p>

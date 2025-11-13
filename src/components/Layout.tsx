@@ -1,6 +1,7 @@
 import { ReactNode } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   LayoutDashboard,
   Users,
@@ -9,13 +10,30 @@ import {
   PiggyBank,
   FileText,
   Settings,
+  LogOut,
+  Lock,
 } from "lucide-react";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarHeader,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarTrigger,
+} from "@/components/ui/sidebar";
+import { Button } from "@/components/ui/button";
+import MemberSearch from "@/components/MemberSearch";
 
 interface LayoutProps {
   children: ReactNode;
 }
 
-const navigation = [
+const adminNavigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "Members", href: "/members", icon: Users },
   { name: "Budget", href: "/budget", icon: Wallet },
@@ -25,61 +43,91 @@ const navigation = [
   { name: "Settings", href: "/settings", icon: Settings },
 ];
 
+const memberNavigation = [
+  { name: "Dashboard", href: "/", icon: LayoutDashboard },
+  { name: "Members", href: "/members", icon: Users },
+  { name: "Meetings", href: "/meetings", icon: FileText },
+];
+
 export default function Layout({ children }: LayoutProps) {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, logout, isAdmin } = useAuth();
+
+  const navigation = isAdmin ? adminNavigation : memberNavigation;
+
+  const handleLogout = () => {
+    logout();
+    navigate("/login");
+  };
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b border-border bg-card shadow-sm sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-gradient-primary flex items-center justify-center">
-                <span className="text-primary-foreground font-bold text-xl">
-                  AH
-                </span>
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-foreground">
-                  AL-Hilal Organization
-                </h1>
-                <p className="text-xs text-muted-foreground">
-                  Community Management System
-                </p>
-              </div>
+    <SidebarProvider>
+      <Sidebar>
+        <SidebarHeader>
+          <div className="flex items-center gap-3 px-2 py-2">
+            <div className="w-10 h-10 rounded-lg bg-gradient-primary flex items-center justify-center">
+              <span className="text-primary-foreground font-bold text-xl">
+                AH
+              </span>
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-sidebar-foreground">
+                AL-Hilal
+              </h1>
+              <p className="text-xs text-sidebar-foreground/70">
+                Society Management System
+              </p>
             </div>
           </div>
-        </div>
-      </header>
-
-      {/* Navigation */}
-      <nav className="border-b border-border bg-card shadow-sm">
-        <div className="container mx-auto px-4">
-          <div className="flex gap-1 overflow-x-auto">
-            {navigation.map((item) => {
-              const isActive = location.pathname === item.href;
-              return (
-                <Link
-                  key={item.name}
-                  to={item.href}
-                  className={cn(
-                    "flex items-center gap-2 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors border-b-2",
-                    isActive
-                      ? "border-primary text-primary"
-                      : "border-transparent text-muted-foreground hover:text-foreground hover:border-muted"
-                  )}>
-                  <item.icon className="w-4 h-4" />
-                  {item.name}
-                </Link>
-              );
-            })}
+        </SidebarHeader>
+        <SidebarContent>
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {navigation.map((item) => {
+                  const isActive = location.pathname === item.href;
+                  return (
+                    <SidebarMenuItem key={item.name}>
+                      <SidebarMenuButton asChild isActive={isActive}>
+                        <Link to={item.href}>
+                          <item.icon />
+                          <span>{item.name}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        </SidebarContent>
+      </Sidebar>
+      <SidebarInset>
+        {/* Header */}
+        <header className="flex h-10 shrink-0 items-center gap-2 mt-4 px-4">
+          <SidebarTrigger className="-ml-1" />
+          <div className="flex-1" />
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">
+              Welcome, {user?.name}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate("/change-password")}>
+              <Lock className="w-4 h-4 mr-2" />
+              Change Password
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleLogout}>
+              <LogOut className="w-4 h-4 mr-2" />
+              Logout
+            </Button>
           </div>
-        </div>
-      </nav>
-
-      {/* Main Content */}
-      <main className="container mx-auto px-4 py-8">{children}</main>
-    </div>
+        </header>
+        {/* Main Content */}
+        <main className="flex flex-1 flex-col gap-4 p-4">{children}</main>
+      </SidebarInset>
+    </SidebarProvider>
   );
 }
