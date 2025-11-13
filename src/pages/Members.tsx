@@ -71,6 +71,7 @@ import {
   MonthlyContribution,
 } from "@/contexts/OrganizationContext";
 import { ORGANIZATION_CONFIG } from "@/config/organization";
+import { useSettings } from "@/contexts/SettingsContext";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Label } from "@/components/ui/label";
 
@@ -132,6 +133,8 @@ export default function Members() {
   const { toast } = useToast();
 
   const MEMBERS_PER_PAGE = 5;
+
+  const { settings } = useSettings();
 
   // Filter members based on search query
   const filteredMembers = members.filter((member) =>
@@ -952,35 +955,43 @@ export default function Members() {
                           <TableHeader>
                             <TableRow>
                               <TableHead>Date</TableHead>
-                              <TableHead>Amount</TableHead>
+                              <TableHead>Amount (with 10% Interest)</TableHead>
                               <TableHead>Remaining</TableHead>
                               <TableHead>Status</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {selectedMember.loans.map((loan) => (
-                              <TableRow key={loan.id}>
-                                <TableCell>
-                                  {new Date(loan.date).toLocaleDateString()}
-                                </TableCell>
-                                <TableCell>
-                                  PKR {loan.amount.toLocaleString()}
-                                </TableCell>
-                                <TableCell>
-                                  PKR {loan.remainingAmount.toLocaleString()}
-                                </TableCell>
-                                <TableCell>
-                                  <span
-                                    className={`px-2 py-1 rounded-full text-xs ${
-                                      loan.status === "Paid"
-                                        ? "bg-green-100 text-green-700"
-                                        : "bg-orange-100 text-orange-700"
-                                    }`}>
-                                    {loan.status}
-                                  </span>
-                                </TableCell>
-                              </TableRow>
-                            ))}
+                            {selectedMember.loans.map((loan) => {
+                              const effectiveInterest =
+                                settings.applyLoanInterest
+                                  ? settings.loanInterestRate
+                                  : 0;
+                              const amountWithInterest =
+                                loan.amount * (1 + effectiveInterest / 100);
+                              return (
+                                <TableRow key={loan.id}>
+                                  <TableCell>
+                                    {new Date(loan.date).toLocaleDateString()}
+                                  </TableCell>
+                                  <TableCell>
+                                    PKR {amountWithInterest.toLocaleString()}
+                                  </TableCell>
+                                  <TableCell>
+                                    PKR {loan.remainingAmount.toLocaleString()}
+                                  </TableCell>
+                                  <TableCell>
+                                    <span
+                                      className={`px-2 py-1 rounded-full text-xs ${
+                                        loan.status === "Paid"
+                                          ? "bg-green-100 text-green-700"
+                                          : "bg-orange-100 text-orange-700"
+                                      }`}>
+                                      {loan.status}
+                                    </span>
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
                           </TableBody>
                         </Table>
                       ) : (

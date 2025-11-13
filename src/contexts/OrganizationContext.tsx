@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, ReactNode } from "react";
 import { ORGANIZATION_CONFIG, LoanStatus } from "@/config/organization";
+import { useSettings } from "./SettingsContext";
 
 export interface MonthlyContribution {
   month: string;
@@ -68,7 +69,7 @@ export interface UpcomingMeeting {
   id: number;
   date: string;
   time: string;
-  agenda: string;
+  venue: string;
 }
 
 export interface Member {
@@ -100,10 +101,18 @@ interface OrganizationContextType {
   reserveFund: number;
   reserveTransactions: ReserveTransaction[];
   addReserveTransaction: (t: Omit<ReserveTransaction, "id">) => void;
+  addLoanIssue: (memberId: number, amount: number, date: string) => void;
+  addLoanCollection: (
+    memberId: number,
+    loanId: number,
+    amount: number,
+    date: string
+  ) => void;
   totalDonations: number;
   totalExpenses: number;
   totalLoanCollected: number;
   totalLoanOutstanding: number;
+  totalLoanRecovered: number;
   budgetTrend: { amount: number; percentage: number } | null;
   membersTrend: { amount: number; percentage: number } | null;
   loansTrend: { amount: number; percentage: number } | null;
@@ -128,6 +137,12 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     ReserveTransaction[]
   >([]);
 
+  // access runtime-editable settings
+  const { settings } = useSettings();
+  const effectiveInterestRate = settings.applyLoanInterest
+    ? settings.loanInterestRate
+    : 0;
+
   // Calculate total members
   const totalMembers = members.length;
 
@@ -140,17 +155,29 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     return sum + meetingLoans;
   }, 0);
 
-  // Calculate total loan issued from meetings
-  const totalLoanIssued = meetings.reduce((sum, meeting) => {
-    const meetingLoans = meeting.loanIssues.reduce(
-      (mSum, l) => mSum + l.amount,
+  // Calculate total loan collected from meetings (payments recorded in meetings)
+  // this remains a record of payments logged via meeting entries
+
+  // Total loan outstanding: compute from members' loan remainingAmount (this includes interest applied per loan)
+  const totalLoanOutstanding = members.reduce((sum, member) => {
+    const memberRemaining = member.loans.reduce(
+      (loanSum, loan) => loanSum + loan.remainingAmount,
       0
     );
-    return sum + meetingLoans;
+    return sum + memberRemaining;
   }, 0);
 
-  // Total loan outstanding = issued - collected
-  const totalLoanOutstanding = totalLoanIssued - totalLoanCollected;
+  // Calculate total recovered loans (amounts fully paid). Use principal+interest for each paid loan
+  const totalLoanRecovered = members.reduce((sum, member) => {
+    const paidWithInterest = member.loans
+      .filter((loan) => loan.status === ORGANIZATION_CONFIG.LOAN_STATUS.PAID)
+      .reduce(
+        (loanSum, loan) =>
+          loanSum + loan.amount * (1 + effectiveInterestRate / 100),
+        0
+      );
+    return sum + paidWithInterest;
+  }, 0);
 
   // Reserve transactions (donations/expenses) - computed before totals so budget includes them
   const transactionDonations = reserveTransactions
@@ -324,6 +351,71 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       ? { amount: reserveFund, percentage: 100 }
       : null;
 
+  // Function to add a new loan issue
+  const addLoanIssue = (memberId: number, amount: number, date: string) => {
+    const member = members.find((m) => m.id === memberId);
+    if (!member) return;
+
+    // Calculate amount with configured interest rate (per-loan, respect applyLoanInterest)
+    const loanWithInterest = amount * (1 + effectiveInterestRate / 100);
+
+    const newLoan: Loan = {
+      id: member.loans.length + 1,
+      amount,
+      date,
+      status: ORGANIZATION_CONFIG.LOAN_STATUS.ACTIVE,
+      remainingAmount: loanWithInterest,
+    };
+
+    const updatedMembers = members.map((m) =>
+      m.id === memberId ? { ...m, loans: [...m.loans, newLoan] } : m
+    );
+
+    setMembers(updatedMembers);
+  };
+
+  // Function to add a loan collection (payment/installment)
+  const addLoanCollection = (
+    memberId: number,
+    loanId: number,
+    amount: number,
+    date: string
+  ) => {
+    const member = members.find((m) => m.id === memberId);
+    if (!member) return;
+
+    const loan = member.loans.find(
+      (l) =>
+        l.id === loanId && l.status === ORGANIZATION_CONFIG.LOAN_STATUS.ACTIVE
+    );
+    if (!loan) return;
+
+    const newRemaining = Math.max(0, loan.remainingAmount - amount);
+    const isFullyPaid = newRemaining === 0;
+
+    const updatedMembers = members.map((m) =>
+      m.id === memberId
+        ? {
+            ...m,
+            loans: m.loans.map((l) =>
+              l.id === loanId &&
+              l.status === ORGANIZATION_CONFIG.LOAN_STATUS.ACTIVE
+                ? {
+                    ...l,
+                    remainingAmount: newRemaining,
+                    status: isFullyPaid
+                      ? ORGANIZATION_CONFIG.LOAN_STATUS.PAID
+                      : ORGANIZATION_CONFIG.LOAN_STATUS.ACTIVE,
+                  }
+                : l
+            ),
+          }
+        : m
+    );
+
+    setMembers(updatedMembers);
+  };
+
   return (
     <OrganizationContext.Provider
       value={{
@@ -345,10 +437,13 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
           };
           setReserveTransactions((prev) => [newTx, ...prev]);
         },
+        addLoanIssue,
+        addLoanCollection,
         totalDonations: transactionDonations,
         totalExpenses: transactionExpenses,
         totalLoanCollected,
         totalLoanOutstanding,
+        totalLoanRecovered,
         budgetTrend,
         membersTrend,
         loansTrend,

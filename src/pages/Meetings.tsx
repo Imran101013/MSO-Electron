@@ -58,30 +58,12 @@ const meetingSchema = z.object({
       })
     )
     .default([]),
-  loanCollections: z
-    .array(
-      z.object({
-        memberId: z.number().min(1),
-        loanId: z.number().min(1),
-        amount: z.number().min(0),
-      })
-    )
-    .default([]),
-  loanIssues: z
-    .array(
-      z.object({
-        memberId: z.number().min(1),
-        amount: z.number().min(0),
-        loanId: z.number().min(1),
-      })
-    )
-    .default([]),
 });
 
 const upcomingMeetingSchema = z.object({
   date: z.string().min(1, "Date is required"),
   time: z.string().min(1, "Time is required"),
-  agenda: z.string().min(1, "Agenda is required"),
+  venue: z.string().min(1, "Venue is required"),
 });
 
 type MeetingFormValues = z.infer<typeof meetingSchema>;
@@ -108,8 +90,6 @@ export default function Meetings() {
       agenda: "",
       decisions: "",
       contributions: [],
-      loanCollections: [],
-      loanIssues: [],
     },
   });
 
@@ -122,30 +102,12 @@ export default function Meetings() {
     name: "contributions",
   });
 
-  const {
-    fields: loanCollectionFields,
-    append: appendLoanCollection,
-    remove: removeLoanCollection,
-  } = useFieldArray({
-    control: form.control,
-    name: "loanCollections",
-  });
-
-  const {
-    fields: loanIssueFields,
-    append: appendLoanIssue,
-    remove: removeLoanIssue,
-  } = useFieldArray({
-    control: form.control,
-    name: "loanIssues",
-  });
-
   const scheduleForm = useForm<UpcomingMeetingFormValues>({
     resolver: zodResolver(upcomingMeetingSchema),
     defaultValues: {
       date: "",
       time: "",
-      agenda: "",
+      venue: "",
     },
   });
 
@@ -161,20 +123,16 @@ export default function Meetings() {
       decisions: data.decisions,
       contributions:
         data.contributions as (typeof meetings)[0]["contributions"],
-      loanCollections:
-        data.loanCollections as (typeof meetings)[0]["loanCollections"],
-      loanIssues: data.loanIssues as (typeof meetings)[0]["loanIssues"],
+      loanCollections: [] as (typeof meetings)[0]["loanCollections"],
+      loanIssues: [] as (typeof meetings)[0]["loanIssues"],
+      reserveFundDonations: [] as (typeof meetings)[0]["reserveFundDonations"],
     };
 
-    // Update members' budget, contribution history, and loans
+    // Update members' budget and contribution history
     const updatedMembers = members.map((member) => {
       const contribution = data.contributions.find(
         (c) => c.memberId === member.id
       );
-      const loanCollection = data.loanCollections.find(
-        (c) => c.memberId === member.id
-      );
-      const loanIssue = data.loanIssues.find((l) => l.memberId === member.id);
 
       let updatedMember = { ...member };
 
@@ -216,65 +174,6 @@ export default function Meetings() {
         }
       }
 
-      // Handle loan collections (installment payments)
-      if (loanCollection && loanCollection.amount > 0) {
-        // Find the specific loan being paid
-        const targetLoan = updatedMember.loans.find(
-          (loan) =>
-            loan.id === loanCollection.loanId && loan.status === "Active"
-        );
-
-        if (targetLoan) {
-          const newRemaining = Math.max(
-            0,
-            targetLoan.remainingAmount - loanCollection.amount
-          );
-
-          updatedMember = {
-            ...updatedMember,
-            loans: updatedMember.loans.map((loan) => {
-              if (
-                loan.id === loanCollection.loanId &&
-                loan.status === "Active"
-              ) {
-                return {
-                  ...loan,
-                  remainingAmount: newRemaining,
-                  status: newRemaining === 0 ? "Paid" : "Active",
-                } as const;
-              }
-              return loan;
-            }),
-          };
-        } else {
-          toast({
-            title: "Error",
-            description:
-              "Could not find the specified active loan for collection.",
-            variant: "destructive",
-          });
-        }
-      }
-
-      // Handle loan issues (with configured interest rate)
-      if (loanIssue && loanIssue.amount > 0) {
-        const loanWithInterest =
-          loanIssue.amount * (1 + ORGANIZATION_CONFIG.LOAN_INTEREST_RATE / 100);
-        const newLoan = {
-          id: member.loans.length + 1,
-          amount: loanIssue.amount,
-          remainingAmount: loanWithInterest,
-          date: data.date,
-          status: ORGANIZATION_CONFIG.LOAN_STATUS.ACTIVE,
-        };
-
-        // Add loan to member's loans array without affecting their budget
-        updatedMember = {
-          ...updatedMember,
-          loans: [...updatedMember.loans, newLoan],
-        };
-      }
-
       return updatedMember;
     });
 
@@ -300,7 +199,7 @@ export default function Meetings() {
       id: upcomingMeetings.length + 1,
       date: data.date,
       time: data.time,
-      agenda: data.agenda,
+      venue: data.venue,
     };
 
     setUpcomingMeetings([...upcomingMeetings, newUpcomingMeeting]);
@@ -370,15 +269,12 @@ export default function Meetings() {
 
                   <FormField
                     control={scheduleForm.control}
-                    name="agenda"
+                    name="venue"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Agenda</FormLabel>
+                        <FormLabel>Venue</FormLabel>
                         <FormControl>
-                          <Textarea
-                            {...field}
-                            placeholder="Meeting agenda..."
-                          />
+                          <Textarea {...field} placeholder="Meeting venue..." />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -549,170 +445,6 @@ export default function Meetings() {
                     )}
                   </div>
 
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-lg font-semibold">
-                        Loan Collections
-                      </h3>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() =>
-                          appendLoanCollection({
-                            memberId: 1,
-                            loanId: 1,
-                            amount: 0,
-                          })
-                        }>
-                        <Plus className="w-4 h-4 mr-2" />
-                        Add Collection
-                      </Button>
-                    </div>
-
-                    {loanCollectionFields.map((field, index) => (
-                      <div
-                        key={field.id}
-                        className="flex gap-4 items-end p-4 border rounded-lg">
-                        <FormField
-                          control={form.control}
-                          name={`loanCollections.${index}.memberId`}
-                          render={({ field }) => (
-                            <FormItem className="flex-1">
-                              <FormLabel>Member</FormLabel>
-                              <Select
-                                onValueChange={(val) =>
-                                  field.onChange(Number(val))
-                                }
-                                value={field.value?.toString()}>
-                                <FormControl>
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Select member" />
-                                  </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                  {members.map((m) => (
-                                    <SelectItem
-                                      key={m.id}
-                                      value={m.id.toString()}>
-                                      {m.name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name={`loanCollections.${index}.amount`}
-                          render={({ field }) => (
-                            <FormItem className="flex-1">
-                              <FormLabel>Amount (PKR)</FormLabel>
-                              <FormControl>
-                                <Input
-                                  type="number"
-                                  {...field}
-                                  onChange={(e) =>
-                                    field.onChange(Number(e.target.value))
-                                  }
-                                />
-                              </FormControl>
-                            </FormItem>
-                          )}
-                        />
-                        <Button
-                          type="button"
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => removeLoanCollection(index)}>
-                          Remove
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-lg font-semibold">New Loan Issues</h3>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() =>
-                          appendLoanIssue({
-                            memberId: 1,
-                            amount: 0,
-                            loanId: meetings.length + 1,
-                          })
-                        }>
-                        <Plus className="w-4 h-4 mr-2" />
-                        Add Loan Issue
-                      </Button>
-                    </div>
-
-                    {loanIssueFields.map((field, index) => (
-                      <div
-                        key={field.id}
-                        className="flex gap-4 items-end p-4 border rounded-lg">
-                        <FormField
-                          control={form.control}
-                          name={`loanIssues.${index}.memberId`}
-                          render={({ field }) => (
-                            <FormItem className="flex-1">
-                              <FormLabel>Member</FormLabel>
-                              <Select
-                                onValueChange={(val) =>
-                                  field.onChange(Number(val))
-                                }
-                                value={field.value?.toString()}>
-                                <FormControl>
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Select member" />
-                                  </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                  {members.map((m) => (
-                                    <SelectItem
-                                      key={m.id}
-                                      value={m.id.toString()}>
-                                      {m.name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name={`loanIssues.${index}.amount`}
-                          render={({ field }) => (
-                            <FormItem className="flex-1">
-                              <FormLabel>Amount (PKR)</FormLabel>
-                              <FormControl>
-                                <Input
-                                  type="number"
-                                  {...field}
-                                  onChange={(e) =>
-                                    field.onChange(Number(e.target.value))
-                                  }
-                                />
-                              </FormControl>
-                            </FormItem>
-                          )}
-                        />
-                        <Button
-                          type="button"
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => removeLoanIssue(index)}>
-                          Remove
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-
                   <div className="flex justify-end gap-4">
                     <Button
                       type="button"
@@ -845,60 +577,6 @@ export default function Meetings() {
                                 )}
                               </div>
                             </div>
-
-                            {viewedMeeting.loanCollections.length > 0 && (
-                              <div>
-                                <h3 className="font-semibold mb-3">
-                                  Loan Collections
-                                </h3>
-                                <div className="space-y-2">
-                                  {viewedMeeting.loanCollections.map(
-                                    (loan, idx) => {
-                                      const member = members.find(
-                                        (m) => m.id === loan.memberId
-                                      );
-                                      return (
-                                        <div
-                                          key={idx}
-                                          className="flex justify-between items-center p-3 rounded-lg bg-muted/50">
-                                          <span>
-                                            {member?.name || "Unknown"}
-                                          </span>
-                                          <span className="font-semibold">
-                                            PKR {loan.amount.toLocaleString()}
-                                          </span>
-                                        </div>
-                                      );
-                                    }
-                                  )}
-                                </div>
-                              </div>
-                            )}
-
-                            {viewedMeeting.loanIssues.length > 0 && (
-                              <div>
-                                <h3 className="font-semibold mb-3">
-                                  Loans Issued
-                                </h3>
-                                <div className="space-y-2">
-                                  {viewedMeeting.loanIssues.map((loan, idx) => {
-                                    const member = members.find(
-                                      (m) => m.id === loan.memberId
-                                    );
-                                    return (
-                                      <div
-                                        key={idx}
-                                        className="flex justify-between items-center p-3 rounded-lg bg-muted/50">
-                                        <span>{member?.name || "Unknown"}</span>
-                                        <span className="font-semibold">
-                                          PKR {loan.amount.toLocaleString()}
-                                        </span>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            )}
 
                             <div>
                               <h3 className="font-semibold mb-3">

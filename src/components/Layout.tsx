@@ -1,13 +1,14 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { 
-  LayoutDashboard, 
-  Users, 
-  Wallet, 
-  HandCoins, 
-  PiggyBank, 
-  FileText 
+import {
+  LayoutDashboard,
+  Users,
+  Wallet,
+  HandCoins,
+  PiggyBank,
+  FileText,
+  Settings,
 } from "lucide-react";
 
 interface LayoutProps {
@@ -21,6 +22,7 @@ const navigation = [
   { name: "Loans", href: "/loans", icon: HandCoins },
   { name: "Reserve Fund", href: "/reserve", icon: PiggyBank },
   { name: "Meetings", href: "/meetings", icon: FileText },
+  { name: "Settings", href: "/settings", icon: Settings },
 ];
 
 export default function Layout({ children }: LayoutProps) {
@@ -34,11 +36,17 @@ export default function Layout({ children }: LayoutProps) {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-gradient-primary flex items-center justify-center">
-                <span className="text-primary-foreground font-bold text-xl">AH</span>
+                <span className="text-primary-foreground font-bold text-xl">
+                  AH
+                </span>
               </div>
               <div>
-                <h1 className="text-xl font-bold text-foreground">AL-Hilal Organization</h1>
-                <p className="text-xs text-muted-foreground">Community Management System</p>
+                <h1 className="text-xl font-bold text-foreground">
+                  AL-Hilal Organization
+                </h1>
+                <p className="text-xs text-muted-foreground">
+                  Community Management System
+                </p>
               </div>
             </div>
           </div>
@@ -60,8 +68,7 @@ export default function Layout({ children }: LayoutProps) {
                     isActive
                       ? "border-primary text-primary"
                       : "border-transparent text-muted-foreground hover:text-foreground hover:border-muted"
-                  )}
-                >
+                  )}>
                   <item.icon className="w-4 h-4" />
                   {item.name}
                 </Link>
@@ -72,9 +79,7 @@ export default function Layout({ children }: LayoutProps) {
       </nav>
 
       {/* Main Content */}
-      <main className="container mx-auto px-4 py-8">
-        {children}
-      </main>
+      <main className="container mx-auto px-4 py-8">{children}</main>
     </div>
   );
 }
