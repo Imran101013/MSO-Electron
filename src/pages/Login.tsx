@@ -22,7 +22,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { LogIn } from "lucide-react";
 
 export default function Login() {
-  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<"admin" | "member">("member");
   const [error, setError] = useState("");
@@ -32,7 +32,8 @@ export default function Login() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    if (login(email, password, role)) {
+    const trimmedPhone = phone.trim();
+    if (login(trimmedPhone, password, role)) {
       navigate("/");
     } else {
       setError("Invalid credentials or role mismatch");
@@ -52,13 +53,13 @@ export default function Login() {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="phone">Phone</Label>
               <Input
-                id="email"
-                type="email"
-                placeholder="Enter your email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                id="phone"
+                type="tel"
+                placeholder="Enter your phone number"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
                 required
               />
             </div>
@@ -110,9 +111,9 @@ export default function Login() {
           <div className="mt-2 text-center text-sm text-muted-foreground">
             Sample credentials:
             <br />
-            Admin: admin@hilal.com / admin123
+            Admin: +923001234567 / admin123
             <br />
-            Member: member@hilal.com / member123
+            Member: +923001234567 / member123
           </div>
         </CardContent>
       </Card>

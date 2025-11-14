@@ -123,7 +123,36 @@ const OrganizationContext = createContext<OrganizationContextType | undefined>(
   undefined
 );
 
-const initialMembers: Member[] = [];
+const initialMembers: Member[] = [
+  {
+    id: 1,
+    name: "Admin",
+    fatherName: "Admin Father",
+    dob: "1990-01-01",
+    email: "", // Keeping email for now, will be removed later
+    phone: "+923001234567",
+    address: "Admin Address",
+    joinDate: "2023-01-01",
+    monthlyContributions: [],
+    attendance: [],
+    loans: [],
+    totalBudget: 0,
+  },
+  {
+    id: 2,
+    name: "Member",
+    fatherName: "Member Father",
+    dob: "1990-01-01",
+    email: "", // Keeping email for now, will be removed later
+    phone: "+923001234567",
+    address: "Member Address",
+    joinDate: "2023-01-01",
+    monthlyContributions: [],
+    attendance: [],
+    loans: [],
+    totalBudget: 0,
+  },
+];
 const initialMeetings: Meeting[] = [];
 const initialUpcomingMeetings: UpcomingMeeting[] = [];
 

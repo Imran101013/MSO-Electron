@@ -90,7 +90,7 @@ const formSchema = z.object({
       `Father name must be at least ${ORGANIZATION_CONFIG.MINIMUM_NAME_LENGTH} characters`
     ),
   dob: z.string().min(1, "Date of birth is required"),
-  email: z.string().email("Invalid email address"),
+  email: z.string().min(1, "Email is required").email("Invalid email address"),
   phone: z
     .string()
     .min(
@@ -284,7 +284,8 @@ export default function Members() {
 
   const handleViewDetails = (member: Member) => {
     // Prevent members from viewing other members' details
-    if (isMember && user && member.email !== user.email) {
+    const userEmail = (user as any)?.email;
+    if (isMember && user && userEmail && member.email !== userEmail) {
       toast({
         title: "Access Denied",
         description: "You can only view your own details.",
@@ -331,9 +332,10 @@ export default function Members() {
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        const base64String = reader.result as string;
-        setProfilePicturePreview(base64String);
-        form.setValue("profilePicture", base64String);
+        if (typeof reader.result === "string") {
+          setProfilePicturePreview(reader.result);
+          form.setValue("profilePicture", reader.result);
+        }
       };
       reader.readAsDataURL(file);
     }

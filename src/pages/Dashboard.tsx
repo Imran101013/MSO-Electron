@@ -61,7 +61,7 @@ export default function Dashboard() {
       {/* Page Header */}
       <div>
         <h2 className="text-3xl font-bold text-foreground">Dashboard</h2>
-        <p className="text-muted-foreground mt-1">Welcome to AL-Hilal Organ</p>
+        <p className="text-muted-foreground mt-1">Welcome to AL-Hilal</p>
       </div>
 
       {/* Stats Grid */}

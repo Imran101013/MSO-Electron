@@ -6,10 +6,26 @@ import React, {
   ReactNode,
 } from "react";
 import { Member } from "@/contexts/OrganizationContext";
+import { ORGANIZATION_CONFIG } from "@/config/organization";
+
+// Helper function to normalize phone numbers
+const normalizePhoneNumber = (phone: string): string => {
+  const trimmed = phone.trim();
+  // If starts with 0 and has 11 digits (0 + 10 digits), convert to +92 format
+  if (trimmed.startsWith("0") && trimmed.length === 11) {
+    return "+92" + trimmed.substring(1);
+  }
+  // If already in +92 format and has 13 digits (+92 + 11 digits), return as is
+  if (trimmed.startsWith("+92") && trimmed.length === 13) {
+    return trimmed;
+  }
+  // Return as is for other cases
+  return trimmed;
+};
 
 interface User {
   id: string;
-  email: string;
+  phone: string;
   password: string;
   role: "admin" | "member";
   name: string;
@@ -17,9 +33,9 @@ interface User {
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string, password: string, role: "admin" | "member") => boolean;
+  login: (phone: string, password: string, role: "admin" | "member") => boolean;
   signup: (
-    email: string,
+    phone: string,
     password: string,
     role: "admin" | "member",
     name: string,
@@ -30,7 +46,7 @@ interface AuthContextType {
   isAdmin: boolean;
   isMember: boolean;
   changePassword: (newPassword: string) => boolean;
-  resetPassword: (email: string, newPassword: string) => boolean;
+  resetPassword: (phone: string, newPassword: string) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -38,14 +54,14 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const sampleUsers: User[] = [
   {
     id: "1",
-    email: "admin@hilal.com",
+    phone: "+923001234567",
     password: "admin123",
     role: "admin",
     name: "Admin",
   },
   {
     id: "2",
-    email: "member@hilal.com",
+    phone: "+923001234567",
     password: "member123",
     role: "member",
     name: "Member",
@@ -58,11 +74,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
-    // Initialize sample users if not present
-    const storedUsers = localStorage.getItem("users");
-    if (!storedUsers) {
-      localStorage.setItem("users", JSON.stringify(sampleUsers));
-    }
+    // Always initialize sample users (for testing purposes)
+    localStorage.setItem("users", JSON.stringify(sampleUsers));
 
     // Check if user is logged in
     const storedUser = localStorage.getItem("currentUser");
@@ -72,13 +85,36 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   }, []);
 
   const login = (
-    email: string,
+    phone: string,
     password: string,
     role: "admin" | "member"
   ): boolean => {
+    const trimmedPhone = phone.trim();
+
+    // Normalize phone number for comparison
+    const normalizedPhone = normalizePhoneNumber(trimmedPhone);
+
+    // For admin role, only allow login with password
+    if (role === "admin" && password === "admin123") {
+      const adminUser: User = {
+        id: "admin",
+        phone: normalizedPhone,
+        password: "admin123",
+        role: "admin",
+        name: "Admin",
+      };
+      setUser(adminUser);
+      localStorage.setItem("currentUser", JSON.stringify(adminUser));
+      return true;
+    }
+
+    // For member role, check against users array
     const users: User[] = JSON.parse(localStorage.getItem("users") || "[]");
     const foundUser = users.find(
-      (u) => u.email === email && u.password === password && u.role === role
+      (u) =>
+        normalizePhoneNumber(u.phone) === normalizedPhone &&
+        u.password === password &&
+        u.role === role
     );
     if (foundUser) {
       setUser(foundUser);
@@ -106,9 +142,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     return true;
   };
 
-  const resetPassword = (email: string, newPassword: string): boolean => {
+  const resetPassword = (phone: string, newPassword: string): boolean => {
+    const trimmedPhone = phone.trim();
     const users: User[] = JSON.parse(localStorage.getItem("users") || "[]");
-    const userIndex = users.findIndex((u) => u.email === email);
+    const userIndex = users.findIndex((u) => u.phone === trimmedPhone);
     if (userIndex !== -1) {
       users[userIndex].password = newPassword;
       localStorage.setItem("users", JSON.stringify(users));
@@ -118,27 +155,30 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   };
 
   const signup = (
-    email: string,
+    phone: string,
     password: string,
     role: "admin" | "member",
     name: string,
     members: Member[]
   ): boolean => {
+    const trimmedPhone = phone.trim();
     const users: User[] = JSON.parse(localStorage.getItem("users") || "[]");
-    const existingUser = users.find((u) => u.email === email);
+    const existingUser = users.find((u) => u.phone === trimmedPhone);
     if (existingUser) {
-      return false; // Email already exists
+      return false; // Phone already exists
     }
 
-    // Check if email exists in members list
-    const memberExists = members.find((m) => m.email === email);
-    if (!memberExists) {
-      return false; // Email not found in members list
+    // Check if phone exists in members list (only for member role)
+    if (role === "member") {
+      const memberExists = members.find((m) => m.phone === trimmedPhone);
+      if (!memberExists) {
+        return false; // Phone not found in members list
+      }
     }
 
     const newUser: User = {
       id: (users.length + 1).toString(),
-      email,
+      phone: trimmedPhone,
       password,
       role,
       name,

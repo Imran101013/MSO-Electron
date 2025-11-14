@@ -42,7 +42,6 @@ const signupSchema = z
         `Father name must be at least ${ORGANIZATION_CONFIG.MINIMUM_NAME_LENGTH} characters`
       ),
     dob: z.string().min(1, "Date of birth is required"),
-    email: z.string().email("Invalid email address"),
     phone: z
       .string()
       .min(
@@ -79,7 +78,6 @@ export default function Signup() {
       name: "",
       fatherName: "",
       dob: "",
-      email: "",
       phone: "",
       address: "",
       password: "",
@@ -89,10 +87,11 @@ export default function Signup() {
 
   const onSubmit = (data: SignupFormValues) => {
     setError("");
-    if (signup(data.email, data.password, "member", data.name, members)) {
+    const trimmedPhone = data.phone.trim();
+    if (signup(trimmedPhone, data.password, "member", data.name, members)) {
       navigate("/login");
     } else {
-      setError("Email not found in members list or already has an account");
+      setError("Phone not found in members list or already has an account");
     }
   };
 
@@ -148,23 +147,7 @@ export default function Signup() {
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Email</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="email"
-                        placeholder="member@email.com"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+
               <FormField
                 control={form.control}
                 name="phone"
