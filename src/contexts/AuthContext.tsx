@@ -51,22 +51,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const sampleUsers: User[] = [
-  {
-    id: "1",
-    phone: "+923001234567",
-    password: "admin123",
-    role: "admin",
-    name: "Admin",
-  },
-  {
-    id: "2",
-    phone: "+923001234567",
-    password: "member123",
-    role: "member",
-    name: "Member",
-  },
-];
+const sampleUsers: User[] = [];
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   children,
