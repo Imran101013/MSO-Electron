@@ -8,6 +8,7 @@ import {
   DollarSign,
   FileText,
   Clock,
+  Search,
 } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { ORGANIZATION_CONFIG } from "@/config/organization";
@@ -45,6 +46,7 @@ import {
 } from "@/components/ui/select";
 import { format } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 const meetingSchema = z.object({
   date: z.string().min(1, "Date is required"),
@@ -84,6 +86,7 @@ export default function Meetings() {
   const [isScheduleOpen, setIsScheduleOpen] = useState(false);
   const [viewMeetingId, setViewMeetingId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
   const form = useForm<MeetingFormValues>({
     resolver: zodResolver(meetingSchema),
@@ -366,12 +369,69 @@ export default function Meetings() {
                             Member Contributions
                           </h3>
                           <div className="flex gap-2">
-                            <Input
-                              placeholder="Search member..."
-                              value={searchQuery}
-                              onChange={(e) => setSearchQuery(e.target.value)}
-                              className="w-48"
-                            />
+                            <div className="relative">
+                              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                              <Input
+                                placeholder="Search member..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="w-48 pl-10"
+                                onFocus={() =>
+                                  searchQuery.length > 0 &&
+                                  setShowSuggestions(true)
+                                }
+                                onBlur={() => {
+                                  setTimeout(
+                                    () => setShowSuggestions(false),
+                                    200
+                                  );
+                                }}
+                              />
+                              {showSuggestions &&
+                                filteredMembers.length > 0 && (
+                                  <div
+                                    className="absolute top-full left-0 right-0 mt-2 bg-background border border-border rounded-md shadow-lg z-50 max-h-60 overflow-y-auto"
+                                    onMouseDown={(e) => e.preventDefault()}>
+                                    {filteredMembers.map((member) => (
+                                      <Button
+                                        key={member.id}
+                                        variant="ghost"
+                                        className="w-full justify-start px-4 py-3 hover:bg-accent transition-colors flex items-center gap-3 border-b border-border last:border-b-0"
+                                        onClick={() => {
+                                          appendContribution({
+                                            memberId: member.id,
+                                            amount: 0,
+                                            present: true,
+                                          });
+                                          setSearchQuery("");
+                                          setShowSuggestions(false);
+                                        }}>
+                                        <Avatar className="h-8 w-8 flex-shrink-0">
+                                          <AvatarImage
+                                            src={member.profilePicture}
+                                          />
+                                          <AvatarFallback className="bg-gradient-primary">
+                                            <span className="text-primary-foreground text-sm font-semibold">
+                                              {member.name
+                                                .split(" ")
+                                                .map((n) => n[0])
+                                                .join("")}
+                                            </span>
+                                          </AvatarFallback>
+                                        </Avatar>
+                                        <div className="flex-1 min-w-0">
+                                          <p className="text-xs text-foreground truncate">
+                                            {member.name}
+                                          </p>
+                                          <p className="text-xs text-muted-foreground truncate">
+                                            {member.email}
+                                          </p>
+                                        </div>
+                                      </Button>
+                                    ))}
+                                  </div>
+                                )}
+                            </div>
                           </div>
                         </div>
 

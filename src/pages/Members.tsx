@@ -687,7 +687,7 @@ export default function Members() {
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium text-foreground truncate">
+                        <p className="text-xs text-foreground truncate">
                           {member.name}
                         </p>
                         <p className="text-xs text-muted-foreground truncate">

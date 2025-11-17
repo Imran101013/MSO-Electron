@@ -23,6 +23,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 export default function Loans() {
   const {
@@ -140,25 +148,35 @@ export default function Loans() {
   }, [members, settings.loanInterestRate, settings.applyLoanInterest]);
 
   const loanStats = useMemo(() => {
-    const totalOutstanding = activeLoans;
     const activeLoanCount = activeLoansList.length;
     const membersWithLoans = new Set(activeLoansList.map((l) => l.memberId))
       .size;
 
-    // Calculate total loans with interest (for display)
-    const totalWithInterest = activeLoansList.reduce(
+    // Calculate total outstanding as sum of amount payable with interest for active loans
+    const totalOutstanding = activeLoansList.reduce(
       (sum, loan) => sum + loan.amountWithInterest,
       0
     );
 
+    // Calculate total recovered from all loan installments
+    const recoveredLoans = members.reduce((sum, member) => {
+      const memberRecovered = member.loans.reduce((loanSum, loan) => {
+        const installmentsSum = loan.installments.reduce(
+          (instSum, inst) => instSum + inst.amount,
+          0
+        );
+        return loanSum + installmentsSum;
+      }, 0);
+      return sum + memberRecovered;
+    }, 0);
+
     return {
       totalOutstanding,
-      totalWithInterest,
       activeLoanCount,
       membersWithLoans,
-      recoveredLoans: totalLoanRecovered,
+      recoveredLoans,
     };
-  }, [activeLoans, activeLoansList, totalLoanRecovered]);
+  }, [activeLoansList, members]);
 
   return (
     <div className="space-y-6">
@@ -357,26 +375,26 @@ export default function Loans() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="shadow-md">
-          <CardContent className="p-6">
+          <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
                 <TrendingDown className="w-5 h-5 text-primary" />
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">
                   Total Outstanding
                 </p>
-                <p className="text-2xl font-bold text-foreground">
-                  PKR {loanStats.totalWithInterest.toLocaleString()}
+                <p className="text-xl font-semibold text-foreground">
+                  PKR {loanStats.totalOutstanding.toLocaleString()}
                 </p>
               </div>
             </div>
           </CardContent>
         </Card>
         <Card className="shadow-md">
-          <CardContent className="p-6">
+          <CardContent className="p-4">
             <p className="text-sm text-muted-foreground">Active Loans</p>
-            <p className="text-3xl font-bold text-foreground mt-2">
+            <p className="text-xl font-semibold text-foreground mt-2">
               {loanStats.activeLoanCount}
             </p>
             <p className="text-sm text-muted-foreground mt-2">
@@ -387,12 +405,12 @@ export default function Loans() {
         <Card className="shadow-md">
           <CardContent className="p-6">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-secondary/10 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-lg bg-secondary/10 flex items-center justify-center">
                 <CheckCircle2 className="w-5 h-5 text-secondary" />
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Recovered Loans</p>
-                <p className="text-2xl font-bold text-foreground">
+                <p className="text-xl font-semibold text-foreground">
                   PKR {loanStats.recoveredLoans.toLocaleString()}
                 </p>
               </div>
@@ -411,42 +429,41 @@ export default function Loans() {
               No active loans. Loan management can be done from member details.
             </p>
           ) : (
-            <div className="space-y-4">
-              {activeLoansList.map((loan) => (
-                <div
-                  key={`${loan.memberId}-${loan.id}`}
-                  className="flex items-center justify-between p-4 rounded-lg border border-border hover:bg-muted/50 transition-colors">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <h3 className="font-semibold text-foreground">
-                        {loan.memberName}
-                      </h3>
-                      <Badge variant="secondary">Active</Badge>
-                    </div>
-                    <div className="flex gap-6 text-sm">
-                      <div>
-                        <p className="text-muted-foreground">Amount Payable</p>
-                        <p className="font-medium text-primary">
-                          PKR {loan.amountWithInterest.toLocaleString()}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground">Remaining</p>
-                        <p className="font-medium text-destructive">
-                          PKR {loan.remaining.toLocaleString()}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground">Issue Date</p>
-                        <p className="font-medium text-foreground">
-                          {new Date(loan.date).toLocaleDateString()}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Member</TableHead>
+                  <TableHead>Amount Payable</TableHead>
+                  <TableHead>Paid</TableHead>
+                  <TableHead>Remaining</TableHead>
+                  <TableHead>Issue Date</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {activeLoansList.map((loan) => (
+                  <TableRow key={`${loan.memberId}-${loan.id}`}>
+                    <TableCell className="font-medium">
+                      {loan.memberName}
+                    </TableCell>
+                    <TableCell>
+                      PKR {loan.amountWithInterest.toLocaleString()}
+                    </TableCell>
+                    <TableCell>
+                      PKR{" "}
+                      {(
+                        loan.amountWithInterest - loan.remaining
+                      ).toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-destructive">
+                      PKR {loan.remaining.toLocaleString()}
+                    </TableCell>
+                    <TableCell>
+                      {new Date(loan.date).toLocaleDateString()}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           )}
         </CardContent>
       </Card>

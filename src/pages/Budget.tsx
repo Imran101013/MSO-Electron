@@ -131,7 +131,7 @@ export default function Budget() {
           bgColor="bg-yellow-50"
         />
         <StatCard
-          title="Total Organization Budget"
+          title="Total Budget"
           value={`PKR ${totalBudget.toLocaleString()}`}
           icon={Building2}
           bgColor="bg-purple-50"

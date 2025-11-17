@@ -194,11 +194,32 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     .filter((t) => t.type === "expense")
     .reduce((s, t) => s + t.amount, 0);
 
+  // Calculate total loan amounts issued
+  const totalLoanIssued = members.reduce((sum, member) => {
+    return (
+      sum + member.loans.reduce((loanSum, loan) => loanSum + loan.amount, 0)
+    );
+  }, 0);
+
+  // Calculate total loan payments made
+  const totalLoanPayments = members.reduce((sum, member) => {
+    return (
+      sum +
+      member.loans.reduce((loanSum, loan) => {
+        return (
+          loanSum +
+          loan.installments.reduce((instSum, inst) => instSum + inst.amount, 0)
+        );
+      }, 0)
+    );
+  }, 0);
+
   // Calculate total budget from:
   // 1. Meeting contributions
-  // 2. Members' monthly contributions (includes past and meeting contributions)
-  // 3. Loan collections (installments paid)
-  // 4. Subtract outstanding loans
+  // 2. Members' monthly contributions
+  // 3. Loan payments received
+  // 4. Subtract loan amounts issued
+  // 5. Add donations, subtract expenses
   const totalBudget =
     meetings.reduce((sum, meeting) => {
       // Add regular contributions
@@ -206,21 +227,17 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         (mSum, c) => mSum + c.amount,
         0
       );
-      // Add loan installments paid
-      const meetingLoanCollections = meeting.loanCollections.reduce(
-        (mSum, l) => mSum + l.amount,
-        0
-      );
-      return sum + meetingContributions + meetingLoanCollections;
+      return sum + meetingContributions;
     }, 0) +
     members.reduce(
       (sum, member) =>
         sum + member.monthlyContributions.reduce((s, c) => s + c.amount, 0),
       0
-    ) -
-    totalLoanOutstanding +
+    ) +
+    totalLoanPayments -
+    totalLoanIssued +
     transactionDonations -
-    transactionExpenses; // Include reserve transactions (donations add, expenses subtract)
+    transactionExpenses;
 
   // Calculate active loans total
   const activeLoans = members.reduce((sum, member) => {

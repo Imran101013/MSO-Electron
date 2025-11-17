@@ -23,11 +23,11 @@ export default function StatCard({
       className={`shadow-md hover:shadow-lg transition-shadow ${
         bgColor || ""
       }`}>
-      <CardContent className="p-6">
+      <CardContent className="p-4">
         <div className="flex items-start justify-between">
           <div className="flex-1">
             <p className="text-sm font-medium text-muted-foreground">{title}</p>
-            <p className="text-3xl font-bold text-foreground mt-2">{value}</p>
+            <p className="text-xl font-semibold text-foreground mt-2">{value}</p>
             {trend && (
               <p
                 className={`text-sm mt-2 ${

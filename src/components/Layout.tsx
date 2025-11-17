@@ -75,9 +75,6 @@ export default function Layout({ children }: LayoutProps) {
               <h1 className="text-xl font-bold text-sidebar-foreground">
                 AL-Hilal
               </h1>
-              <p className="text-xs text-sidebar-foreground/70">
-                Society Management System
-              </p>
             </div>
           </div>
         </SidebarHeader>
@@ -105,7 +102,7 @@ export default function Layout({ children }: LayoutProps) {
       </Sidebar>
       <SidebarInset>
         {/* Header */}
-        <header className="flex h-10 shrink-0 items-center gap-2 mt-4 px-4">
+        <header className="flex h-12 bg-blue-200 shrink-0 items-center gap-2 px-4">
           <SidebarTrigger className="-ml-1" />
           <div className="flex-1" />
           <div className="flex items-center gap-2">
@@ -119,7 +116,7 @@ export default function Layout({ children }: LayoutProps) {
               <Lock className="w-4 h-4 mr-2" />
               Change Password
             </Button>
-            <Button variant="outline" size="sm" onClick={handleLogout}>
+            <Button className="bg-blue-500" variant="outline" size="sm" onClick={handleLogout}>
               <LogOut className="w-4 h-4 mr-2" />
               Logout
             </Button>
