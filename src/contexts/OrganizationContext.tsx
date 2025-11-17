@@ -13,12 +13,18 @@ export interface Attendance {
   present: boolean;
 }
 
+export interface LoanInstallment {
+  date: string;
+  amount: number;
+}
+
 export interface Loan {
   id: number;
   amount: number;
   date: string;
   status: LoanStatus;
   remainingAmount: number;
+  installments: LoanInstallment[];
 }
 
 export interface MeetingContribution {
@@ -190,7 +196,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
 
   // Calculate total budget from:
   // 1. Meeting contributions
-  // 2. Members' past contributions
+  // 2. Members' monthly contributions (includes past and meeting contributions)
   // 3. Loan collections (installments paid)
   // 4. Subtract outstanding loans
   const totalBudget =
@@ -207,7 +213,11 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       );
       return sum + meetingContributions + meetingLoanCollections;
     }, 0) +
-    members.reduce((sum, member) => sum + member.totalBudget, 0) -
+    members.reduce(
+      (sum, member) =>
+        sum + member.monthlyContributions.reduce((s, c) => s + c.amount, 0),
+      0
+    ) -
     totalLoanOutstanding +
     transactionDonations -
     transactionExpenses; // Include reserve transactions (donations add, expenses subtract)
@@ -365,6 +375,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       date,
       status: ORGANIZATION_CONFIG.LOAN_STATUS.ACTIVE,
       remainingAmount: loanWithInterest,
+      installments: [],
     };
 
     const updatedMembers = members.map((m) =>
@@ -393,6 +404,11 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     const newRemaining = Math.max(0, loan.remainingAmount - amount);
     const isFullyPaid = newRemaining === 0;
 
+    const newInstallment: LoanInstallment = {
+      date,
+      amount,
+    };
+
     const updatedMembers = members.map((m) =>
       m.id === memberId
         ? {
@@ -403,6 +419,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
                 ? {
                     ...l,
                     remainingAmount: newRemaining,
+                    installments: [...l.installments, newInstallment],
                     status: isFullyPaid
                       ? ORGANIZATION_CONFIG.LOAN_STATUS.PAID
                       : ORGANIZATION_CONFIG.LOAN_STATUS.ACTIVE,

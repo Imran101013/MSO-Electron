@@ -145,7 +145,7 @@ export default function Loans() {
     const membersWithLoans = new Set(activeLoansList.map((l) => l.memberId))
       .size;
 
-    // Calculate total loans with 10% interest
+    // Calculate total loans with interest (for display)
     const totalWithInterest = activeLoansList.reduce(
       (sum, loan) => sum + loan.amountWithInterest,
       0

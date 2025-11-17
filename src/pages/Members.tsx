@@ -24,6 +24,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Plus,
   Search,
   Mail,
@@ -41,6 +48,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -90,19 +98,14 @@ const formSchema = z.object({
       `Father name must be at least ${ORGANIZATION_CONFIG.MINIMUM_NAME_LENGTH} characters`
     ),
   dob: z.string().min(1, "Date of birth is required"),
-  email: z.string().min(1, "Email is required").email("Invalid email address"),
+  email: z.string().email("Invalid email address"),
   phone: z
     .string()
     .min(
       ORGANIZATION_CONFIG.MINIMUM_PHONE_LENGTH,
       `Phone number must be at least ${ORGANIZATION_CONFIG.MINIMUM_PHONE_LENGTH} characters`
     ),
-  address: z
-    .string()
-    .min(
-      ORGANIZATION_CONFIG.MINIMUM_ADDRESS_LENGTH,
-      `Address must be at least ${ORGANIZATION_CONFIG.MINIMUM_ADDRESS_LENGTH} characters`
-    ),
+  address: z.string().min(1, "Address is required"),
   joinDate: z.string().min(1, "Join date is required"),
   profilePicture: z.string().optional(),
   pastContributions: z
@@ -150,7 +153,7 @@ export default function Members() {
       .includes(searchQuery.toLowerCase());
     // If member role, only show their own details
     if (isMember && user) {
-      return matchesSearch && member.email === user.email;
+      return matchesSearch && member.phone === user.phone;
     }
     return matchesSearch;
   });
@@ -284,8 +287,8 @@ export default function Members() {
 
   const handleViewDetails = (member: Member) => {
     // Prevent members from viewing other members' details
-    const userEmail = (user as any)?.email;
-    if (isMember && user && userEmail && member.email !== userEmail) {
+    const userPhone = user?.phone;
+    if (isMember && user && userPhone && member.phone !== userPhone) {
       toast({
         title: "Access Denied",
         description: "You can only view your own details.",
@@ -357,11 +360,23 @@ export default function Members() {
                 Add Member
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>
-                  {editingMember ? "Edit Member" : "Add New Member"}
-                </DialogTitle>
+            <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto shadow-2xl border-0 bg-gradient-to-br from-background via-background to-muted/20">
+              <DialogHeader className="pb-6">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg">
+                    <Plus className="w-6 h-6 text-primary-foreground" />
+                  </div>
+                  <div>
+                    <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent">
+                      {editingMember ? "Edit Member" : "Add New Member"}
+                    </DialogTitle>
+                    <DialogDescription className="text-muted-foreground">
+                      {editingMember
+                        ? "Update member information"
+                        : "Create a new member profile"}
+                    </DialogDescription>
+                  </div>
+                </div>
               </DialogHeader>
               <Form {...form}>
                 <form
@@ -406,6 +421,7 @@ export default function Members() {
                       </FormItem>
                     )}
                   />
+
                   <FormField
                     control={form.control}
                     name="email"
@@ -413,16 +429,13 @@ export default function Members() {
                       <FormItem>
                         <FormLabel>Email</FormLabel>
                         <FormControl>
-                          <Input
-                            type="email"
-                            placeholder="member@email.com"
-                            {...field}
-                          />
+                          <Input placeholder="Enter email address" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
+
                   <FormField
                     control={form.control}
                     name="phone"
@@ -442,9 +455,21 @@ export default function Members() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Address</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Enter full address" {...field} />
-                        </FormControl>
+                        <Select
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select your address" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="Mogh">Mogh</SelectItem>
+                            <SelectItem value="Mixigram">Mixigram</SelectItem>
+                            <SelectItem value="Uchu">Uchu</SelectItem>
+                            <SelectItem value="Uchugol">Uchugol</SelectItem>
+                          </SelectContent>
+                        </Select>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -600,14 +625,17 @@ export default function Members() {
                     </div>
                   )}
 
-                  <div className="flex justify-end gap-3 pt-4">
+                  <div className="flex justify-end gap-3 pt-6 border-t border-border/50">
                     <Button
                       type="button"
                       variant="outline"
-                      onClick={() => handleDialogClose(false)}>
-                      Cancel
+                      onClick={() => handleDialogClose(false)}
+                      className="px-6 py-2.5 rounded-lg hover:bg-muted/50 transition-all duration-200">
+                      Cancel Add Member
                     </Button>
-                    <Button type="submit">
+                    <Button
+                      type="submit"
+                      className="px-6 py-2.5 rounded-lg bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary shadow-lg hover:shadow-xl transition-all duration-200">
                       {editingMember ? "Update Member" : "Add Member"}
                     </Button>
                   </div>
@@ -932,8 +960,13 @@ export default function Members() {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {selectedMember.monthlyContributions.map(
-                              (contribution, index) => {
+                            {selectedMember.monthlyContributions
+                              .sort(
+                                (a, b) =>
+                                  new Date(a.month).getTime() -
+                                  new Date(b.month).getTime()
+                              )
+                              .map((contribution, index) => {
                                 const attendanceRecord =
                                   selectedMember.attendance.find(
                                     (a) => a.date === contribution.month
@@ -962,8 +995,7 @@ export default function Members() {
                                     </TableCell>
                                   </TableRow>
                                 );
-                              }
-                            )}
+                              })}
                           </TableBody>
                         </Table>
                       ) : (
@@ -982,49 +1014,109 @@ export default function Members() {
                     </CardHeader>
                     <CardContent>
                       {selectedMember.loans.length > 0 ? (
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Date</TableHead>
-                              <TableHead>Amount Payable</TableHead>
-                              <TableHead>Remaining</TableHead>
-                              <TableHead>Status</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {selectedMember.loans.map((loan) => {
-                              const effectiveInterest =
-                                settings.applyLoanInterest
-                                  ? settings.loanInterestRate
-                                  : 0;
-                              const amountWithInterest =
-                                loan.amount * (1 + effectiveInterest / 100);
-                              return (
-                                <TableRow key={loan.id}>
-                                  <TableCell>
-                                    {new Date(loan.date).toLocaleDateString()}
-                                  </TableCell>
-                                  <TableCell>
-                                    PKR {amountWithInterest.toLocaleString()}
-                                  </TableCell>
-                                  <TableCell>
-                                    PKR {loan.remainingAmount.toLocaleString()}
-                                  </TableCell>
-                                  <TableCell>
-                                    <span
-                                      className={`px-2 py-1 rounded-full text-xs ${
-                                        loan.status === "Paid"
-                                          ? "bg-green-100 text-green-700"
-                                          : "bg-orange-100 text-orange-700"
-                                      }`}>
-                                      {loan.status}
-                                    </span>
-                                  </TableCell>
-                                </TableRow>
-                              );
-                            })}
-                          </TableBody>
-                        </Table>
+                        <div className="space-y-6">
+                          {selectedMember.loans.map((loan) => {
+                            const effectiveInterest = settings.applyLoanInterest
+                              ? settings.loanInterestRate
+                              : 0;
+                            const amountWithInterest =
+                              loan.amount * (1 + effectiveInterest / 100);
+                            return (
+                              <div
+                                key={loan.id}
+                                className="border rounded-lg p-4">
+                                <div className="flex justify-between items-start mb-4">
+                                  <div>
+                                    <h4 className="font-semibold">
+                                      Loan #{loan.id}
+                                    </h4>
+                                    <p className="text-sm text-muted-foreground">
+                                      Issued:{" "}
+                                      {new Date(loan.date).toLocaleDateString()}
+                                    </p>
+                                  </div>
+                                  <span
+                                    className={`px-2 py-1 rounded-full text-xs ${
+                                      loan.status === "Paid"
+                                        ? "bg-green-100 text-green-700"
+                                        : "bg-orange-100 text-orange-700"
+                                    }`}>
+                                    {loan.status}
+                                  </span>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4 mb-4">
+                                  <div>
+                                    <p className="text-sm text-muted-foreground">
+                                      Principal Amount
+                                    </p>
+                                    <p className="font-medium">
+                                      PKR {loan.amount.toLocaleString()}
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <p className="text-sm text-muted-foreground">
+                                      Amount with Interest
+                                    </p>
+                                    <p className="font-medium">
+                                      PKR {amountWithInterest.toLocaleString()}
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <p className="text-sm text-muted-foreground">
+                                      Remaining Amount
+                                    </p>
+                                    <p className="font-medium text-destructive">
+                                      PKR{" "}
+                                      {loan.remainingAmount.toLocaleString()}
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <p className="text-sm text-muted-foreground">
+                                      Interest Rate
+                                    </p>
+                                    <p className="font-medium">
+                                      {effectiveInterest}%
+                                    </p>
+                                  </div>
+                                </div>
+
+                                {loan.installments.length > 0 && (
+                                  <div>
+                                    <h5 className="font-medium mb-2">
+                                      Installment History
+                                    </h5>
+                                    <Table>
+                                      <TableHeader>
+                                        <TableRow>
+                                          <TableHead>Date</TableHead>
+                                          <TableHead>Amount Paid</TableHead>
+                                        </TableRow>
+                                      </TableHeader>
+                                      <TableBody>
+                                        {loan.installments.map(
+                                          (installment, index) => (
+                                            <TableRow key={index}>
+                                              <TableCell>
+                                                {new Date(
+                                                  installment.date
+                                                ).toLocaleDateString()}
+                                              </TableCell>
+                                              <TableCell>
+                                                PKR{" "}
+                                                {installment.amount.toLocaleString()}
+                                              </TableCell>
+                                            </TableRow>
+                                          )
+                                        )}
+                                      </TableBody>
+                                    </Table>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
                       ) : (
                         <p className="text-muted-foreground text-center py-4">
                           No loans recorded

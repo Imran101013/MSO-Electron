@@ -19,8 +19,8 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { format, parseISO, isPast } from "date-fns";
 import { useEffect, useMemo } from "react";
 import {
-  LineChart,
-  Line,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -42,7 +42,75 @@ export default function Dashboard() {
     loansTrend,
     reserveTrend,
     meetings,
+    members,
   } = useOrganization();
+
+  // Aggregate budget contributions by month-year
+  const budgetData = useMemo(() => {
+    const monthlyData: { [key: string]: number } = {};
+    meetings.forEach((meeting) => {
+      const date = new Date(meeting.date);
+      const monthKey = format(date, "yyyy-MM");
+      const contributions = meeting.contributions.reduce(
+        (sum, c) => sum + c.amount,
+        0
+      );
+      monthlyData[monthKey] = (monthlyData[monthKey] || 0) + contributions;
+    });
+    return Object.entries(monthlyData)
+      .map(([month, budget]) => ({
+        month: format(new Date(month + "-01"), "MMM yyyy"),
+        budget,
+      }))
+      .sort(
+        (a, b) => new Date(a.month).getTime() - new Date(b.month).getTime()
+      );
+  }, [meetings]);
+
+  // Aggregate loan issued by month-year from members.loans
+  const loanIssuedData = useMemo(() => {
+    const monthlyData: { [key: string]: number } = {};
+    members.forEach((member) => {
+      member.loans.forEach((loan) => {
+        const date = new Date(loan.date);
+        const monthKey = format(date, "yyyy-MM");
+        monthlyData[monthKey] = (monthlyData[monthKey] || 0) + loan.amount;
+      });
+    });
+    return monthlyData;
+  }, [members]);
+
+  // Aggregate loan collected by month-year from meetings.loanCollections
+  const loanCollectedData = useMemo(() => {
+    const monthlyData: { [key: string]: number } = {};
+    meetings.forEach((meeting) => {
+      const date = new Date(meeting.date);
+      const monthKey = format(date, "yyyy-MM");
+      const collected = meeting.loanCollections.reduce(
+        (sum, l) => sum + l.amount,
+        0
+      );
+      monthlyData[monthKey] = (monthlyData[monthKey] || 0) + collected;
+    });
+    return monthlyData;
+  }, [meetings]);
+
+  // Combine issued and collected for loans trend
+  const loansData = useMemo(() => {
+    const allMonths = new Set([
+      ...Object.keys(loanIssuedData),
+      ...Object.keys(loanCollectedData),
+    ]);
+    return Array.from(allMonths)
+      .map((month) => ({
+        month: format(new Date(month + "-01"), "MMM yyyy"),
+        issued: loanIssuedData[month] || 0,
+        collected: loanCollectedData[month] || 0,
+      }))
+      .sort(
+        (a, b) => new Date(a.month).getTime() - new Date(b.month).getTime()
+      );
+  }, [loanIssuedData, loanCollectedData]);
 
   // Filter out past meetings
   useEffect(() => {
@@ -225,19 +293,9 @@ export default function Dashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {meetings.length > 0 ? (
+            {budgetData.length > 0 ? (
               <ResponsiveContainer width="100%" height={300}>
-                <LineChart
-                  data={meetings.map((m) => {
-                    const monthDate = new Date(m.date);
-                    return {
-                      month: format(monthDate, "MMM dd"),
-                      budget: m.contributions.reduce(
-                        (sum, c) => sum + c.amount,
-                        0
-                      ),
-                    };
-                  })}>
+                <BarChart data={budgetData}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="month" />
                   <YAxis />
@@ -245,16 +303,12 @@ export default function Dashboard() {
                     formatter={(value) => `PKR ${value.toLocaleString()}`}
                   />
                   <Legend />
-                  <Line
-                    type="monotone"
+                  <Bar
                     dataKey="budget"
-                    stroke="#8b5cf6"
-                    strokeWidth={2}
+                    fill="#8b5cf6"
                     name="Budget Contributions"
-                    dot={{ fill: "#8b5cf6", r: 4 }}
-                    activeDot={{ r: 6 }}
                   />
-                </LineChart>
+                </BarChart>
               </ResponsiveContainer>
             ) : (
               <div className="text-center py-12">
@@ -276,25 +330,9 @@ export default function Dashboard() {
             <CardDescription>Loans issued and recovered trends</CardDescription>
           </CardHeader>
           <CardContent>
-            {meetings.length > 0 ? (
+            {loansData.length > 0 ? (
               <ResponsiveContainer width="100%" height={300}>
-                <LineChart
-                  data={meetings.map((m) => {
-                    const monthDate = new Date(m.date);
-                    const issued = m.loanIssues.reduce(
-                      (sum, l) => sum + l.amount,
-                      0
-                    );
-                    const collected = m.loanCollections.reduce(
-                      (sum, l) => sum + l.amount,
-                      0
-                    );
-                    return {
-                      month: format(monthDate, "MMM dd"),
-                      issued,
-                      collected,
-                    };
-                  })}>
+                <BarChart data={loansData}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="month" />
                   <YAxis />
@@ -302,25 +340,13 @@ export default function Dashboard() {
                     formatter={(value) => `PKR ${value.toLocaleString()}`}
                   />
                   <Legend />
-                  <Line
-                    type="monotone"
-                    dataKey="issued"
-                    stroke="#ef4444"
-                    strokeWidth={2}
-                    name="Loans Issued"
-                    dot={{ fill: "#ef4444", r: 4 }}
-                    activeDot={{ r: 6 }}
-                  />
-                  <Line
-                    type="monotone"
+                  <Bar dataKey="issued" fill="#ef4444" name="Loans Issued" />
+                  <Bar
                     dataKey="collected"
-                    stroke="#22c55e"
-                    strokeWidth={2}
+                    fill="#22c55e"
                     name="Loans Recovered"
-                    dot={{ fill: "#22c55e", r: 4 }}
-                    activeDot={{ r: 6 }}
                   />
-                </LineChart>
+                </BarChart>
               </ResponsiveContainer>
             ) : (
               <div className="text-center py-12">

@@ -6,6 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Input, PasswordInput } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Card,
   CardContent,
   CardDescription,
@@ -48,12 +55,7 @@ const signupSchema = z
         ORGANIZATION_CONFIG.MINIMUM_PHONE_LENGTH,
         `Phone number must be at least ${ORGANIZATION_CONFIG.MINIMUM_PHONE_LENGTH} characters`
       ),
-    address: z
-      .string()
-      .min(
-        ORGANIZATION_CONFIG.MINIMUM_ADDRESS_LENGTH,
-        `Address must be at least ${ORGANIZATION_CONFIG.MINIMUM_ADDRESS_LENGTH} characters`
-      ),
+    address: z.string().min(1, "Address is required"),
     password: z.string().min(6, "Password must be at least 6 characters"),
     confirmPassword: z
       .string()
@@ -167,9 +169,21 @@ export default function Signup() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Address</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Enter full address" {...field} />
-                    </FormControl>
+                    <Select
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select your address" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="Mogh">Mogh</SelectItem>
+                        <SelectItem value="Mixigram">Mixigram</SelectItem>
+                        <SelectItem value="Uchu">Uchu</SelectItem>
+                        <SelectItem value="Uchugol">Uchugol</SelectItem>
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}

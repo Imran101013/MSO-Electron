@@ -160,6 +160,7 @@ export default function Meetings() {
                 present: !!contribution.present,
               },
             ],
+            totalBudget: updatedMember.totalBudget + contribution.amount,
           };
         } else {
           // No amount, still record attendance (present may be true/false)
