@@ -130,6 +130,13 @@ export default function Members() {
   const [memberToDelete, setMemberToDelete] = useState<Member | null>(null);
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
+  const [addContributionDialogOpen, setAddContributionDialogOpen] =
+    useState(false);
+  const [contributionForm, setContributionForm] = useState({
+    date: "",
+    amount: "",
+    present: true,
+  });
   const [currentPage, setCurrentPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -343,6 +350,51 @@ export default function Members() {
       reader.readAsDataURL(file);
     }
   };
+
+  const handleAddContribution = () => {
+    if (!selectedMember) return;
+
+    const amount = parseFloat(contributionForm.amount) || 0;
+    if (!contributionForm.date || amount <= 0) {
+      toast({
+        title: "Invalid Input",
+        description: "Please provide a valid date and amount.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const updatedMembers = members.map((m) => {
+      if (m.id === selectedMember.id) {
+        const newContribution: MonthlyContribution = {
+          month: contributionForm.date,
+          amount: amount,
+          paid: amount > 0,
+        };
+        const newAttendance = {
+          date: contributionForm.date,
+          present: contributionForm.present,
+        };
+        return {
+          ...m,
+          monthlyContributions: [...m.monthlyContributions, newContribution],
+          attendance: [...m.attendance, newAttendance],
+          totalBudget: m.totalBudget + amount,
+        };
+      }
+      return m;
+    });
+
+    setMembers(updatedMembers);
+    setContributionForm({ date: "", amount: "", present: true });
+    setAddContributionDialogOpen(false);
+    toast({
+      title: "Contribution Added",
+      description: `Past contribution of PKR ${amount.toLocaleString()} has been added to ${
+        selectedMember.name
+      }.`,
+    });
+  };
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -360,7 +412,7 @@ export default function Members() {
                 Add Member
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto shadow-2xl border-0 bg-gradient-to-br from-background via-background to-muted/20">
+            <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto shadow-2xl border-0 bg-gradient-to-br from-background via-background to-muted/20">
               <DialogHeader className="pb-6">
                 <div className="flex items-center gap-3 mb-2">
                   <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg">
@@ -944,10 +996,20 @@ export default function Members() {
 
                 <TabsContent value="contributions" className="space-y-4">
                   <Card>
-                    <CardHeader>
-                      <CardDescription>
-                        Monthly contribution and attendance history
-                      </CardDescription>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <div>
+                        <CardDescription>
+                          Monthly contribution and attendance history
+                        </CardDescription>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setAddContributionDialogOpen(true)}
+                        className="gap-2">
+                        <Plus className="w-4 h-4" />
+                        Add Past Contribution
+                      </Button>
                     </CardHeader>
                     <CardContent>
                       {selectedMember.monthlyContributions.length > 0 ? (
@@ -1128,6 +1190,75 @@ export default function Members() {
               </Tabs>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={addContributionDialogOpen}
+        onOpenChange={setAddContributionDialogOpen}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Add Past Contribution</DialogTitle>
+            <DialogDescription>
+              Add a past meeting contribution for {selectedMember?.name}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="contribution-date">Meeting Date</Label>
+              <Input
+                id="contribution-date"
+                type="date"
+                value={contributionForm.date}
+                onChange={(e) =>
+                  setContributionForm({
+                    ...contributionForm,
+                    date: e.target.value,
+                  })
+                }
+              />
+            </div>
+            <div>
+              <Label htmlFor="contribution-amount">Amount (PKR)</Label>
+              <Input
+                id="contribution-amount"
+                type="number"
+                placeholder="0"
+                value={contributionForm.amount}
+                onChange={(e) =>
+                  setContributionForm({
+                    ...contributionForm,
+                    amount: e.target.value,
+                  })
+                }
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="contribution-present"
+                checked={contributionForm.present}
+                onChange={(e) =>
+                  setContributionForm({
+                    ...contributionForm,
+                    present: e.target.checked,
+                  })
+                }
+                className="w-4 h-4 rounded border-border"
+              />
+              <Label htmlFor="contribution-present" className="cursor-pointer">
+                Present
+              </Label>
+            </div>
+          </div>
+          <div className="flex justify-end gap-3 pt-4">
+            <Button
+              variant="outline"
+              onClick={() => setAddContributionDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleAddContribution}>Add Contribution</Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
