@@ -53,7 +53,7 @@ export default function MemberSearch() {
               .includes(searchQuery.toLowerCase());
             // If member role, only show their own details
             if (isMember && user) {
-              return matchesSearch && member.email === user.email;
+              return matchesSearch && member.phone === user.phone;
             }
             return matchesSearch;
           })
@@ -74,7 +74,7 @@ export default function MemberSearch() {
 
   const handleViewDetails = (member: Member) => {
     // Prevent members from viewing other members' details
-    if (isMember && user && member.email !== user.email) {
+    if (isMember && user && member.phone !== user.phone) {
       toast({
         title: "Access Denied",
         description: "You can only view your own details.",
