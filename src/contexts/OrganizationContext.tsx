@@ -216,7 +216,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
 
   // Calculate total budget from:
   // 1. Meeting contributions
-  // 2. Members' monthly contributions
+  // 2. Members' total contributions (to avoid double-counting)
   // 3. Loan payments received
   // 4. Subtract loan amounts issued
   // 5. Add donations, subtract expenses
@@ -229,11 +229,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       );
       return sum + meetingContributions;
     }, 0) +
-    members.reduce(
-      (sum, member) =>
-        sum + member.monthlyContributions.reduce((s, c) => s + c.amount, 0),
-      0
-    ) +
+    members.reduce((sum, member) => sum + member.totalBudget, 0) +
     totalLoanPayments -
     totalLoanIssued +
     transactionDonations -

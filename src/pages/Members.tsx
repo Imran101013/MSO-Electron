@@ -39,8 +39,6 @@ import {
   Trash2,
   Eye,
   Upload,
-  X,
-  Calendar,
 } from "lucide-react";
 import {
   Dialog,
@@ -68,7 +66,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { useForm, useFieldArray } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useState } from "react";
@@ -108,15 +106,6 @@ const formSchema = z.object({
   address: z.string().min(1, "Address is required"),
   joinDate: z.string().min(1, "Join date is required"),
   profilePicture: z.string().optional(),
-  pastContributions: z
-    .array(
-      z.object({
-        date: z.string().min(1, "Date is required"),
-        amount: z.coerce.number().min(0, "Amount must be positive"),
-        present: z.boolean(),
-      })
-    )
-    .default([]),
 });
 
 type MemberFormValues = z.infer<typeof formSchema>;
@@ -191,17 +180,7 @@ export default function Members() {
       address: "",
       joinDate: "",
       profilePicture: "",
-      pastContributions: [],
     },
-  });
-
-  const {
-    fields: pastContributionFields,
-    append: appendContribution,
-    remove: removeContribution,
-  } = useFieldArray({
-    control: form.control,
-    name: "pastContributions",
   });
 
   const onSubmit = (data: MemberFormValues) => {
@@ -217,12 +196,6 @@ export default function Members() {
       });
       setEditingMember(null);
     } else {
-      // Calculate total budget from past contributions (include amounts regardless of presence)
-      const pastContributionsTotal = (data.pastContributions || []).reduce(
-        (sum, c) => sum + (c.amount || 0),
-        0
-      );
-
       // Add new member
       const newMember: Member = {
         id: members.length + 1,
@@ -234,25 +207,15 @@ export default function Members() {
         address: data.address,
         joinDate: data.joinDate,
         profilePicture: data.profilePicture,
-        monthlyContributions: (data.pastContributions || []).map((c) => ({
-          month: c.date,
-          amount: c.amount || 0,
-          // infer paid from whether an amount was provided
-          paid: (c.amount || 0) > 0,
-        })),
-        attendance: (data.pastContributions || []).map((c) => ({
-          date: c.date || "",
-          present: c.present,
-        })),
+        monthlyContributions: [],
+        attendance: [],
         loans: [],
-        totalBudget: pastContributionsTotal,
+        totalBudget: 0,
       };
       setMembers([...members, newMember]);
       toast({
         title: "Member Added",
-        description: `${
-          data.name
-        } has been successfully added with PKR ${pastContributionsTotal.toLocaleString()} from past contributions.`,
+        description: `${data.name} has been successfully added.`,
       });
     }
     form.reset();
@@ -270,7 +233,6 @@ export default function Members() {
       address: member.address,
       joinDate: member.joinDate,
       profilePicture: member.profilePicture || "",
-      pastContributions: [],
     });
     setOpen(true);
   };
@@ -569,114 +531,6 @@ export default function Members() {
                     </div>
                   </div>
 
-                  {/* Past Contributions */}
-                  {!editingMember && (
-                    <div className="space-y-3 pt-2">
-                      <div className="flex items-center justify-between">
-                        <Label>Past Meeting Contributions (Optional)</Label>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() =>
-                            appendContribution({
-                              date: "",
-                              amount: 0,
-                              present: true,
-                            })
-                          }
-                          className="gap-2">
-                          <Calendar className="w-4 h-4" />
-                          Add Contribution
-                        </Button>
-                      </div>
-                      {pastContributionFields.length > 0 && (
-                        <div className="space-y-3 max-h-60 overflow-y-auto border border-border rounded-md p-3">
-                          {pastContributionFields.map((field, index) => (
-                            <div
-                              key={field.id}
-                              className="flex items-center gap-3 p-3 border border-border rounded-md bg-muted/30">
-                              <div className="flex-1 grid grid-cols-3 gap-3">
-                                <FormField
-                                  control={form.control}
-                                  name={`pastContributions.${index}.date`}
-                                  render={({ field }) => (
-                                    <FormItem>
-                                      <FormLabel className="text-xs">
-                                        Meeting Date
-                                      </FormLabel>
-                                      <FormControl>
-                                        <Input type="date" {...field} />
-                                      </FormControl>
-                                      <FormMessage />
-                                    </FormItem>
-                                  )}
-                                />
-                                <FormField
-                                  control={form.control}
-                                  name={`pastContributions.${index}.amount`}
-                                  render={({ field }) => (
-                                    <FormItem>
-                                      <FormLabel className="text-xs">
-                                        Amount (PKR)
-                                      </FormLabel>
-                                      <FormControl>
-                                        <Input
-                                          type="number"
-                                          placeholder="0"
-                                          {...field}
-                                          onChange={(e) =>
-                                            field.onChange(
-                                              e.target.valueAsNumber || 0
-                                            )
-                                          }
-                                        />
-                                      </FormControl>
-                                      <FormMessage />
-                                    </FormItem>
-                                  )}
-                                />
-                                <FormField
-                                  control={form.control}
-                                  name={`pastContributions.${index}.present`}
-                                  render={({ field }) => (
-                                    <FormItem className="flex items-center gap-2 space-y-0 pt-8">
-                                      <FormControl>
-                                        <input
-                                          type="checkbox"
-                                          checked={field.value}
-                                          onChange={field.onChange}
-                                          className="w-4 h-4 rounded border-border"
-                                        />
-                                      </FormControl>
-                                      <FormLabel className="text-xs font-normal cursor-pointer">
-                                        Present
-                                      </FormLabel>
-                                    </FormItem>
-                                  )}
-                                />
-                              </div>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => removeContribution(index)}
-                                className="text-destructive hover:text-destructive">
-                                <X className="w-4 h-4" />
-                              </Button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      {pastContributionFields.length === 0 && (
-                        <p className="text-xs text-muted-foreground text-center py-4 border border-dashed border-border rounded-md">
-                          No past contributions added. Click "Add Contribution"
-                          to record past meeting contributions.
-                        </p>
-                      )}
-                    </div>
-                  )}
-
                   <div className="flex justify-end gap-3 pt-6 border-t border-border/50">
                     <Button
                       type="button"
@@ -775,50 +629,33 @@ export default function Members() {
                     <h3 className="font-semibold text-foreground">
                       {member.name}
                     </h3>
-                    <div className="flex items-center gap-4 mt-1">
-                      <span className="text-sm text-muted-foreground flex items-center gap-1">
-                        <Mail className="w-3 h-3" />
-                        {member.email}
-                      </span>
-                      <span className="text-sm text-muted-foreground flex items-center gap-1">
-                        <Phone className="w-3 h-3" />
-                        {member.phone}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="text-right">
-                    <p className="text-sm font-medium text-foreground">
-                      DOB: {new Date(member.dob).toLocaleDateString()}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-sm text-muted-foreground">
                       Joined {member.joinDate}
                     </p>
                   </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleViewDetails(member)}
-                      className="h-8 w-8">
-                      <Eye className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleEdit(member)}
-                      className="h-8 w-8">
-                      <Pencil className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDeleteClick(member)}
-                      className="h-8 w-8 text-destructive hover:text-destructive">
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleViewDetails(member)}
+                    className="h-8 w-8">
+                    <Eye className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleEdit(member)}
+                    className="h-8 w-8">
+                    <Pencil className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleDeleteClick(member)}
+                    className="h-8 w-8 text-destructive hover:text-destructive">
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
                 </div>
               </div>
             ))}
