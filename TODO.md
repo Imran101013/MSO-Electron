@@ -1,8 +1,3 @@
-- [ ] Replace "Donation" with "Source" in transaction type options
-- [ ] Change "donations" to "sources" in descriptions
-- [ ] Update "Total Donations" to "Total Sources"
-- [ ] Change "Donor Name" to "Source Name" in form labels
-- [ ] Update placeholders from "donor name" to "source name"
-- [ ] Change "Donation" to "Source" in transaction display
-- [ ] Update formData default from "donation" to "source"
-- [ ] Update type union from "donation" | "expense" to "source" | "expense"
+# TODO: Fix Total Outstanding in Loan Management
+
+- [ ] Update `totalOutstanding` calculation in `src/pages/Loans.tsx` to sum `loan.remaining` instead of `loan.amountWithInterest` for active loans, ensuring the outstanding amount decreases with each installment payment.

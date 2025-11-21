@@ -549,12 +549,7 @@ export default function Meetings() {
                       </div>
                       <div>
                         <p className="font-semibold text-foreground">
-                          {new Date(meeting.date).toLocaleDateString("en-US", {
-                            weekday: "long",
-                            year: "numeric",
-                            month: "long",
-                            day: "numeric",
-                          })}
+                          {format(new Date(meeting.date), "EEEE, dd/MM/yyyy")}
                         </p>
                         <div className="flex gap-3 mt-1 text-sm text-muted-foreground">
                           <span className="flex items-center gap-1">
@@ -562,7 +557,6 @@ export default function Meetings() {
                             {meeting.contributions.length} contributions
                           </span>
                           <span className="flex items-center gap-1">
-                            <DollarSign className="w-4 h-4" />
                             PKR{" "}
                             {meeting.contributions
                               .reduce((s, c) => s + c.amount, 0)

@@ -1,6 +1,7 @@
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { Member, MonthlyContribution } from "@/contexts/OrganizationContext";
+import { formatDate } from "@/lib/utils";
 
 export interface ReportData {
   members: Member[];
@@ -52,7 +53,7 @@ export class PDFReports {
     this.doc.setFontSize(10);
     this.doc.setFont("helvetica", "normal");
     this.doc.text(
-      `Generated on: ${new Date().toLocaleDateString()}`,
+      `Generated on: ${formatDate(new Date())}`,
       this.pageWidth / 2,
       this.currentY,
       { align: "center" }
@@ -163,7 +164,7 @@ export class PDFReports {
       `Father Name: ${member.fatherName}`,
       `Email: ${member.email}`,
       `Phone: ${member.phone}`,
-      `Join Date: ${new Date(member.joinDate).toLocaleDateString()}`,
+      `Join Date: ${formatDate(member.joinDate)}`,
       `Total Budget: PKR ${member.totalBudget.toLocaleString()}`,
     ];
 
@@ -183,7 +184,7 @@ export class PDFReports {
 
       const contributionHeaders = ["Date", "Amount (PKR)", "Status"];
       const contributionData = member.monthlyContributions.map((contrib) => [
-        new Date(contrib.month).toLocaleDateString(),
+        formatDate(contrib.month),
         contrib.amount.toLocaleString(),
         contrib.paid ? "Paid" : "Pending",
       ]);
@@ -206,7 +207,7 @@ export class PDFReports {
           : 0;
         const amountWithInterest = loan.amount * (1 + effectiveInterest / 100);
         return [
-          new Date(loan.date).toLocaleDateString(),
+          formatDate(loan.date),
           `PKR ${amountWithInterest.toLocaleString()}`,
           `PKR ${loan.remainingAmount.toLocaleString()}`,
           loan.status,
@@ -242,7 +243,7 @@ export class PDFReports {
         const amountWithInterest = loan.amount * (1 + effectiveInterest / 100);
         loanData.push([
           member.name,
-          new Date(loan.date).toLocaleDateString(),
+          formatDate(loan.date),
           `PKR ${amountWithInterest.toLocaleString()}`,
           `PKR ${loan.remainingAmount.toLocaleString()}`,
           loan.status,
@@ -281,7 +282,7 @@ export class PDFReports {
         );
         contributionData.push([
           member.name,
-          new Date(contrib.month).toLocaleDateString(),
+          formatDate(contrib.month),
           contrib.amount.toLocaleString(),
           attendanceRecord?.present ? "Yes" : "No",
         ]);
@@ -349,7 +350,7 @@ export class PDFReports {
       member.attendance.forEach((attendance) => {
         attendanceData.push([
           member.name,
-          new Date(attendance.date).toLocaleDateString(),
+          formatDate(attendance.date),
           attendance.present ? "Yes" : "No",
         ]);
       });
@@ -383,7 +384,7 @@ export class PDFReports {
       member.fatherName,
       member.email,
       member.phone,
-      new Date(member.joinDate).toLocaleDateString(),
+      formatDate(member.joinDate),
     ]);
 
     if (directoryData.length > 0) {

@@ -152,9 +152,9 @@ export default function Loans() {
     const membersWithLoans = new Set(activeLoansList.map((l) => l.memberId))
       .size;
 
-    // Calculate total outstanding as sum of amount payable with interest for active loans
+    // Calculate total outstanding as sum of remaining amounts for active loans
     const totalOutstanding = activeLoansList.reduce(
-      (sum, loan) => sum + loan.amountWithInterest,
+      (sum, loan) => sum + loan.remaining,
       0
     );
 

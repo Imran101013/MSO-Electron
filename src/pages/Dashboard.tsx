@@ -16,6 +16,7 @@ import {
   Clock,
 } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useSettings } from "@/contexts/SettingsContext";
 import { format, parseISO, isPast } from "date-fns";
 import { useEffect, useMemo } from "react";
 import {
@@ -38,12 +39,16 @@ export default function Dashboard() {
     upcomingMeetings,
     setUpcomingMeetings,
     budgetTrend,
-    membersTrend,
     loansTrend,
     reserveTrend,
     meetings,
     members,
   } = useOrganization();
+
+  const { settings } = useSettings();
+  const effectiveInterestRate = settings.applyLoanInterest
+    ? settings.loanInterestRate
+    : 0;
 
   // Aggregate budget contributions by month-year
   const budgetData = useMemo(() => {
@@ -67,50 +72,52 @@ export default function Dashboard() {
       );
   }, [meetings]);
 
-  // Aggregate loan issued by month-year from members.loans
+  // Aggregate loan issued by month-year from members.loans (including interest)
   const loanIssuedData = useMemo(() => {
     const monthlyData: { [key: string]: number } = {};
     members.forEach((member) => {
       member.loans.forEach((loan) => {
         const date = new Date(loan.date);
         const monthKey = format(date, "yyyy-MM");
-        monthlyData[monthKey] = (monthlyData[monthKey] || 0) + loan.amount;
+        const issuedAmount = loan.amount * (1 + effectiveInterestRate / 100);
+        monthlyData[monthKey] = (monthlyData[monthKey] || 0) + issuedAmount;
+      });
+    });
+    return monthlyData;
+  }, [members, effectiveInterestRate]);
+
+  // Aggregate loan recovered by month-year from members' loan installments
+  const loanRecoveredData = useMemo(() => {
+    const monthlyData: { [key: string]: number } = {};
+    members.forEach((member) => {
+      member.loans.forEach((loan) => {
+        loan.installments.forEach((installment) => {
+          const date = new Date(installment.date);
+          const monthKey = format(date, "yyyy-MM");
+          monthlyData[monthKey] =
+            (monthlyData[monthKey] || 0) + installment.amount;
+        });
       });
     });
     return monthlyData;
   }, [members]);
 
-  // Aggregate loan collected by month-year from meetings.loanCollections
-  const loanCollectedData = useMemo(() => {
-    const monthlyData: { [key: string]: number } = {};
-    meetings.forEach((meeting) => {
-      const date = new Date(meeting.date);
-      const monthKey = format(date, "yyyy-MM");
-      const collected = meeting.loanCollections.reduce(
-        (sum, l) => sum + l.amount,
-        0
-      );
-      monthlyData[monthKey] = (monthlyData[monthKey] || 0) + collected;
-    });
-    return monthlyData;
-  }, [meetings]);
-
-  // Combine issued and collected for loans trend
+  // Combine issued and recovered for loans trend
   const loansData = useMemo(() => {
     const allMonths = new Set([
       ...Object.keys(loanIssuedData),
-      ...Object.keys(loanCollectedData),
+      ...Object.keys(loanRecoveredData),
     ]);
     return Array.from(allMonths)
       .map((month) => ({
         month: format(new Date(month + "-01"), "MMM yyyy"),
         issued: loanIssuedData[month] || 0,
-        collected: loanCollectedData[month] || 0,
+        recovered: loanRecoveredData[month] || 0,
       }))
       .sort(
         (a, b) => new Date(a.month).getTime() - new Date(b.month).getTime()
       );
-  }, [loanIssuedData, loanCollectedData]);
+  }, [loanIssuedData, loanRecoveredData]);
 
   // Filter out past meetings
   useEffect(() => {
@@ -138,15 +145,6 @@ export default function Dashboard() {
           title="Total Members"
           value={totalMembers.toString()}
           icon={Users}
-          trend={
-            membersTrend
-              ? `${membersTrend.amount >= 0 ? "+" : ""}${
-                  membersTrend.amount
-                } this month`
-              : undefined
-          }
-          trendUp={membersTrend ? membersTrend.amount >= 0 : undefined}
-          bgColor="bg-blue-100"
         />
         <StatCard
           title="Total Budget"
@@ -342,7 +340,7 @@ export default function Dashboard() {
                   <Legend />
                   <Bar dataKey="issued" fill="#ef4444" name="Loans Issued" />
                   <Bar
-                    dataKey="collected"
+                    dataKey="recovered"
                     fill="#22c55e"
                     name="Loans Recovered"
                   />

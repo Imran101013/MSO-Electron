@@ -457,7 +457,7 @@ export default function Members() {
                       <FormItem>
                         <FormLabel>Phone Number</FormLabel>
                         <FormControl>
-                          <Input placeholder="+92 300 1234567" {...field} />
+                          <Input placeholder="0300 1234567" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -471,7 +471,7 @@ export default function Members() {
                         <FormLabel>Address</FormLabel>
                         <Select
                           onValueChange={field.onChange}
-                          defaultValue={field.value}>
+                          value={field.value}>
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue placeholder="Select your address" />
@@ -525,7 +525,7 @@ export default function Members() {
                           className="cursor-pointer"
                         />
                         <p className="text-xs text-muted-foreground mt-1">
-                          Upload a profile picture (optional)
+                          Upload a profile picture
                         </p>
                       </div>
                     </div>
@@ -612,7 +612,7 @@ export default function Members() {
             {currentMembers.map((member) => (
               <div
                 key={member.id}
-                className="flex items-center justify-between p-4 rounded-lg border border-border hover:bg-muted/50 transition-colors">
+                className="flex items-center justify-between p-2 rounded-lg border border-border hover:bg-muted/50 transition-colors">
                 <div className="flex items-center gap-4">
                   <Avatar className="h-12 w-12">
                     <AvatarImage src={member.profilePicture} />
@@ -630,7 +630,7 @@ export default function Members() {
                       {member.name}
                     </h3>
                     <p className="text-sm text-muted-foreground">
-                      Joined {member.joinDate}
+                      Joined Al-Hilal on: {member.joinDate}
                     </p>
                   </div>
                 </div>
@@ -640,7 +640,7 @@ export default function Members() {
                     size="icon"
                     onClick={() => handleViewDetails(member)}
                     className="h-8 w-8">
-                    <Eye className="w-4 h-4" />
+                    <Eye className="w-6 h-6" />
                   </Button>
                   <Button
                     variant="ghost"

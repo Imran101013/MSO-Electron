@@ -114,13 +114,20 @@ interface OrganizationContextType {
     amount: number,
     date: string
   ) => void;
+  addPastLoan: (
+    memberId: number,
+    amount: number,
+    date: string,
+    status: LoanStatus,
+    remainingAmount: number
+  ) => void;
   totalDonations: number;
   totalExpenses: number;
   totalLoanCollected: number;
   totalLoanOutstanding: number;
   totalLoanRecovered: number;
   budgetTrend: { amount: number; percentage: number } | null;
-  membersTrend: { amount: number; percentage: number } | null;
+
   loansTrend: { amount: number; percentage: number } | null;
   reserveTrend: { amount: number; percentage: number } | null;
 }
@@ -214,26 +221,18 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     );
   }, 0);
 
-  // Calculate total budget from:
-  // 1. Meeting contributions
-  // 2. Members' total contributions (to avoid double-counting)
-  // 3. Loan payments received
-  // 4. Subtract loan amounts issued
-  // 5. Add donations, subtract expenses
+  // Calculate total contributions
+  const contributions = members.reduce(
+    (sum, member) => sum + member.totalBudget,
+    0
+  );
+
+  // Calculate total budget as contributions minus loan issued plus loan payments plus reserve fund (donations minus expenses)
   const totalBudget =
-    meetings.reduce((sum, meeting) => {
-      // Add regular contributions
-      const meetingContributions = meeting.contributions.reduce(
-        (mSum, c) => mSum + c.amount,
-        0
-      );
-      return sum + meetingContributions;
-    }, 0) +
-    members.reduce((sum, member) => sum + member.totalBudget, 0) +
-    totalLoanPayments -
+    contributions -
     totalLoanIssued +
-    transactionDonations -
-    transactionExpenses;
+    totalLoanPayments +
+    (transactionDonations - transactionExpenses);
 
   // Calculate active loans total
   const activeLoans = members.reduce((sum, member) => {
@@ -289,26 +288,28 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       ? { amount: currentMonthBudget, percentage: 100 }
       : null;
 
-  // Members trend (contributors this month vs last month)
-  const currentMonthContributors = new Set(
-    currentMonthMeetings.flatMap((m) => m.contributions.map((c) => c.memberId))
-  ).size;
+  // Members trend (new members added this month vs last month)
+  const currentMonthNewMembers = members.filter((m) => {
+    const d = new Date(m.joinDate);
+    return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+  }).length;
 
-  const lastMonthContributors = new Set(
-    lastMonthMeetings.flatMap((m) => m.contributions.map((c) => c.memberId))
-  ).size;
+  const lastMonthNewMembers = members.filter((m) => {
+    const d = new Date(m.joinDate);
+    return d.getMonth() === lastMonth && d.getFullYear() === lastMonthYear;
+  }).length;
 
   const membersTrend =
-    lastMonthContributors > 0
+    lastMonthNewMembers > 0
       ? {
-          amount: currentMonthContributors - lastMonthContributors,
+          amount: currentMonthNewMembers - lastMonthNewMembers,
           percentage:
-            ((currentMonthContributors - lastMonthContributors) /
-              lastMonthContributors) *
+            ((currentMonthNewMembers - lastMonthNewMembers) /
+              lastMonthNewMembers) *
             100,
         }
-      : currentMonthContributors > 0
-      ? { amount: currentMonthContributors, percentage: 100 }
+      : currentMonthNewMembers > 0
+      ? { amount: currentMonthNewMembers, percentage: 100 }
       : null;
 
   // Loans trend (outstanding loans change)
@@ -446,6 +447,33 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     setMembers(updatedMembers);
   };
 
+  // Function to add a past loan
+  const addPastLoan = (
+    memberId: number,
+    amount: number,
+    date: string,
+    status: LoanStatus,
+    remainingAmount: number
+  ) => {
+    const member = members.find((m) => m.id === memberId);
+    if (!member) return;
+
+    const newLoan: Loan = {
+      id: member.loans.length + 1,
+      amount,
+      date,
+      status,
+      remainingAmount,
+      installments: [],
+    };
+
+    const updatedMembers = members.map((m) =>
+      m.id === memberId ? { ...m, loans: [...m.loans, newLoan] } : m
+    );
+
+    setMembers(updatedMembers);
+  };
+
   return (
     <OrganizationContext.Provider
       value={{
@@ -469,13 +497,13 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         },
         addLoanIssue,
         addLoanCollection,
+        addPastLoan,
         totalDonations: transactionDonations,
         totalExpenses: transactionExpenses,
         totalLoanCollected,
         totalLoanOutstanding,
         totalLoanRecovered,
         budgetTrend,
-        membersTrend,
         loansTrend,
         reserveTrend,
       }}>
