@@ -31,6 +31,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { format } from "date-fns";
 
 export default function Loans() {
   const {
@@ -458,7 +459,7 @@ export default function Loans() {
                       PKR {loan.remaining.toLocaleString()}
                     </TableCell>
                     <TableCell>
-                      {new Date(loan.date).toLocaleDateString()}
+                      {format(new Date(loan.date), settings.dateFormat)}
                     </TableCell>
                   </TableRow>
                 ))}

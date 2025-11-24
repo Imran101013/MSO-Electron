@@ -1,4 +1,7 @@
 import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,58 +23,103 @@ type FormState = {
   currency: string;
 };
 
+const settingsSchema = z.object({
+  loanInterestRate: z
+    .number({ invalid_type_error: "Interest rate is required" })
+    .min(0, "Interest rate must be >= 0")
+    .max(100, "Interest rate must be <= 100"),
+  applyLoanInterest: z.boolean(),
+  membersPerPage: z.number().min(1, "Members per page must be at least 1"),
+  minimumNameLength: z
+    .number()
+    .min(1, "Minimum name length must be at least 1"),
+  minimumPhoneLength: z
+    .number()
+    .min(1, "Minimum phone length must be at least 1"),
+  minimumAddressLength: z
+    .number()
+    .min(1, "Minimum address length must be at least 1"),
+  dateFormat: z.enum(["dd/MM/yyyy", "MM/dd/yyyy", "yyyy-MM-dd"]),
+  currency: z.string().min(1, "Currency is required"),
+});
+
+type SettingsForm = z.infer<typeof settingsSchema>;
+
 export default function SettingsPage() {
   const { settings, updateSettings } = useSettings();
-  const [form, setForm] = useState<FormState>({
-    loanInterestRate: settings.loanInterestRate.toString(),
-    applyLoanInterest: settings.applyLoanInterest,
-    membersPerPage: settings.membersPerPage.toString(),
-    minimumNameLength: settings.minimumNameLength.toString(),
-    minimumPhoneLength: settings.minimumPhoneLength.toString(),
-    minimumAddressLength: settings.minimumAddressLength.toString(),
-    dateFormat: settings.dateFormat,
-    currency: settings.currency,
+  const [saving, setSaving] = useState(false);
+
+  const form = useForm<SettingsForm>({
+    resolver: zodResolver(settingsSchema),
+    defaultValues: {
+      loanInterestRate: settings.loanInterestRate,
+      applyLoanInterest: settings.applyLoanInterest,
+      membersPerPage: settings.membersPerPage,
+      minimumNameLength: settings.minimumNameLength,
+      minimumPhoneLength: settings.minimumPhoneLength,
+      minimumAddressLength: settings.minimumAddressLength,
+      dateFormat:
+        (settings.dateFormat as SettingsForm["dateFormat"]) || "dd/MM/yyyy",
+      currency: settings.currency,
+    },
   });
 
-  const onChange = (k: string, v: string) => setForm((s) => ({ ...s, [k]: v }));
+  const { register, handleSubmit, formState, reset, watch, setValue } = form;
+  const { errors, isDirty } = formState;
 
-  const onSave = () => {
-    updateSettings({
-      loanInterestRate: Number(form.loanInterestRate) || 0,
-      applyLoanInterest: !!form.applyLoanInterest,
-      membersPerPage: Number(form.membersPerPage) || 5,
-      minimumNameLength: Number(form.minimumNameLength) || 2,
-      minimumPhoneLength: Number(form.minimumPhoneLength) || 10,
-      minimumAddressLength: Number(form.minimumAddressLength) || 5,
-      dateFormat: form.dateFormat || settings.dateFormat,
-      currency: form.currency || settings.currency,
-    });
-    toast.success("Settings saved");
+  const watchedDateFormat = watch("dateFormat");
+
+  const onSubmit = (values: SettingsForm) => {
+    setSaving(true);
+    try {
+      updateSettings({
+        loanInterestRate: values.loanInterestRate,
+        applyLoanInterest: values.applyLoanInterest,
+        membersPerPage: values.membersPerPage,
+        minimumNameLength: values.minimumNameLength,
+        minimumPhoneLength: values.minimumPhoneLength,
+        minimumAddressLength: values.minimumAddressLength,
+        dateFormat: values.dateFormat,
+        currency: values.currency,
+      });
+      toast.success("Settings saved");
+    } catch (e) {
+      toast.error("Failed to save settings");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const onResetDefaults = () => {
-    const defaults: FormState = {
-      loanInterestRate: String(ORGANIZATION_CONFIG.LOAN_INTEREST_RATE),
-      applyLoanInterest: true,
-      membersPerPage: String(ORGANIZATION_CONFIG.MEMBERS_PER_PAGE),
-      minimumNameLength: String(ORGANIZATION_CONFIG.MINIMUM_NAME_LENGTH),
-      minimumPhoneLength: String(ORGANIZATION_CONFIG.MINIMUM_PHONE_LENGTH),
-      minimumAddressLength: String(ORGANIZATION_CONFIG.MINIMUM_ADDRESS_LENGTH),
-      dateFormat: ORGANIZATION_CONFIG.DATE_FORMAT,
-      currency: ORGANIZATION_CONFIG.CURRENCY,
-    };
-    setForm(defaults);
-    updateSettings({
+    const defaults = {
       loanInterestRate: ORGANIZATION_CONFIG.LOAN_INTEREST_RATE,
       applyLoanInterest: true,
       membersPerPage: ORGANIZATION_CONFIG.MEMBERS_PER_PAGE,
       minimumNameLength: ORGANIZATION_CONFIG.MINIMUM_NAME_LENGTH,
       minimumPhoneLength: ORGANIZATION_CONFIG.MINIMUM_PHONE_LENGTH,
       minimumAddressLength: ORGANIZATION_CONFIG.MINIMUM_ADDRESS_LENGTH,
-      dateFormat: ORGANIZATION_CONFIG.DATE_FORMAT,
+      dateFormat: ORGANIZATION_CONFIG.DATE_FORMAT as SettingsForm["dateFormat"],
       currency: ORGANIZATION_CONFIG.CURRENCY,
+    };
+
+    reset(defaults, { keepDirty: false });
+    updateSettings({
+      loanInterestRate: defaults.loanInterestRate,
+      applyLoanInterest: defaults.applyLoanInterest,
+      membersPerPage: defaults.membersPerPage,
+      minimumNameLength: defaults.minimumNameLength,
+      minimumPhoneLength: defaults.minimumPhoneLength,
+      minimumAddressLength: defaults.minimumAddressLength,
+      dateFormat: defaults.dateFormat,
+      currency: defaults.currency,
     });
     toast.success("Settings reset to defaults");
+  };
+
+  // Helper to keep UI-friendly number inputs in sync
+  const syncNumberInput = (name: keyof SettingsForm, value: string) => {
+    const parsed = Number(value);
+    setValue(name as any, isNaN(parsed) ? 0 : parsed, { shouldDirty: true });
   };
 
   return (
@@ -94,71 +142,133 @@ export default function SettingsPage() {
             <Label>Loan Interest Rate (%)</Label>
             <Input
               type="number"
-              value={form.loanInterestRate}
-              onChange={(e) => onChange("loanInterestRate", e.target.value)}
+              {...register("loanInterestRate", { valueAsNumber: true })}
+              onChange={(e) =>
+                syncNumberInput("loanInterestRate", e.target.value)
+              }
             />
+            {errors.loanInterestRate && (
+              <p className="text-destructive text-sm mt-1">
+                {errors.loanInterestRate.message}
+              </p>
+            )}
           </div>
+
           <div className="flex items-center gap-3">
             <Label className="flex-1">Apply Loan Interest</Label>
             <Switch
-              checked={!!form.applyLoanInterest}
+              checked={watch("applyLoanInterest")}
               onCheckedChange={(v) =>
-                setForm((s) => ({ ...s, applyLoanInterest: v }))
+                setValue("applyLoanInterest", Boolean(v), { shouldDirty: true })
               }
             />
           </div>
+
           <div>
             <Label>Members Per Page</Label>
             <Input
               type="number"
-              value={form.membersPerPage}
-              onChange={(e) => onChange("membersPerPage", e.target.value)}
+              {...register("membersPerPage", { valueAsNumber: true })}
+              onChange={(e) =>
+                syncNumberInput("membersPerPage", e.target.value)
+              }
             />
+            {errors.membersPerPage && (
+              <p className="text-destructive text-sm mt-1">
+                {errors.membersPerPage.message}
+              </p>
+            )}
           </div>
+
           <div>
             <Label>Minimum Name Length</Label>
             <Input
               type="number"
-              value={form.minimumNameLength}
-              onChange={(e) => onChange("minimumNameLength", e.target.value)}
+              {...register("minimumNameLength", { valueAsNumber: true })}
+              onChange={(e) =>
+                syncNumberInput("minimumNameLength", e.target.value)
+              }
             />
+            {errors.minimumNameLength && (
+              <p className="text-destructive text-sm mt-1">
+                {errors.minimumNameLength.message}
+              </p>
+            )}
           </div>
+
           <div>
             <Label>Minimum Phone Length</Label>
             <Input
               type="number"
-              value={form.minimumPhoneLength}
-              onChange={(e) => onChange("minimumPhoneLength", e.target.value)}
+              {...register("minimumPhoneLength", { valueAsNumber: true })}
+              onChange={(e) =>
+                syncNumberInput("minimumPhoneLength", e.target.value)
+              }
             />
+            {errors.minimumPhoneLength && (
+              <p className="text-destructive text-sm mt-1">
+                {errors.minimumPhoneLength.message}
+              </p>
+            )}
           </div>
+
           <div>
             <Label>Minimum Address Length</Label>
             <Input
               type="number"
-              value={form.minimumAddressLength}
-              onChange={(e) => onChange("minimumAddressLength", e.target.value)}
+              {...register("minimumAddressLength", { valueAsNumber: true })}
+              onChange={(e) =>
+                syncNumberInput("minimumAddressLength", e.target.value)
+              }
             />
+            {errors.minimumAddressLength && (
+              <p className="text-destructive text-sm mt-1">
+                {errors.minimumAddressLength.message}
+              </p>
+            )}
           </div>
+
           <div>
             <Label>Date Format</Label>
-            <Input
-              value={form.dateFormat}
-              onChange={(e) => onChange("dateFormat", e.target.value)}
-            />
+            <select
+              className="w-full rounded-md border p-2"
+              {...register("dateFormat")}>
+              <option value="dd/MM/yyyy">dd/MM/yyyy (24/12/2025)</option>
+              <option value="MM/dd/yyyy">MM/dd/yyyy (12/24/2025)</option>
+              <option value="yyyy-MM-dd">yyyy-MM-dd (2025-12-24)</option>
+            </select>
+            <p className="text-sm text-muted-foreground mt-1">
+              Preview: {format(new Date(), watchedDateFormat)}
+            </p>
+            {errors.dateFormat && (
+              <p className="text-destructive text-sm mt-1">
+                {errors.dateFormat.message}
+              </p>
+            )}
           </div>
+
           <div>
             <Label>Currency</Label>
-            <Input
-              value={form.currency}
-              onChange={(e) => onChange("currency", e.target.value)}
-            />
+            <Input {...register("currency")} />
+            {errors.currency && (
+              <p className="text-destructive text-sm mt-1">
+                {errors.currency.message}
+              </p>
+            )}
           </div>
 
           <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={onResetDefaults}>
+            <Button
+              variant="outline"
+              onClick={onResetDefaults}
+              disabled={saving}>
               Reset Defaults
             </Button>
-            <Button onClick={onSave}>Save Settings</Button>
+            <Button
+              onClick={handleSubmit(onSubmit)}
+              disabled={saving || !isDirty}>
+              {saving ? "Saving..." : "Save Settings"}
+            </Button>
           </div>
         </CardContent>
       </Card>

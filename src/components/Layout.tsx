@@ -109,14 +109,14 @@ export default function Layout({ children }: LayoutProps) {
             <span className="text-sm text-muted-foreground">
               Welcome, {user?.name}
             </span>
-            <Button
+            <Button className="pb-1"
               variant="outline"
               size="sm"
               onClick={() => navigate("/change-password")}>
               <Lock className="w-4 h-4 mr-2" />
               Change Password
             </Button>
-            <Button className="bg-blue-500" variant="outline" size="sm" onClick={handleLogout}>
+            <Button className="bg-blue-500 text-white pb-1" variant="outline" size="sm" onClick={handleLogout}>
               <LogOut className="w-4 h-4 mr-2" />
               Logout
             </Button>

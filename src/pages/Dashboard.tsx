@@ -18,6 +18,7 @@ import {
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useSettings } from "@/contexts/SettingsContext";
 import { format, parseISO, isPast } from "date-fns";
+import { formatTimeTo12Hour } from "@/lib/utils";
 import { useEffect, useMemo } from "react";
 import {
   BarChart,
@@ -64,7 +65,7 @@ export default function Dashboard() {
     });
     return Object.entries(monthlyData)
       .map(([month, budget]) => ({
-        month: format(new Date(month + "-01"), "MMM yyyy"),
+        month: format(new Date(month + "-01"), settings.dateFormat),
         budget,
       }))
       .sort(
@@ -150,13 +151,13 @@ export default function Dashboard() {
           title="Total Budget"
           value={`PKR ${totalBudget.toLocaleString()}`}
           icon={Wallet}
-          trend={
-            budgetTrend
-              ? `${budgetTrend.amount >= 0 ? "+" : ""}PKR ${Math.abs(
-                  budgetTrend.amount
-                ).toLocaleString()} (${budgetTrend.percentage.toFixed(1)}%)`
-              : undefined
-          }
+          // trend={
+          //   budgetTrend
+          //     ? `${budgetTrend.amount >= 0 ? "+" : ""}PKR ${Math.abs(
+          //         budgetTrend.amount
+          //       ).toLocaleString()} (${budgetTrend.percentage.toFixed(1)}%)`
+          //     : undefined
+          // }
           trendUp={budgetTrend ? budgetTrend.amount >= 0 : undefined}
           bgColor="bg-green-100"
         />
@@ -178,13 +179,13 @@ export default function Dashboard() {
           title="Reserve Fund"
           value={`PKR ${reserveFund.toLocaleString()}`}
           icon={PiggyBank}
-          trend={
-            reserveTrend
-              ? `${reserveTrend.amount >= 0 ? "+" : ""}PKR ${Math.abs(
-                  reserveTrend.amount
-                ).toLocaleString()}`
-              : undefined
-          }
+          // trend={
+          //   reserveTrend
+          //     ? `${reserveTrend.amount >= 0 ? "+" : ""}PKR ${Math.abs(
+          //         reserveTrend.amount
+          //       ).toLocaleString()}`
+          //     : undefined
+          // }
           trendUp={reserveTrend ? reserveTrend.amount >= 0 : undefined}
           bgColor="bg-purple-100"
         />
@@ -205,7 +206,7 @@ export default function Dashboard() {
                 {upcomingMeetings.map((meeting) => (
                   <div
                     key={meeting.id}
-                    className="p-4 rounded-lg border bg-card">
+                    className="p-4 rounded-lg border bg-red-200">
                     <div className="flex items-start gap-3">
                       <Clock className="w-5 h-5 text-primary mt-0.5" />
                       <div className="flex-1">
@@ -214,9 +215,12 @@ export default function Dashboard() {
                             <h4 className="font-semibold text-foreground">
                               {meeting.venue}
                             </h4>
-                            <p className="text-sm text-muted-foreground mt-1">
-                              {format(parseISO(meeting.date), "PPP")} at{" "}
-                              {meeting.time}
+                            <p className="text-xl font-bold text-orange-700 mt-1">
+                              {format(
+                                parseISO(meeting.date),
+                                settings.dateFormat
+                              )}{" "}
+                              at {formatTimeTo12Hour(meeting.time)}
                             </p>
                           </div>
                         </div>
@@ -252,7 +256,7 @@ export default function Dashboard() {
                 <span className="text-sm text-muted-foreground">
                   Total Members
                 </span>
-                <span className="text-lg font-bold text-foreground">
+                <span className="text-lg font-semibold text-foreground">
                   {totalMembers}
                 </span>
               </div>
@@ -260,7 +264,7 @@ export default function Dashboard() {
                 <span className="text-sm text-muted-foreground">
                   Total Budget
                 </span>
-                <span className="text-lg font-bold text-foreground">
+                <span className="text-lg font-semibold text-foreground">
                   PKR {totalBudget.toLocaleString()}
                 </span>
               </div>
@@ -268,7 +272,7 @@ export default function Dashboard() {
                 <span className="text-sm text-muted-foreground">
                   Active Loans
                 </span>
-                <span className="text-lg font-bold text-foreground">
+                <span className="text-lg font-semibold text-foreground">
                   PKR {activeLoans.toLocaleString()}
                 </span>
               </div>

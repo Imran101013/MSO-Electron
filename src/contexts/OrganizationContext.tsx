@@ -126,6 +126,7 @@ interface OrganizationContextType {
   totalLoanCollected: number;
   totalLoanOutstanding: number;
   totalLoanRecovered: number;
+  totalLoanInstallmentCollected: number; // new property for installments sum
   budgetTrend: { amount: number; percentage: number } | null;
 
   loansTrend: { amount: number; percentage: number } | null;
@@ -220,6 +221,9 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       }, 0)
     );
   }, 0);
+
+  // Add new property totalLoanInstallmentCollected for the sum of installments paid
+  const totalLoanInstallmentCollected = totalLoanPayments;
 
   // Calculate total contributions
   const contributions = members.reduce(
@@ -506,6 +510,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         budgetTrend,
         loansTrend,
         reserveTrend,
+        totalLoanInstallmentCollected,
       }}>
       {children}
     </OrganizationContext.Provider>

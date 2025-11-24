@@ -45,6 +45,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { format } from "date-fns";
+import { useSettings } from "@/contexts/SettingsContext";
+import { formatTimeTo12Hour } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
@@ -81,6 +83,7 @@ export default function Meetings() {
     upcomingMeetings,
     setUpcomingMeetings,
   } = useOrganization();
+  const { settings } = useSettings();
   const { isAdmin, user } = useAuth();
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isScheduleOpen, setIsScheduleOpen] = useState(false);
@@ -393,10 +396,9 @@ export default function Meetings() {
                                     className="absolute top-full left-0 right-0 mt-2 bg-background border border-border rounded-md shadow-lg z-50 max-h-60 overflow-y-auto"
                                     onMouseDown={(e) => e.preventDefault()}>
                                     {filteredMembers.map((member) => (
-                                      <Button
+                                      <button
                                         key={member.id}
-                                        variant="ghost"
-                                        className="w-full justify-start px-4 py-3 hover:bg-accent transition-colors flex items-center gap-3 border-b border-border last:border-b-0"
+                                        type="button"
                                         onClick={() => {
                                           appendContribution({
                                             memberId: member.id,
@@ -405,7 +407,8 @@ export default function Meetings() {
                                           });
                                           setSearchQuery("");
                                           setShowSuggestions(false);
-                                        }}>
+                                        }}
+                                        className="w-full text-left px-4 py-3 hover:bg-accent transition-colors flex items-center gap-3 border-b border-border last:border-b-0">
                                         <Avatar className="h-8 w-8 flex-shrink-0">
                                           <AvatarImage
                                             src={member.profilePicture}
@@ -427,7 +430,7 @@ export default function Meetings() {
                                             {member.email}
                                           </p>
                                         </div>
-                                      </Button>
+                                      </button>
                                     ))}
                                   </div>
                                 )}
@@ -491,28 +494,6 @@ export default function Meetings() {
                             </div>
                           );
                         })}
-
-                        {searchQuery && filteredMembers.length > 0 && (
-                          <div className="border rounded-lg p-2 max-h-48 overflow-y-auto">
-                            {filteredMembers.map((member) => (
-                              <Button
-                                key={member.id}
-                                type="button"
-                                variant="ghost"
-                                className="w-full justify-start"
-                                onClick={() => {
-                                  appendContribution({
-                                    memberId: member.id,
-                                    amount: 0,
-                                    present: true,
-                                  });
-                                  setSearchQuery("");
-                                }}>
-                                {member.name}
-                              </Button>
-                            ))}
-                          </div>
-                        )}
                       </div>
 
                       <div className="flex justify-end gap-4">
@@ -549,7 +530,7 @@ export default function Meetings() {
                       </div>
                       <div>
                         <p className="font-semibold text-foreground">
-                          {format(new Date(meeting.date), "EEEE, dd/MM/yyyy")}
+                          {format(new Date(meeting.date), settings.dateFormat)}
                         </p>
                         <div className="flex gap-3 mt-1 text-sm text-muted-foreground">
                           <span className="flex items-center gap-1">
@@ -571,7 +552,10 @@ export default function Meetings() {
                         setViewMeetingId(open ? meeting.id : null)
                       }>
                       <DialogTrigger asChild>
-                        <Button variant="outline" size="sm" className="gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-2 pb-1">
                           <Eye className="w-4 h-4" />
                           View Details
                         </Button>
@@ -580,7 +564,10 @@ export default function Meetings() {
                         <DialogHeader>
                           <DialogTitle>
                             Meeting Details -{" "}
-                            {new Date(meeting.date).toLocaleDateString()}
+                            {format(
+                              new Date(meeting.date),
+                              settings.dateFormat
+                            )}
                           </DialogTitle>
                         </DialogHeader>
                         {viewedMeeting && (

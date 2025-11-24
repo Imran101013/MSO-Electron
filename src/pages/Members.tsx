@@ -81,6 +81,7 @@ import { useSettings } from "@/contexts/SettingsContext";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
+import { format } from "date-fns";
 
 const formSchema = z.object({
   name: z
@@ -630,7 +631,8 @@ export default function Members() {
                       {member.name}
                     </h3>
                     <p className="text-sm text-muted-foreground">
-                      Joined Al-Hilal on: {member.joinDate}
+                      Joined Al-Hilal on:{" "}
+                      {format(new Date(member.joinDate), settings.dateFormat)}
                     </p>
                   </div>
                 </div>
@@ -788,7 +790,7 @@ export default function Members() {
                     };
                     input.click();
                   }}
-                  className="gap-2">
+                  className="pb-1 gap-2">
                   <Upload className="w-4 h-4" />
                   Update Photo
                 </Button>
@@ -806,12 +808,17 @@ export default function Members() {
                 <div>
                   <p className="text-sm text-muted-foreground">Date of Birth</p>
                   <p className="font-medium">
-                    {new Date(selectedMember.dob).toLocaleDateString()}
+                    {format(new Date(selectedMember.dob), settings.dateFormat)}
                   </p>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Joined</p>
-                  <p className="font-medium">{selectedMember.joinDate}</p>
+                  <p className="font-medium">
+                    {format(
+                      new Date(selectedMember.joinDate),
+                      settings.dateFormat
+                    )}
+                  </p>
                 </div>
                 <div className="col-span-2">
                   <p className="text-sm text-muted-foreground">Address</p>
@@ -843,7 +850,7 @@ export default function Members() {
                         variant="outline"
                         size="sm"
                         onClick={() => setAddContributionDialogOpen(true)}
-                        className="gap-2">
+                        className="pb-1 gap-2">
                         <Plus className="w-4 h-4" />
                         Add Past Contribution
                       </Button>
@@ -853,7 +860,7 @@ export default function Members() {
                         <Table>
                           <TableHeader>
                             <TableRow>
-                              <TableHead>Date</TableHead>
+                              <TableHead>Meeting Date</TableHead>
                               <TableHead>Amount</TableHead>
                               <TableHead>Attendance</TableHead>
                             </TableRow>
@@ -873,9 +880,10 @@ export default function Members() {
                                 return (
                                   <TableRow key={index}>
                                     <TableCell>
-                                      {new Date(
-                                        contribution.month
-                                      ).toLocaleDateString()}
+                                      {format(
+                                        new Date(contribution.month),
+                                        settings.dateFormat
+                                      )}
                                     </TableCell>
                                     <TableCell>
                                       PKR {contribution.amount.toLocaleString()}
@@ -931,7 +939,10 @@ export default function Members() {
                                     </h4>
                                     <p className="text-sm text-muted-foreground">
                                       Issued:{" "}
-                                      {new Date(loan.date).toLocaleDateString()}
+                                      {format(
+                                        new Date(loan.date),
+                                        settings.dateFormat
+                                      )}
                                     </p>
                                   </div>
                                   <span
@@ -997,9 +1008,10 @@ export default function Members() {
                                           (installment, index) => (
                                             <TableRow key={index}>
                                               <TableCell>
-                                                {new Date(
-                                                  installment.date
-                                                ).toLocaleDateString()}
+                                                {format(
+                                                  new Date(installment.date),
+                                                  settings.dateFormat
+                                                )}
                                               </TableCell>
                                               <TableCell>
                                                 PKR{" "}

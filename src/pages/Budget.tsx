@@ -1,31 +1,33 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { DollarSign, TrendingUp, Wallet, Users, Building2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import StatCard from "@/components/StatCard";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { format } from "date-fns";
+import { useSettings } from "@/contexts/SettingsContext";
 
 export default function Budget() {
   const {
     members,
     meetings,
     totalBudget,
-    totalLoanCollected,
+    totalLoanInstallmentCollected,
     totalLoanOutstanding,
   } = useOrganization();
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedMember, setSelectedMember] = useState<number | null>(null);
   const itemsPerPage = 5;
 
-  // Get latest meeting
-  const latestMeeting = useMemo(() => {
-    if (meetings.length === 0) return null;
-    return meetings.sort(
-      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-    )[0];
-  }, [meetings]);
+  // Get latest meeting (non-mutating) — compute inline so it updates whenever `meetings` changes
+  const latestMeeting =
+    meetings.length === 0
+      ? null
+      : meetings.reduce((a, b) =>
+          new Date(a.date) > new Date(b.date) ? a : b
+        );
 
   // Calculate this month's total from latest meeting
   const thisMonthTotal = useMemo(() => {
@@ -33,33 +35,40 @@ export default function Budget() {
     return latestMeeting.contributions.reduce((sum, c) => sum + c.amount, 0);
   }, [latestMeeting]);
 
-  // Calculate member budgets
+  // Calculate member budgets from latest meeting only
   const memberBudgets = useMemo(() => {
-    const budgetMap = new Map<number, number>();
+    if (!latestMeeting) return [];
 
-    meetings.forEach((meeting) => {
-      meeting.contributions.forEach((contrib) => {
-        const current = budgetMap.get(contrib.memberId) || 0;
-        budgetMap.set(contrib.memberId, current + contrib.amount);
-      });
-    });
-
-    return Array.from(budgetMap.entries())
-      .map(([memberId, total]) => {
-        const member = members.find((m) => m.id === memberId);
+    return latestMeeting.contributions
+      .map((contrib) => {
+        const member = members.find((m) => m.id === contrib.memberId);
         return {
-          memberId,
+          memberId: contrib.memberId,
           memberName: member?.name || "Unknown",
-          totalBudget: total,
+          totalBudget: contrib.amount,
         };
       })
       .sort((a, b) => b.totalBudget - a.totalBudget);
-  }, [meetings, members]);
+  }, [latestMeeting, members]);
 
-  // Top 5 highest budgets
+  // Top 5 highest contributions from latest meeting
   const topFiveBudgets = useMemo(() => {
-    return memberBudgets.slice(0, 5);
-  }, [memberBudgets]);
+    if (!latestMeeting || latestMeeting.contributions.length === 0) {
+      return [];
+    }
+
+    return latestMeeting.contributions
+      .map((contrib) => {
+        const member = members.find((m) => m.id === contrib.memberId);
+        return {
+          memberId: contrib.memberId,
+          memberName: member?.name || "Unknown",
+          totalBudget: contrib.amount,
+        };
+      })
+      .sort((a, b) => b.totalBudget - a.totalBudget)
+      .slice(0, 5);
+  }, [latestMeeting, members]);
 
   // Paginated member budgets
   const paginatedMembers = useMemo(() => {
@@ -69,28 +78,24 @@ export default function Budget() {
 
   const totalPages = Math.ceil(memberBudgets.length / itemsPerPage);
 
-  // Get member contributions by month
-  const getMemberMonthlyContributions = (memberId: number) => {
-    const monthlyContribs = new Map<string, number>();
+  // Get member contribution from latest meeting
+  const getMemberLatestContribution = (memberId: number) => {
+    if (!latestMeeting) return null;
 
-    meetings.forEach((meeting) => {
-      const contrib = meeting.contributions.find(
-        (c) => c.memberId === memberId
-      );
-      if (contrib) {
-        const month = new Date(meeting.date).toLocaleDateString("en-US", {
-          year: "numeric",
-          month: "short",
-        });
-        const current = monthlyContribs.get(month) || 0;
-        monthlyContribs.set(month, current + contrib.amount);
-      }
-    });
+    const contrib = latestMeeting.contributions.find(
+      (c) => c.memberId === memberId
+    );
 
-    return Array.from(monthlyContribs.entries())
-      .map(([month, amount]) => ({ month, amount }))
-      .sort((a, b) => b.month.localeCompare(a.month));
+    return contrib ? contrib.amount : null;
   };
+
+  // Reset pagination/selection when a new meeting (by date) appears
+  useEffect(() => {
+    setCurrentPage(1);
+    setSelectedMember(null);
+  }, [latestMeeting?.date]);
+
+  const { settings } = useSettings();
 
   return (
     <div className="space-y-6">
@@ -110,9 +115,10 @@ export default function Budget() {
           icon={DollarSign}
           trend={
             latestMeeting
-              ? `Meeting on ${new Date(
-                  latestMeeting.date
-                ).toLocaleDateString()}`
+              ? `Meeting on ${format(
+                  new Date(latestMeeting.date),
+                  settings.dateFormat
+                )}`
               : "No meeting yet"
           }
           trendUp={true}
@@ -120,7 +126,7 @@ export default function Budget() {
         />
         <StatCard
           title="Total Loan Collected"
-          value={`PKR ${totalLoanCollected.toLocaleString()}`}
+          value={`PKR ${totalLoanInstallmentCollected.toLocaleString()}`}
           icon={TrendingUp}
           bgColor="bg-green-50"
         />
@@ -144,22 +150,22 @@ export default function Budget() {
         </CardHeader>
         <CardContent>
           {topFiveBudgets.length > 0 ? (
-            <div className="space-y-4">
+            <div>
               {topFiveBudgets.map((member, index) => (
                 <div
                   key={member.memberId}
-                  className="flex items-center justify-between p-4 rounded-lg bg-muted/50">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-bold">
-                      {index + 1}
+                  className="flex items-center justify-between border-b p-1 bg-muted/50">
+                  <div className="flex items-center gap-1">
+                    <div className="w-4 h-4 rounded-full flex items-center justify-center text-sm-primary font-semibold">
+                      {index + 1}-
                     </div>
                     <div>
-                      <p className="font-semibold text-foreground">
+                      <p className="font-semibold text-medium">
                         {member.memberName}
                       </p>
                     </div>
                   </div>
-                  <p className="text-lg font-bold text-foreground">
+                  <p className="text-medium font-semibold text-sm">
                     PKR {member.totalBudget.toLocaleString()}
                   </p>
                 </div>
@@ -175,60 +181,67 @@ export default function Budget() {
 
       <Card className="shadow-md">
         <CardHeader>
-          <CardTitle>Member Contributions</CardTitle>
+          <CardTitle>All Members Contributions</CardTitle>
         </CardHeader>
         <CardContent>
           {memberBudgets.length > 0 ? (
             <>
-              <div className="space-y-4">
+              <div>
                 {paginatedMembers.map((member) => (
-                  <div key={member.memberId} className="border rounded-lg p-4">
+                  <div key={member.memberId} className="border-b px-2 pb-2">
                     <div className="flex justify-between items-center mb-2">
                       <div>
                         <p className="font-semibold text-foreground">
                           {member.memberName}
                         </p>
-                        <p className="text-sm text-muted-foreground">
-                          Total Budget
-                        </p>
+                        {/* <p className="text-sm text-muted-foreground">
+                          Budget Today
+                        </p> */}
                       </div>
-                      <div className="text-right">
-                        <p className="text-lg font-bold text-foreground">
+                      <div className="flex text-center">
+                        <p className="text-sm font-semibold pt-1 text-foreground">
                           PKR {member.totalBudget.toLocaleString()}
                         </p>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() =>
-                            setSelectedMember(
-                              selectedMember === member.memberId
-                                ? null
-                                : member.memberId
-                            )
-                          }>
-                          {selectedMember === member.memberId ? "Hide" : "View"}{" "}
-                          Monthly
-                        </Button>
+                        {latestMeeting && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() =>
+                              setSelectedMember(
+                                selectedMember === member.memberId
+                                  ? null
+                                  : member.memberId
+                              )
+                            }>
+                            {selectedMember === member.memberId
+                              ? "Hide"
+                              : "View"}{" "}
+                            Details
+                          </Button>
+                        )}
                       </div>
                     </div>
 
-                    {selectedMember === member.memberId && (
-                      <div className="mt-4 pt-4 border-t space-y-2">
+                    {selectedMember === member.memberId && latestMeeting && (
+                      <div className="mt-2 pt-2 border-t space-y-2">
                         <p className="font-semibold text-sm text-muted-foreground mb-2">
-                          Monthly Contributions:
+                          Meeting Details:
                         </p>
-                        {getMemberMonthlyContributions(member.memberId).map(
-                          (monthly) => (
-                            <div
-                              key={monthly.month}
-                              className="flex justify-between items-center p-2 rounded bg-muted/50">
-                              <span className="text-sm">{monthly.month}</span>
-                              <Badge variant="secondary">
-                                PKR {monthly.amount.toLocaleString()}
-                              </Badge>
-                            </div>
-                          )
-                        )}
+                        <div className="flex justify-between items-center p-1 rounded bg-muted/50">
+                          <span className="text-sm">Date</span>
+                          <span className="text-sm font-semibold">
+                            {format(
+                              new Date(latestMeeting.date),
+                              settings.dateFormat
+                            )}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center p-1 rounded bg-muted/50">
+                          <span className="text-sm">Contribution</span>
+                          <Badge variant="secondary">
+                            PKR {member.totalBudget.toLocaleString()}
+                          </Badge>
+                        </div>
                       </div>
                     )}
                   </div>

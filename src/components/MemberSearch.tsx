@@ -28,6 +28,7 @@ import { useOrganization, Member } from "@/contexts/OrganizationContext";
 import { useSettings } from "@/contexts/SettingsContext";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { format } from "date-fns";
 
 export default function MemberSearch() {
   const { members, setMembers } = useOrganization();
@@ -217,12 +218,17 @@ export default function MemberSearch() {
                 <div>
                   <p className="text-sm text-muted-foreground">Date of Birth</p>
                   <p className="font-medium">
-                    {new Date(selectedMember.dob).toLocaleDateString()}
+                    {format(new Date(selectedMember.dob), settings.dateFormat)}
                   </p>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Joined</p>
-                  <p className="font-medium">{selectedMember.joinDate}</p>
+                  <p className="font-medium">
+                    {format(
+                      new Date(selectedMember.joinDate),
+                      settings.dateFormat
+                    )}
+                  </p>
                 </div>
                 <div className="col-span-2">
                   <p className="text-sm text-muted-foreground">Address</p>
@@ -269,9 +275,10 @@ export default function MemberSearch() {
                                 return (
                                   <TableRow key={index}>
                                     <TableCell>
-                                      {new Date(
-                                        contribution.month
-                                      ).toLocaleDateString()}
+                                      {format(
+                                        new Date(contribution.month),
+                                        settings.dateFormat
+                                      )}
                                     </TableCell>
                                     <TableCell>
                                       PKR {contribution.amount.toLocaleString()}
@@ -330,7 +337,10 @@ export default function MemberSearch() {
                               return (
                                 <TableRow key={loan.id}>
                                   <TableCell>
-                                    {new Date(loan.date).toLocaleDateString()}
+                                    {format(
+                                      new Date(loan.date),
+                                      settings.dateFormat
+                                    )}
                                   </TableCell>
                                   <TableCell>
                                     PKR {amountWithInterest.toLocaleString()}
