@@ -613,7 +613,7 @@ export default function Members() {
             {currentMembers.map((member) => (
               <div
                 key={member.id}
-                className="flex items-center justify-between p-2 rounded-lg border border-border hover:bg-muted/50 transition-colors">
+                className="flex items-center justify-between p-1 rounded-lg border border-border hover:bg-muted/50 transition-colors">
                 <div className="flex items-center gap-4">
                   <Avatar className="h-12 w-12">
                     <AvatarImage src={member.profilePicture} />
@@ -642,7 +642,7 @@ export default function Members() {
                     size="icon"
                     onClick={() => handleViewDetails(member)}
                     className="h-8 w-8">
-                    <Eye className="w-6 h-6" />
+                    <Eye className="w-4 h-4" />
                   </Button>
                   <Button
                     variant="ghost"

@@ -222,26 +222,52 @@ export default function Budget() {
                       </div>
                     </div>
 
-                    {selectedMember === member.memberId && latestMeeting && (
+                    {selectedMember === member.memberId && (
                       <div className="mt-2 pt-2 border-t space-y-2">
                         <p className="font-semibold text-sm text-muted-foreground mb-2">
                           Meeting Details:
                         </p>
-                        <div className="flex justify-between items-center p-1 rounded bg-muted/50">
-                          <span className="text-sm">Date</span>
-                          <span className="text-sm font-semibold">
-                            {format(
-                              new Date(latestMeeting.date),
-                              settings.dateFormat
-                            )}
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-center p-1 rounded bg-muted/50">
-                          <span className="text-sm">Contribution</span>
-                          <Badge variant="secondary">
-                            PKR {member.totalBudget.toLocaleString()}
-                          </Badge>
-                        </div>
+                        <table className="w-full text-left border-collapse">
+                          <thead>
+                            <tr className="bg-muted/50">
+                              <th className="p-2 text-sm font-semibold border border-muted">
+                                Date
+                              </th>
+                              <th className="p-2 text-sm font-semibold border border-muted">
+                                Contribution
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {meetings
+                              .filter((meeting) =>
+                                meeting.contributions.some(
+                                  (c) => c.memberId === member.memberId
+                                )
+                              )
+                              .map((meeting) => {
+                                const contribution = meeting.contributions.find(
+                                  (c) => c.memberId === member.memberId
+                                );
+                                if (!contribution) return null;
+                                return (
+                                  <tr
+                                    key={meeting.id}
+                                    className="border-b border-muted">
+                                    <td className="p-2 text-sm">
+                                      {format(
+                                        new Date(meeting.date),
+                                        settings.dateFormat
+                                      )}
+                                    </td>
+                                    <td className="p-2 text-sm">
+                                      PKR {contribution.amount.toLocaleString()}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                          </tbody>
+                        </table>
                       </div>
                     )}
                   </div>

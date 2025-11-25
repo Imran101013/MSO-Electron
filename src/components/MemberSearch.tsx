@@ -164,10 +164,10 @@ export default function MemberSearch() {
                 </Avatar>
                 <div className="flex-1">
                   <h3 className="text-2xl font-bold text-foreground">
-                    {selectedMember.name}
+                    Name: {selectedMember.name}
                   </h3>
                   <p className="text-muted-foreground">
-                    Father: {selectedMember.fatherName}
+                    Father's Name: {selectedMember.fatherName}
                   </p>
                 </div>
                 <Button
