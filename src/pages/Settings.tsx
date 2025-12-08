@@ -12,17 +12,6 @@ import { Switch } from "@/components/ui/switch";
 import { format } from "date-fns";
 import { ORGANIZATION_CONFIG } from "@/config/organization";
 
-type FormState = {
-  loanInterestRate: string;
-  applyLoanInterest: boolean;
-  membersPerPage: string;
-  minimumNameLength: string;
-  minimumPhoneLength: string;
-  minimumAddressLength: string;
-  dateFormat: string;
-  currency: string;
-};
-
 const settingsSchema = z.object({
   loanInterestRate: z
     .number({ invalid_type_error: "Interest rate is required" })
@@ -40,6 +29,11 @@ const settingsSchema = z.object({
     .number()
     .min(1, "Minimum address length must be at least 1"),
   dateFormat: z.enum(["dd/MM/yyyy", "MM/dd/yyyy", "yyyy-MM-dd"]),
+  theme: z.enum(["system", "light", "dark"]),
+  timeFormat: z.enum(["12", "24"]),
+  itemsPerPage: z.number().min(1, "Items per page must be at least 1"),
+  enableAnimations: z.boolean(),
+  language: z.enum(["en", "ur"]),
   currency: z.string().min(1, "Currency is required"),
 });
 
@@ -60,6 +54,22 @@ export default function SettingsPage() {
       minimumAddressLength: settings.minimumAddressLength,
       dateFormat:
         (settings.dateFormat as SettingsForm["dateFormat"]) || "dd/MM/yyyy",
+      theme: settings.theme ?? ORGANIZATION_CONFIG.THEME ?? "system",
+      timeFormat:
+        settings.timeFormat ?? ORGANIZATION_CONFIG.TIME_FORMAT ?? "12",
+      itemsPerPage:
+        settings.itemsPerPage ?? ORGANIZATION_CONFIG.ITEMS_PER_PAGE ?? 10,
+      enableAnimations:
+        settings.enableAnimations ??
+        ORGANIZATION_CONFIG.ENABLE_ANIMATIONS ??
+        true,
+      language:
+        settings.language === "en" || settings.language === "ur"
+          ? (settings.language as SettingsForm["language"])
+          : ORGANIZATION_CONFIG.LANGUAGE === "en" ||
+            ORGANIZATION_CONFIG.LANGUAGE === "ur"
+          ? (ORGANIZATION_CONFIG.LANGUAGE as SettingsForm["language"])
+          : "en",
       currency: settings.currency,
     },
   });
@@ -80,6 +90,11 @@ export default function SettingsPage() {
         minimumPhoneLength: values.minimumPhoneLength,
         minimumAddressLength: values.minimumAddressLength,
         dateFormat: values.dateFormat,
+        theme: values.theme,
+        timeFormat: values.timeFormat,
+        itemsPerPage: values.itemsPerPage,
+        enableAnimations: values.enableAnimations,
+        language: values.language,
         currency: values.currency,
       });
       toast.success("Settings saved");
@@ -99,6 +114,11 @@ export default function SettingsPage() {
       minimumPhoneLength: ORGANIZATION_CONFIG.MINIMUM_PHONE_LENGTH,
       minimumAddressLength: ORGANIZATION_CONFIG.MINIMUM_ADDRESS_LENGTH,
       dateFormat: ORGANIZATION_CONFIG.DATE_FORMAT as SettingsForm["dateFormat"],
+      theme: ORGANIZATION_CONFIG.THEME || "system",
+      timeFormat: ORGANIZATION_CONFIG.TIME_FORMAT || "12",
+      itemsPerPage: ORGANIZATION_CONFIG.ITEMS_PER_PAGE || 10,
+      enableAnimations: ORGANIZATION_CONFIG.ENABLE_ANIMATIONS ?? true,
+      language: ORGANIZATION_CONFIG.LANGUAGE || "en",
       currency: ORGANIZATION_CONFIG.CURRENCY,
     };
 
@@ -111,22 +131,30 @@ export default function SettingsPage() {
       minimumPhoneLength: defaults.minimumPhoneLength,
       minimumAddressLength: defaults.minimumAddressLength,
       dateFormat: defaults.dateFormat,
+      theme: defaults.theme,
+      timeFormat: defaults.timeFormat,
+      itemsPerPage: defaults.itemsPerPage,
+      enableAnimations: defaults.enableAnimations,
+      language: defaults.language,
       currency: defaults.currency,
     });
     toast.success("Settings reset to defaults");
   };
 
   // Helper to keep UI-friendly number inputs in sync
-  const syncNumberInput = (name: keyof SettingsForm, value: string) => {
+  const syncNumberInput = (
+    name: Parameters<typeof setValue>[0],
+    value: string
+  ) => {
     const parsed = Number(value);
-    setValue(name as any, isNaN(parsed) ? 0 : parsed, { shouldDirty: true });
+    setValue(name, isNaN(parsed) ? 0 : parsed, { shouldDirty: true });
   };
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold">Settings</h2>
+          <h2 className="text-3xl font-semibold text-foreground">Settings</h2>
           <p className="text-muted-foreground mt-1">
             Global application settings
           </p>
@@ -141,7 +169,7 @@ export default function SettingsPage() {
           <div>
             <Label>Loan Interest Rate (%)</Label>
             <Input
-              type="number"
+              type="text"
               {...register("loanInterestRate", { valueAsNumber: true })}
               onChange={(e) =>
                 syncNumberInput("loanInterestRate", e.target.value)
@@ -167,7 +195,7 @@ export default function SettingsPage() {
           <div>
             <Label>Members Per Page</Label>
             <Input
-              type="number"
+              type="text"
               {...register("membersPerPage", { valueAsNumber: true })}
               onChange={(e) =>
                 syncNumberInput("membersPerPage", e.target.value)
@@ -183,7 +211,7 @@ export default function SettingsPage() {
           <div>
             <Label>Minimum Name Length</Label>
             <Input
-              type="number"
+              type="text"
               {...register("minimumNameLength", { valueAsNumber: true })}
               onChange={(e) =>
                 syncNumberInput("minimumNameLength", e.target.value)
@@ -199,7 +227,7 @@ export default function SettingsPage() {
           <div>
             <Label>Minimum Phone Length</Label>
             <Input
-              type="number"
+              type="text"
               {...register("minimumPhoneLength", { valueAsNumber: true })}
               onChange={(e) =>
                 syncNumberInput("minimumPhoneLength", e.target.value)
@@ -215,7 +243,7 @@ export default function SettingsPage() {
           <div>
             <Label>Minimum Address Length</Label>
             <Input
-              type="number"
+              type="text"
               {...register("minimumAddressLength", { valueAsNumber: true })}
               onChange={(e) =>
                 syncNumberInput("minimumAddressLength", e.target.value)
@@ -231,14 +259,14 @@ export default function SettingsPage() {
           <div>
             <Label>Date Format</Label>
             <select
-              className="w-full rounded-md border p-2"
+              className="w-full rounded-md border border-border bg-card text-card-foreground p-2 focus:outline-none focus:ring-2 focus:ring-ring"
               {...register("dateFormat")}>
               <option value="dd/MM/yyyy">dd/MM/yyyy (24/12/2025)</option>
               <option value="MM/dd/yyyy">MM/dd/yyyy (12/24/2025)</option>
               <option value="yyyy-MM-dd">yyyy-MM-dd (2025-12-24)</option>
             </select>
             <p className="text-sm text-muted-foreground mt-1">
-              Preview: {format(new Date(), watchedDateFormat)}
+              Preview: {format(new Date(), watchedDateFormat ?? "dd/MM/yyyy")}
             </p>
             {errors.dateFormat && (
               <p className="text-destructive text-sm mt-1">

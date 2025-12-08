@@ -183,7 +183,7 @@ export default function Loans() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold text-foreground">
+          <h2 className="text-3xl font-semibold text-foreground">
             Loan Management
           </h2>
           <p className="text-muted-foreground mt-1">
@@ -198,7 +198,7 @@ export default function Loans() {
                 Issue Loan
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="sm:max-w-[560px] max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl border border-border p-4 bg-gradient-to-br from-background/70 to-muted/10">
               <DialogHeader>
                 <DialogTitle>Issue New Loan</DialogTitle>
               </DialogHeader>
@@ -226,7 +226,7 @@ export default function Loans() {
                   <Label htmlFor="issue-amount">Amount (PKR)</Label>
                   <Input
                     id="issue-amount"
-                    type="number"
+                    type="text"
                     placeholder="Enter amount"
                     value={issueFormData.amount}
                     onChange={(e) =>
@@ -273,7 +273,7 @@ export default function Loans() {
                 Record Payment
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="sm:max-w-[560px] max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl border border-border p-4 bg-gradient-to-br from-background/70 to-muted/10">
               <DialogHeader>
                 <DialogTitle>Record Loan Payment</DialogTitle>
               </DialogHeader>
@@ -332,7 +332,7 @@ export default function Loans() {
                   </Label>
                   <Input
                     id="collection-amount"
-                    type="number"
+                    type="text"
                     placeholder="Enter payment amount"
                     value={collectionFormData.amount}
                     onChange={(e) =>

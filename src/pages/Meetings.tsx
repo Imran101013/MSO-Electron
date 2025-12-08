@@ -225,7 +225,7 @@ export default function Meetings() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold text-foreground">
+          <h2 className="text-3xl font-semibold text-foreground">
             Meeting Records
           </h2>
           <p className="text-muted-foreground mt-1">

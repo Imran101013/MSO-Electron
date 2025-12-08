@@ -2,6 +2,7 @@ import { ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSettings } from "@/contexts/SettingsContext";
 import {
   LayoutDashboard,
   Users,
@@ -12,10 +13,13 @@ import {
   Settings,
   LogOut,
   Lock,
+  Sun,
+  Moon,
 } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarHeader,
@@ -28,6 +32,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import MemberSearch from "@/components/MemberSearch";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 
 interface LayoutProps {
   children: ReactNode;
@@ -53,6 +58,7 @@ export default function Layout({ children }: LayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout, isAdmin } = useAuth();
+  const { settings, updateSettings } = useSettings();
 
   const navigation = isAdmin ? adminNavigation : memberNavigation;
 
@@ -98,6 +104,24 @@ export default function Layout({ children }: LayoutProps) {
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
+          {/* Sidebar footer with avatar and account actions */}
+          <SidebarFooter className="mt-auto">
+            <div className="flex items-start gap-3 px-2 py-2">
+              <div className="flex  flex-col items-start gap-2">
+                <Button variant="ghost" size="sm" onClick={handleLogout}>
+                  <LogOut className="w-4 h-4 mr-2" />
+                  Logout
+                </Button>
+                 <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => navigate("/change-password")}>
+                  <Lock className="w-4 h-4 mr-2" />
+                  Change Password
+                </Button>
+              </div>
+            </div>
+          </SidebarFooter>
         </SidebarContent>
       </Sidebar>
       <SidebarInset>
@@ -109,17 +133,33 @@ export default function Layout({ children }: LayoutProps) {
             <span className="text-sm text-muted-foreground">
               Welcome, {user?.name}
             </span>
-            <Button className="pb-1"
-              variant="outline"
+              <div className="ml-2">
+              <Avatar>
+                {(user as { avatar?: string })?.avatar ? (
+                  <AvatarImage src={(user as { avatar?: string }).avatar} alt={user?.name} />
+                ) : (
+                  <AvatarFallback>{user?.name?.[0] ?? "U"}</AvatarFallback>
+                )}
+              </Avatar>
+            </div>
+            <Button
+              variant="ghost"
               size="sm"
-              onClick={() => navigate("/change-password")}>
-              <Lock className="w-4 h-4 mr-2" />
-              Change Password
+              onClick={() =>
+                updateSettings({
+                  theme: settings.theme === "dark" ? "light" : "dark",
+                })
+              }
+              title={`Switch to ${
+                settings.theme === "dark" ? "light" : "dark"
+              } mode`}>
+              {settings.theme === "dark" ? (
+                <Sun className="w-4 h-4" />
+              ) : (
+                <Moon className="w-4 h-4" />
+              )}
             </Button>
-            <Button className="bg-blue-500 text-white pb-1" variant="outline" size="sm" onClick={handleLogout}>
-              <LogOut className="w-4 h-4 mr-2" />
-              Logout
-            </Button>
+          
           </div>
         </header>
         {/* Main Content */}

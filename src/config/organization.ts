@@ -26,6 +26,13 @@ export const ORGANIZATION_CONFIG = {
   // Default currency
   CURRENCY: "PKR",
 
+  // UI defaults
+  THEME: "system",
+  TIME_FORMAT: "12",
+  ITEMS_PER_PAGE: 10,
+  ENABLE_ANIMATIONS: true,
+  LANGUAGE: "en",
+
   // Status values
   LOAN_STATUS: {
     ACTIVE: "Active",

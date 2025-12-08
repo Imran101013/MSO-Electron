@@ -11,20 +11,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+// select components removed — role selection disabled
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { LogIn } from "lucide-react";
 
 export default function Login() {
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<"admin" | "member">("member");
   const [error, setError] = useState("");
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -33,7 +26,8 @@ export default function Login() {
     e.preventDefault();
     setError("");
     const trimmedPhone = phone.trim();
-    if (login(trimmedPhone, password, role)) {
+    // Force admin login only
+    if (login(trimmedPhone, password, "admin")) {
       navigate("/");
     } else {
       setError("Invalid credentials or role mismatch");
@@ -73,20 +67,6 @@ export default function Login() {
                 required
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="role">Role</Label>
-              <Select
-                value={role}
-                onValueChange={(value: "admin" | "member") => setRole(value)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select your role" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="member">Member</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
             {error && (
               <Alert variant="destructive">
                 <AlertDescription>{error}</AlertDescription>
@@ -96,24 +76,8 @@ export default function Login() {
               Sign In
             </Button>
           </form>
-          <div className="mt-4 text-center">
-            <Link to="/signup" className="text-sm text-primary hover:underline">
-              Don't have an account? Sign up
-            </Link>
-          </div>
-          <div className="mt-2 text-center">
-            <Link
-              to="/forgot-password"
-              className="text-sm text-primary hover:underline">
-              Forgot your password?
-            </Link>
-          </div>
-          <div className="mt-2 text-center text-sm text-muted-foreground">
-            Sample credentials:
-            <br />
-            Admin: +923001234567 / admin123
-            <br />
-            Member: +923001234567 / member123
+          <div className="mt-4 text-center text-sm text-muted-foreground">
+            Admin login only. Contact your administrator to create accounts.
           </div>
         </CardContent>
       </Card>

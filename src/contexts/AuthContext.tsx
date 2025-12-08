@@ -5,7 +5,6 @@ import React, {
   useEffect,
   ReactNode,
 } from "react";
-import { Member } from "@/contexts/OrganizationContext";
 import { ORGANIZATION_CONFIG } from "@/config/organization";
 
 // Helper function to normalize phone numbers
@@ -33,13 +32,10 @@ interface User {
 
 interface AuthContextType {
   user: User | null;
-  login: (phone: string, password: string, role: "admin" | "member") => boolean;
-  signup: (
+  login: (
     phone: string,
     password: string,
-    role: "admin" | "member",
-    name: string,
-    members: Member[]
+    role?: "admin" | "member"
   ) => boolean;
   logout: () => void;
   isAuthenticated: boolean;
@@ -59,8 +55,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
-    // Always initialize sample users (for testing purposes)
-    localStorage.setItem("users", JSON.stringify(sampleUsers));
+    // Initialize sample users only if none exist (avoid wiping stored users)
+    if (!localStorage.getItem("users")) {
+      localStorage.setItem("users", JSON.stringify(sampleUsers));
+    }
 
     // Check if user is logged in
     const storedUser = localStorage.getItem("currentUser");
@@ -72,14 +70,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   const login = (
     phone: string,
     password: string,
-    role: "admin" | "member"
+    role?: "admin" | "member"
   ): boolean => {
     const trimmedPhone = phone.trim();
 
     // Normalize phone number for comparison
     const normalizedPhone = normalizePhoneNumber(trimmedPhone);
 
-    // For admin role, only allow login with password
+    // Only admin login is supported. Members cannot login via this flow.
     if (role === "admin" && password === "admin123") {
       const adminUser: User = {
         id: "admin",
@@ -90,20 +88,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       };
       setUser(adminUser);
       localStorage.setItem("currentUser", JSON.stringify(adminUser));
-      return true;
-    }
-
-    // For member role, check against users array
-    const users: User[] = JSON.parse(localStorage.getItem("users") || "[]");
-    const foundUser = users.find(
-      (u) =>
-        normalizePhoneNumber(u.phone) === normalizedPhone &&
-        u.password === password &&
-        u.role === role
-    );
-    if (foundUser) {
-      setUser(foundUser);
-      localStorage.setItem("currentUser", JSON.stringify(foundUser));
       return true;
     }
     return false;
@@ -139,45 +123,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     return false;
   };
 
-  const signup = (
-    phone: string,
-    password: string,
-    role: "admin" | "member",
-    name: string,
-    members: Member[]
-  ): boolean => {
-    const trimmedPhone = phone.trim();
-    const users: User[] = JSON.parse(localStorage.getItem("users") || "[]");
-    const existingUser = users.find((u) => u.phone === trimmedPhone);
-    if (existingUser) {
-      return false; // Phone already exists
-    }
-
-    // Check if phone exists in members list (only for member role)
-    if (role === "member") {
-      const memberExists = members.find((m) => m.phone === trimmedPhone);
-      if (!memberExists) {
-        return false; // Phone not found in members list
-      }
-    }
-
-    const newUser: User = {
-      id: (users.length + 1).toString(),
-      phone: trimmedPhone,
-      password,
-      role,
-      name,
-    };
-    users.push(newUser);
-    localStorage.setItem("users", JSON.stringify(users));
-    return true;
-  };
+  // signup removed — member signup/login flow is disabled
 
   const value: AuthContextType = {
     user,
     login,
     logout,
-    signup,
     isAuthenticated: !!user,
     isAdmin: user?.role === "admin",
     isMember: user?.role === "member",

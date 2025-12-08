@@ -101,7 +101,7 @@ export default function Budget() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold text-foreground">Monthly Budget</h2>
+          <h2 className="text-3xl font-semibold text-foreground">Monthly Budget</h2>
           <p className="text-muted-foreground mt-1">
             Track monthly contributions
           </p>
@@ -122,25 +122,21 @@ export default function Budget() {
               : "No meeting yet"
           }
           trendUp={true}
-          bgColor="bg-blue-50"
         />
         <StatCard
           title="Total Loan Collected"
           value={`PKR ${totalLoanInstallmentCollected.toLocaleString()}`}
           icon={TrendingUp}
-          bgColor="bg-green-50"
         />
         <StatCard
           title="Total Loan Outstanding"
           value={`PKR ${totalLoanOutstanding.toLocaleString()}`}
           icon={Wallet}
-          bgColor="bg-yellow-50"
         />
         <StatCard
           title="Total Budget"
           value={`PKR ${totalBudget.toLocaleString()}`}
           icon={Building2}
-          bgColor="bg-purple-50"
         />
       </div>
 

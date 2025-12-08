@@ -362,7 +362,7 @@ export default function Members() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold text-foreground">Members</h2>
+          <h2 className="text-3xl font-semibold text-foreground">Members</h2>
           <p className="text-muted-foreground mt-1">
             Manage organization members
           </p>

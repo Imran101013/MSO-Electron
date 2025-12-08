@@ -80,7 +80,7 @@ export default function Reserve() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold text-foreground">Reserve Fund</h2>
+          <h2 className="text-3xl font-semibold text-foreground">Reserve Fund</h2>
           <p className="text-muted-foreground mt-1">
             Track donations and fund allocation
           </p>
@@ -92,7 +92,7 @@ export default function Reserve() {
               Add Transaction
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="sm:max-w-[560px] max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl border border-border p-0 bg-gradient-to-br from-background/70 to-muted/10">
             <form
               onSubmit={handleSubmit}
               className="flex flex-col h-full max-h-[90vh]">
@@ -110,7 +110,7 @@ export default function Reserve() {
                       <SelectValue placeholder="Select type" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="donation">Donation</SelectItem>
+                      <SelectItem value="donation">Reserve Fund</SelectItem>
                       <SelectItem value="expense">Expense</SelectItem>
                     </SelectContent>
                   </Select>
@@ -121,7 +121,7 @@ export default function Reserve() {
                   <Input
                     id="amount"
                     name="amount"
-                    type="number"
+                    type="text"
                     placeholder="Enter amount"
                     value={formData.amount}
                     onChange={handleInputChange}
@@ -143,17 +143,15 @@ export default function Reserve() {
 
                 <div className="space-y-2">
                   <Label htmlFor="donorName">
-                    {formData.type === "donation"
-                      ? "Donor Name"
-                      : "Authorized By"}
+                    {formData.type === "donation" ? "Source" : "Spend at:"}
                   </Label>
                   <Input
                     id="donorName"
                     name="donorName"
                     placeholder={
                       formData.type === "donation"
-                        ? "Enter donor name"
-                        : "Enter name"
+                        ? "Enter source name"
+                        : "Enter expense details"
                     }
                     value={formData.donorName}
                     onChange={handleInputChange}
@@ -189,27 +187,27 @@ export default function Reserve() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="shadow-md">
           <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Current Balance</p>
+            <p className="text-sm text-muted-foreground">Total Balance</p>
             <p className="text-xl font-semibold text-foreground mt-2">
               PKR {reserveFund.toLocaleString()}
             </p>
           </CardContent>
         </Card>
-        <Card className="shadow-md">
+        {/* <Card className="shadow-md">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-lg bg-secondary/10 flex items-center justify-center">
                 <TrendingUp className="w-5 h-5 text-secondary" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Total Donations</p>
+                <p className="text-sm text-muted-foreground">Total Reserve Fund</p>
                 <p className="text-xl font-semibold text-foreground">
                   PKR {totalDonations.toLocaleString()}
                 </p>
               </div>
             </div>
           </CardContent>
-        </Card>
+        </Card> */}
         <Card className="shadow-md">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">

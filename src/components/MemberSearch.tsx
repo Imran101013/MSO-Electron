@@ -144,7 +144,7 @@ export default function MemberSearch() {
       </div>
 
       <Dialog open={detailsDialogOpen} onOpenChange={handleDialogClose}>
-        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl border border-border p-0 bg-gradient-to-br from-background/70 to-muted/10">
           <DialogHeader>
             <DialogTitle>Member Details</DialogTitle>
           </DialogHeader>

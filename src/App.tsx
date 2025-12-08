@@ -19,6 +19,7 @@ import Reserve from "./pages/Reserve";
 import Meetings from "./pages/Meetings";
 import NotFound from "./pages/NotFound";
 import Settings from "./pages/Settings";
+import ThemeApplier from "./components/ThemeApplier";
 
 const queryClient = new QueryClient();
 
@@ -137,6 +138,7 @@ const App = () => (
     <TooltipProvider>
       <AuthProvider>
         <SettingsProvider>
+          <ThemeApplier />
           <OrganizationProvider>
             <Toaster />
             <Sonner />

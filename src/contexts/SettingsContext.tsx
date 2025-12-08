@@ -16,6 +16,12 @@ export interface Settings {
   minimumAddressLength: number;
   dateFormat: string;
   currency: string;
+  // new UI settings
+  theme: "system" | "light" | "dark";
+  timeFormat: "12" | "24";
+  itemsPerPage: number;
+  enableAnimations: boolean;
+  language: string;
 }
 
 interface SettingsContextType {
@@ -46,6 +52,11 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       minimumAddressLength: ORGANIZATION_CONFIG.MINIMUM_ADDRESS_LENGTH,
       dateFormat: ORGANIZATION_CONFIG.DATE_FORMAT,
       currency: ORGANIZATION_CONFIG.CURRENCY,
+      theme: ORGANIZATION_CONFIG.THEME || "system",
+      timeFormat: ORGANIZATION_CONFIG.TIME_FORMAT || "12",
+      itemsPerPage: ORGANIZATION_CONFIG.ITEMS_PER_PAGE || 10,
+      enableAnimations: ORGANIZATION_CONFIG.ENABLE_ANIMATIONS ?? true,
+      language: ORGANIZATION_CONFIG.LANGUAGE || "en",
     };
   });
 
