@@ -397,6 +397,203 @@ export class PDFReports {
     return this.doc;
   }
 
+  generateMeetingLedger(members: Member[], meetings: any[]) {
+    this.doc = new jsPDF();
+    this.currentY = this.margin;
+
+    this.addHeader("Meetings Ledger", "Hilal Connect Organization");
+
+    if (!meetings || meetings.length === 0) {
+      this.doc.setFontSize(12);
+      this.doc.text("No meetings found.", this.margin, this.currentY);
+      return this.doc;
+    }
+
+    meetings.forEach((meeting, idx) => {
+      this.checkPageBreak(40);
+      this.doc.setFontSize(12);
+      this.doc.setFont("helvetica", "bold");
+      this.doc.text(
+        `Meeting ${idx + 1} - ${formatDate(meeting.date)}`,
+        this.margin,
+        this.currentY
+      );
+      this.currentY += 8;
+
+      this.doc.setFont("helvetica", "normal");
+      this.doc.setFontSize(10);
+      this.doc.text(`Agenda: ${meeting.agenda}`, this.margin, this.currentY);
+      this.currentY += 6;
+      this.doc.text(
+        `Decisions: ${meeting.decisions}`,
+        this.margin,
+        this.currentY
+      );
+      this.currentY += 8;
+
+      // Contributions table for this meeting
+      if (meeting.contributions && meeting.contributions.length > 0) {
+        const headers = ["Member", "Amount (PKR)", "Present"];
+        const data: string[][] = meeting.contributions.map((c: any) => {
+          const member = members.find((m) => m.id === c.memberId);
+          return [
+            member ? member.name : `Member ${c.memberId}`,
+            c.amount.toLocaleString(),
+            c.present ? "Yes" : "No",
+          ];
+        });
+        this.addTable(headers, data);
+      }
+
+      // Loan collections
+      if (meeting.loanCollections && meeting.loanCollections.length > 0) {
+        const headers = ["Member", "Loan ID", "Amount (PKR)"];
+        const data: string[][] = meeting.loanCollections.map((lc: any) => {
+          const member = members.find((m) => m.id === lc.memberId);
+          return [
+            member ? member.name : `Member ${lc.memberId}`,
+            String(lc.loanId),
+            lc.amount.toLocaleString(),
+          ];
+        });
+        this.addTable(headers, data);
+      }
+
+      // Loan issues
+      if (meeting.loanIssues && meeting.loanIssues.length > 0) {
+        const headers = ["Member", "Loan ID", "Amount (PKR)"];
+        const data: string[][] = meeting.loanIssues.map((li: any) => {
+          const member = members.find((m) => m.id === li.memberId);
+          return [
+            member ? member.name : `Member ${li.memberId}`,
+            String(li.loanId || "-"),
+            li.amount.toLocaleString(),
+          ];
+        });
+        this.addTable(headers, data);
+      }
+
+      // Reserve fund donations
+      if (
+        meeting.reserveFundDonations &&
+        meeting.reserveFundDonations.length > 0
+      ) {
+        const headers = ["Donor", "Amount (PKR)", "Notes"];
+        const data: string[][] = meeting.reserveFundDonations.map((r: any) => [
+          r.donorName || "-",
+          r.amount.toLocaleString(),
+          r.notes || "-",
+        ]);
+        this.addTable(headers, data);
+      }
+
+      this.currentY += 6;
+    });
+
+    return this.doc;
+  }
+
+  generateReserveTransactionsLedger(transactions: any[]) {
+    this.doc = new jsPDF();
+    this.currentY = this.margin;
+
+    this.addHeader("Reserve Transactions", "Hilal Connect Organization");
+
+    if (!transactions || transactions.length === 0) {
+      this.doc.setFontSize(12);
+      this.doc.text(
+        "No reserve transactions found.",
+        this.margin,
+        this.currentY
+      );
+      return this.doc;
+    }
+
+    const headers = ["ID", "Type", "Amount (PKR)", "Date", "Donor/Notes"];
+    const data: string[][] = transactions.map((t: any) => [
+      String(t.id),
+      t.type,
+      t.amount.toLocaleString(),
+      formatDate(t.date),
+      `${t.donorName || "-"} ${t.notes ? ` - ${t.notes}` : ""}`,
+    ]);
+
+    this.addTable(headers, data);
+    return this.doc;
+  }
+
+  generateLoanLedgerForLoan(
+    members: Member[],
+    memberId: number,
+    loanId: number
+  ) {
+    this.doc = new jsPDF();
+    this.currentY = this.margin;
+
+    const member = members.find((m) => m.id === memberId);
+    this.addHeader(
+      `Loan Ledger - ${member ? member.name : `Member ${memberId}`}`,
+      "Hilal Connect Organization"
+    );
+
+    if (!member) {
+      this.doc.setFontSize(12);
+      this.doc.text("Member not found.", this.margin, this.currentY);
+      return this.doc;
+    }
+
+    const loan = member.loans.find((l) => l.id === loanId);
+    if (!loan) {
+      this.doc.setFontSize(12);
+      this.doc.text(
+        "Loan not found for this member.",
+        this.margin,
+        this.currentY
+      );
+      return this.doc;
+    }
+
+    this.doc.setFontSize(11);
+    this.doc.setFont("helvetica", "bold");
+    this.doc.text(`Loan ID: ${loan.id}`, this.margin, this.currentY);
+    this.currentY += 6;
+    this.doc.setFont("helvetica", "normal");
+    this.doc.text(
+      `Amount: PKR ${loan.amount.toLocaleString()}`,
+      this.margin,
+      this.currentY
+    );
+    this.currentY += 6;
+    this.doc.text(`Date: ${formatDate(loan.date)}`, this.margin, this.currentY);
+    this.currentY += 6;
+    this.doc.text(`Status: ${loan.status}`, this.margin, this.currentY);
+    this.currentY += 8;
+
+    // Installments table
+    if (loan.installments && loan.installments.length > 0) {
+      const headers = ["Date", "Amount (PKR)"];
+      const data = loan.installments.map((inst) => [
+        formatDate(inst.date),
+        inst.amount.toLocaleString(),
+      ]);
+      this.addTable(headers, data);
+    } else {
+      this.doc.setFontSize(11);
+      this.doc.text("No installments recorded.", this.margin, this.currentY);
+      this.currentY += 8;
+    }
+
+    this.doc.setFontSize(11);
+    this.doc.text(
+      `Remaining Amount: PKR ${loan.remainingAmount.toLocaleString()}`,
+      this.margin,
+      this.currentY
+    );
+    this.currentY += 8;
+
+    return this.doc;
+  }
+
   downloadPDF(filename: string) {
     this.doc.save(filename);
   }
@@ -410,7 +607,10 @@ export const generateReport = async (
     | "contribution-register"
     | "financial-summary"
     | "attendance"
-    | "member-directory",
+    | "member-directory"
+    | "reserve-transactions"
+    | "loan-ledger"
+    | "meetings",
   data: {
     member?: Member;
     members?: Member[];
@@ -470,6 +670,37 @@ export const generateReport = async (
       doc = reports.generateAttendanceReport(data.members);
       filename = "Attendance_Report.pdf";
       break;
+    case "meetings":
+      doc = reports.generateMeetingLedger(
+        data.members || [],
+        data.members
+          ? (data as any).meetings || []
+          : (data as any).meetings || []
+      );
+      filename = "Meetings_Ledger.pdf";
+      break;
+    case "reserve-transactions":
+      doc = reports.generateReserveTransactionsLedger(
+        (data as any).transactions || []
+      );
+      filename = "Reserve_Transactions.pdf";
+      break;
+    case "loan-ledger": {
+      const member = data.member;
+      const loanId = (data as any).loanId;
+      if (!member || !loanId)
+        throw new Error("Member and loanId required for loan ledger");
+      doc = reports.generateLoanLedgerForLoan(
+        data.members || [],
+        member.id,
+        loanId
+      );
+      filename = `Loan_Ledger_${member.name.replace(
+        /\s+/g,
+        "_"
+      )}_loan_${loanId}.pdf`;
+      break;
+    }
     case "member-directory":
       doc = reports.generateMemberDirectory(data.members);
       filename = "Member_Directory.pdf";

@@ -17,6 +17,7 @@ import Budget from "./pages/Budget";
 import Loans from "./pages/Loans";
 import Reserve from "./pages/Reserve";
 import Meetings from "./pages/Meetings";
+import PDFsPage from "./pages/PDFs";
 import NotFound from "./pages/NotFound";
 import Settings from "./pages/Settings";
 import ThemeApplier from "./components/ThemeApplier";
@@ -93,6 +94,14 @@ const AppRoutes = () => {
               element={
                 <ProtectedRoute adminOnly>
                   <Meetings />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/pdfs"
+              element={
+                <ProtectedRoute>
+                  <PDFsPage />
                 </ProtectedRoute>
               }
             />

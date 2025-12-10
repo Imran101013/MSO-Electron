@@ -92,7 +92,7 @@ export default function Reserve() {
               Add Transaction
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[560px] max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl border border-border p-0 bg-gradient-to-br from-background/70 to-muted/10">
+          <DialogContent className="sm:max-w-[560px] max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl border border-border p-4 bg-gradient-to-br from-background/70 to-muted/10">
             <form
               onSubmit={handleSubmit}
               className="flex flex-col h-full max-h-[90vh]">

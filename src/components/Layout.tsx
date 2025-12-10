@@ -45,6 +45,7 @@ const adminNavigation = [
   { name: "Loans", href: "/loans", icon: HandCoins },
   { name: "Reserve Fund", href: "/reserve", icon: PiggyBank },
   { name: "Meetings", href: "/meetings", icon: FileText },
+  { name: "PDFs", href: "/pdfs", icon: FileText },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
 
@@ -52,6 +53,7 @@ const memberNavigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "Members", href: "/members", icon: Users },
   { name: "Meetings", href: "/meetings", icon: FileText },
+  { name: "PDFs", href: "/pdfs", icon: FileText },
 ];
 
 export default function Layout({ children }: LayoutProps) {
@@ -112,7 +114,7 @@ export default function Layout({ children }: LayoutProps) {
                   <LogOut className="w-4 h-4 mr-2" />
                   Logout
                 </Button>
-                 <Button
+                <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => navigate("/change-password")}>
@@ -133,10 +135,13 @@ export default function Layout({ children }: LayoutProps) {
             <span className="text-sm text-muted-foreground">
               Welcome, {user?.name}
             </span>
-              <div className="ml-2">
+            <div className="ml-2">
               <Avatar>
                 {(user as { avatar?: string })?.avatar ? (
-                  <AvatarImage src={(user as { avatar?: string }).avatar} alt={user?.name} />
+                  <AvatarImage
+                    src={(user as { avatar?: string }).avatar}
+                    alt={user?.name}
+                  />
                 ) : (
                   <AvatarFallback>{user?.name?.[0] ?? "U"}</AvatarFallback>
                 )}
@@ -159,7 +164,6 @@ export default function Layout({ children }: LayoutProps) {
                 <Moon className="w-4 h-4" />
               )}
             </Button>
-          
           </div>
         </header>
         {/* Main Content */}
