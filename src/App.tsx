@@ -20,6 +20,7 @@ import Meetings from "./pages/Meetings";
 import PDFsPage from "./pages/PDFs";
 import NotFound from "./pages/NotFound";
 import Settings from "./pages/Settings";
+import ProfitDistribution from "./pages/ProfitDistribution";
 import ThemeApplier from "./components/ThemeApplier";
 
 const queryClient = new QueryClient();
@@ -118,6 +119,14 @@ const AppRoutes = () => {
               element={
                 <ProtectedRoute>
                   <ChangePassword />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/profit-distribution"
+              element={
+                <ProtectedRoute adminOnly>
+                  <ProfitDistribution />
                 </ProtectedRoute>
               }
             />

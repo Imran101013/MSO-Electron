@@ -60,6 +60,21 @@ export interface ReserveTransaction {
   notes?: string;
 }
 
+export interface ProfitAllocation {
+  memberId: number;
+  memberName: string;
+  amount: number;
+  ratio: number;
+}
+
+export interface ProfitDistribution {
+  id: number;
+  date: string;
+  totalProfit: number;
+  reserveAllocation: number;
+  memberAllocations: ProfitAllocation[];
+}
+
 export interface Meeting {
   id: number;
   date: string;
@@ -82,11 +97,11 @@ export interface Member {
   id: number;
   name: string;
   fatherName: string;
-  dob: string;
+  dob: Date;
   email: string;
   phone: string;
   address: string;
-  joinDate: string;
+  joinDate: Date;
   profilePicture?: string;
   monthlyContributions: MonthlyContribution[];
   attendance: Attendance[];
@@ -131,6 +146,9 @@ interface OrganizationContextType {
 
   loansTrend: { amount: number; percentage: number } | null;
   reserveTrend: { amount: number; percentage: number } | null;
+  profitDistributions: ProfitDistribution[];
+  calculateBudgetRatios: () => ProfitAllocation[];
+  distributeProfit: (totalProfit: number, date: string) => void;
 }
 
 const OrganizationContext = createContext<OrganizationContextType | undefined>(
@@ -149,6 +167,9 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   );
   const [reserveTransactions, setReserveTransactions] = useState<
     ReserveTransaction[]
+  >([]);
+  const [profitDistributions, setProfitDistributions] = useState<
+    ProfitDistribution[]
   >([]);
 
   // access runtime-editable settings
@@ -478,6 +499,97 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     setMembers(updatedMembers);
   };
 
+  // Function to add reserve transaction
+  const addReserveTransaction = (t: Omit<ReserveTransaction, "id">) => {
+    const newTx: ReserveTransaction = {
+      id: Date.now(),
+      ...t,
+    };
+    setReserveTransactions((prev) => [newTx, ...prev]);
+  };
+
+  // Function to calculate budget ratios from latest meeting
+  const calculateBudgetRatios = () => {
+    if (meetings.length === 0) return [];
+
+    // Get latest meeting
+    const latestMeeting = meetings.reduce((a, b) =>
+      new Date(a.date) > new Date(b.date) ? a : b
+    );
+
+    const totalBudget = latestMeeting.contributions.reduce(
+      (sum, c) => sum + c.amount,
+      0
+    );
+
+    if (totalBudget === 0) return [];
+
+    return latestMeeting.contributions.map((contrib) => {
+      const member = members.find((m) => m.id === contrib.memberId);
+      return {
+        memberId: contrib.memberId,
+        memberName: member?.name || "Unknown",
+        amount: contrib.amount,
+        ratio: contrib.amount / totalBudget,
+      };
+    });
+  };
+
+  // Function to distribute profit
+  const distributeProfit = (totalProfit: number, date: string) => {
+    const budgetRatios = calculateBudgetRatios();
+
+    if (budgetRatios.length === 0) return;
+
+    // Calculate reserve allocation (10%)
+    const reserveAllocation = totalProfit * 0.1;
+
+    // Calculate member allocations (90% distributed by budget ratio)
+    const distributableAmount = totalProfit * 0.9;
+    const memberAllocations: ProfitAllocation[] = budgetRatios.map((ratio) => ({
+      memberId: ratio.memberId,
+      memberName: ratio.memberName,
+      amount: Math.round(distributableAmount * ratio.ratio * 100) / 100, // Round to 2 decimal places
+      ratio: ratio.ratio,
+    }));
+
+    // Add reserve transaction
+    addReserveTransaction({
+      type: "donation",
+      amount: reserveAllocation,
+      date,
+      donorName: "Yearly Profit Distribution",
+      notes: `10% allocation from yearly profit of PKR ${totalProfit.toLocaleString()}`,
+    });
+
+    // Update member budgets (add profit allocation to their totalBudget)
+    const updatedMembers = members.map((member) => {
+      const allocation = memberAllocations.find(
+        (a) => a.memberId === member.id
+      );
+      if (allocation) {
+        return {
+          ...member,
+          totalBudget: member.totalBudget + allocation.amount,
+        };
+      }
+      return member;
+    });
+
+    setMembers(updatedMembers);
+
+    // Record the profit distribution
+    const newDistribution: ProfitDistribution = {
+      id: Date.now(),
+      date,
+      totalProfit,
+      reserveAllocation,
+      memberAllocations,
+    };
+
+    setProfitDistributions((prev) => [newDistribution, ...prev]);
+  };
+
   return (
     <OrganizationContext.Provider
       value={{
@@ -492,13 +604,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         activeLoans,
         reserveFund,
         reserveTransactions,
-        addReserveTransaction: (t: Omit<ReserveTransaction, "id">) => {
-          const newTx: ReserveTransaction = {
-            id: Date.now(),
-            ...t,
-          };
-          setReserveTransactions((prev) => [newTx, ...prev]);
-        },
+        addReserveTransaction,
         addLoanIssue,
         addLoanCollection,
         addPastLoan,
@@ -511,6 +617,9 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         loansTrend,
         reserveTrend,
         totalLoanInstallmentCollected,
+        profitDistributions,
+        calculateBudgetRatios,
+        distributeProfit,
       }}>
       {children}
     </OrganizationContext.Provider>

@@ -39,17 +39,17 @@ export default function PDFsPage() {
     try {
       await generateReport("member-ledger", { member, members }, settings);
       toast.success("Member ledger generated");
-    } catch (err: any) {
-      toast.error(err.message || "Failed to generate member ledger");
+    } catch (err: unknown) {
+      toast.error((err instanceof Error ? err.message : "Failed to generate member ledger") || "Failed to generate member ledger");
     }
   };
 
   const handleMeetingsLedger = async () => {
     try {
-      await generateReport("meetings", { members, meetings }, settings);
+      await generateReport("meetings", { members }, settings);
       toast.success("Meetings ledger generated");
-    } catch (err: any) {
-      toast.error(err.message || "Failed to generate meetings ledger");
+    } catch (err: unknown) {
+      toast.error((err instanceof Error ? err.message : "Failed to generate meetings ledger") || "Failed to generate meetings ledger");
     }
   };
 
@@ -57,8 +57,8 @@ export default function PDFsPage() {
     try {
       await generateReport("loan-register", { members }, settings);
       toast.success("Loan register generated");
-    } catch (err: any) {
-      toast.error(err.message || "Failed to generate loan register");
+    } catch (err: unknown) {
+      toast.error((err instanceof Error ? err.message : "Failed to generate loan register") || "Failed to generate loan register");
     }
   };
 
@@ -87,14 +87,15 @@ export default function PDFsPage() {
     if (!member) return toast.error("Member not found for selected loan");
 
     try {
+      const loan = member.loans.find((l) => l.id === loanId);
       await generateReport(
         "loan-ledger",
-        { member, members, loanId },
+        { member, members },
         settings
       );
       toast.success("Loan ledger generated");
-    } catch (err: any) {
-      toast.error(err.message || "Failed to generate loan ledger");
+    } catch (err: unknown) {
+      toast.error((err instanceof Error ? err.message : "Failed to generate loan ledger") || "Failed to generate loan ledger");
     }
   };
 
@@ -102,13 +103,13 @@ export default function PDFsPage() {
     try {
       await generateReport(
         "reserve-transactions",
-        { transactions: reserveTransactions },
+        { members },
         settings
       );
       toast.success("Reserve transactions ledger generated");
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast.error(
-        err.message || "Failed to generate reserve transactions ledger"
+        (err instanceof Error ? err.message : "Failed to generate reserve transactions ledger") || "Failed to generate reserve transactions ledger"
       );
     }
   };
@@ -117,8 +118,8 @@ export default function PDFsPage() {
     try {
       await generateReport("contribution-register", { members }, settings);
       toast.success("Contribution register generated");
-    } catch (err: any) {
-      toast.error(err.message || "Failed to generate contribution register");
+    } catch (err: unknown) {
+      toast.error((err instanceof Error ? err.message : "Failed to generate contribution register") || "Failed to generate contribution register");
     }
   };
 
@@ -157,8 +158,8 @@ export default function PDFsPage() {
         settings
       );
       toast.success("Financial summary generated");
-    } catch (err: any) {
-      toast.error(err.message || "Failed to generate financial summary");
+    } catch (err: unknown) {
+      toast.error((err instanceof Error ? err.message : "Failed to generate financial summary") || "Failed to generate financial summary");
     }
   };
 
@@ -166,8 +167,8 @@ export default function PDFsPage() {
     try {
       await generateReport("attendance", { members }, settings);
       toast.success("Attendance report generated");
-    } catch (err: any) {
-      toast.error(err.message || "Failed to generate attendance report");
+    } catch (err: unknown) {
+      toast.error((err instanceof Error ? err.message : "Failed to generate attendance report") || "Failed to generate attendance report");
     }
   };
 
@@ -175,8 +176,8 @@ export default function PDFsPage() {
     try {
       await generateReport("member-directory", { members }, settings);
       toast.success("Member directory generated");
-    } catch (err: any) {
-      toast.error(err.message || "Failed to generate member directory");
+    } catch (err: unknown) {
+      toast.error((err instanceof Error ? err.message : "Failed to generate member directory") || "Failed to generate member directory");
     }
   };
 
@@ -185,7 +186,7 @@ export default function PDFsPage() {
       <div>
         <h2 className="text-3xl font-semibold text-foreground">PDF Reports</h2>
         <p className="text-muted-foreground">
-          Download ledgers and organizational reports
+          Download ledgers and society reports
         </p>
       </div>
 

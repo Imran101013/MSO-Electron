@@ -51,9 +51,10 @@ import { useSettings } from "@/contexts/SettingsContext";
 import { formatTimeTo12Hour } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { DatePicker } from "@/components/ui/date-picker";
 
 const meetingSchema = z.object({
-  date: z.string().min(1, "Date is required"),
+  date: z.date(),
   agenda: z.string().min(1, "Agenda is required"),
   decisions: z.string().min(1, "Decisions are required"),
   contributions: z
@@ -68,7 +69,7 @@ const meetingSchema = z.object({
 });
 
 const upcomingMeetingSchema = z.object({
-  date: z.string().min(1, "Date is required"),
+  date: z.date(),
   time: z.string().min(1, "Time is required"),
   venue: z.string().min(1, "Venue is required"),
 });
@@ -97,7 +98,7 @@ export default function Meetings() {
   const form = useForm<MeetingFormValues>({
     resolver: zodResolver(meetingSchema),
     defaultValues: {
-      date: "",
+      date: undefined,
       agenda: "",
       decisions: "",
       contributions: [],
@@ -436,7 +437,11 @@ export default function Meetings() {
                           <FormItem>
                             <FormLabel>Meeting Date</FormLabel>
                             <FormControl>
-                              <Input type="date" {...field} />
+                              <DatePicker
+                                date={field.value}
+                                onDateChange={field.onChange}
+                                placeholder="Select meeting date"
+                              />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -504,7 +509,11 @@ export default function Meetings() {
                           <FormItem>
                             <FormLabel>Meeting Date</FormLabel>
                             <FormControl>
-                              <Input type="date" {...field} />
+                              <DatePicker
+                                date={field.value}
+                                onDateChange={field.onChange}
+                                placeholder="Select meeting date"
+                              />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -905,7 +914,11 @@ export default function Meetings() {
                     <FormItem>
                       <FormLabel>Meeting Date</FormLabel>
                       <FormControl>
-                        <Input type="date" {...field} />
+                        <DatePicker
+                          date={field.value}
+                          onDateChange={field.onChange}
+                          placeholder="Select meeting date"
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

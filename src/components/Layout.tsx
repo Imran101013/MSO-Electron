@@ -15,6 +15,7 @@ import {
   Lock,
   Sun,
   Moon,
+  DollarSign,
 } from "lucide-react";
 import {
   Sidebar,
@@ -46,6 +47,11 @@ const adminNavigation = [
   { name: "Reserve Fund", href: "/reserve", icon: PiggyBank },
   { name: "Meetings", href: "/meetings", icon: FileText },
   { name: "PDFs", href: "/pdfs", icon: FileText },
+  {
+    name: "Profit Distribution",
+    href: "/profit-distribution",
+    icon: DollarSign,
+  },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
 

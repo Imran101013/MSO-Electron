@@ -82,6 +82,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
+import { DatePicker } from "@/components/ui/date-picker";
 
 const formSchema = z.object({
   name: z
@@ -96,7 +97,7 @@ const formSchema = z.object({
       ORGANIZATION_CONFIG.MINIMUM_NAME_LENGTH,
       `Father name must be at least ${ORGANIZATION_CONFIG.MINIMUM_NAME_LENGTH} characters`
     ),
-  dob: z.string().min(1, "Date of birth is required"),
+  dob: z.date({ required_error: "Date of birth is required" }),
   email: z.string().email("Invalid email address"),
   phone: z
     .string()
@@ -105,7 +106,7 @@ const formSchema = z.object({
       `Phone number must be at least ${ORGANIZATION_CONFIG.MINIMUM_PHONE_LENGTH} characters`
     ),
   address: z.string().min(1, "Address is required"),
-  joinDate: z.string().min(1, "Join date is required"),
+  joinDate: z.date({ required_error: "Join date is required" }),
   profilePicture: z.string().optional(),
 });
 
@@ -123,7 +124,7 @@ export default function Members() {
   const [addContributionDialogOpen, setAddContributionDialogOpen] =
     useState(false);
   const [contributionForm, setContributionForm] = useState({
-    date: "",
+    date: undefined as Date | undefined,
     amount: "",
     present: true,
   });
@@ -175,11 +176,11 @@ export default function Members() {
     defaultValues: {
       name: "",
       fatherName: "",
-      dob: "",
+      dob: undefined,
       email: "",
       phone: "",
       address: "",
-      joinDate: "",
+      joinDate: undefined,
       profilePicture: "",
     },
   });
@@ -349,7 +350,7 @@ export default function Members() {
     });
 
     setMembers(updatedMembers);
-    setContributionForm({ date: "", amount: "", present: true });
+    setContributionForm({ date: undefined, amount: "", present: true });
     setAddContributionDialogOpen(false);
     toast({
       title: "Contribution Added",
@@ -430,7 +431,11 @@ export default function Members() {
                       <FormItem>
                         <FormLabel>Date of Birth</FormLabel>
                         <FormControl>
-                          <Input type="date" {...field} />
+                          <DatePicker
+                            date={field.value}
+                            onDateChange={field.onChange}
+                            placeholder="Select date of birth"
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -496,7 +501,11 @@ export default function Members() {
                       <FormItem>
                         <FormLabel>Joining Date</FormLabel>
                         <FormControl>
-                          <Input type="date" {...field} />
+                          <DatePicker
+                            date={field.value}
+                            onDateChange={field.onChange}
+                            placeholder="Select joining date"
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -1054,17 +1063,16 @@ export default function Members() {
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="contribution-date">Meeting Date</Label>
-              <Input
-                id="contribution-date"
-                type="date"
-                value={contributionForm.date}
-                onChange={(e) =>
+              <Label>Meeting Date</Label>
+              <DatePicker
+                date={contributionForm.date}
+                onDateChange={(date) =>
                   setContributionForm({
                     ...contributionForm,
-                    date: e.target.value,
+                    date,
                   })
                 }
+                placeholder="Select meeting date"
               />
             </div>
             <div>

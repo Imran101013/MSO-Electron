@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useState } from "react";
+import { DatePicker } from "@/components/ui/date-picker";
 
 export default function Reserve() {
   const {
@@ -43,7 +44,7 @@ export default function Reserve() {
     const payload = {
       type: formData.type as "donation" | "expense",
       amount: Number(formData.amount || 0),
-      date: formData.date,
+      date: formData.date.toISOString().split("T")[0],
       donorName: formData.donorName || undefined,
       notes: formData.notes || undefined,
     };
@@ -53,7 +54,7 @@ export default function Reserve() {
     setFormData({
       type: "donation",
       amount: "",
-      date: new Date().toISOString().split("T")[0],
+      date: new Date(),
       donorName: "",
       notes: "",
     });
@@ -80,7 +81,9 @@ export default function Reserve() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-semibold text-foreground">Reserve Fund</h2>
+          <h2 className="text-3xl font-semibold text-foreground">
+            Reserve Fund
+          </h2>
           <p className="text-muted-foreground mt-1">
             Track donations and fund allocation
           </p>
@@ -131,13 +134,15 @@ export default function Reserve() {
 
                 <div className="space-y-2">
                   <Label htmlFor="date">Date</Label>
-                  <Input
-                    id="date"
-                    name="date"
-                    type="date"
-                    value={formData.date}
-                    onChange={handleInputChange}
-                    required
+                  <DatePicker
+                    date={formData.date}
+                    onDateChange={(date) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        date: date || new Date(),
+                      }))
+                    }
+                    placeholder="Pick a date"
                   />
                 </div>
 

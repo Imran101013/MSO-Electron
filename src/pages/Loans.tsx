@@ -32,6 +32,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { format } from "date-fns";
+import { DatePicker } from "@/components/ui/date-picker";
 
 export default function Loans() {
   const {
@@ -46,13 +47,13 @@ export default function Loans() {
   const [issueFormData, setIssueFormData] = useState({
     memberId: "",
     amount: "",
-    date: new Date().toISOString().split("T")[0],
+    date: new Date(),
   });
   const [collectionFormData, setCollectionFormData] = useState({
     memberId: "",
     loanId: "",
     amount: "",
-    date: new Date().toISOString().split("T")[0],
+    date: new Date(),
   });
 
   // Get loans for selected member for collection form
@@ -73,14 +74,14 @@ export default function Loans() {
     addLoanIssue(
       Number(issueFormData.memberId),
       Number(issueFormData.amount),
-      issueFormData.date
+      issueFormData.date.toISOString().split("T")[0]
     );
     toast.success("Loan issued successfully");
     setOpenIssue(false);
     setIssueFormData({
       memberId: "",
       amount: "",
-      date: new Date().toISOString().split("T")[0],
+      date: new Date(),
     });
   };
 
@@ -98,7 +99,7 @@ export default function Loans() {
       Number(collectionFormData.memberId),
       Number(collectionFormData.loanId),
       Number(collectionFormData.amount),
-      collectionFormData.date
+      collectionFormData.date.toISOString().split("T")[0]
     );
     toast.success("Loan payment recorded successfully");
     setOpenCollection(false);
@@ -106,11 +107,15 @@ export default function Loans() {
       memberId: "",
       loanId: "",
       amount: "",
-      date: new Date().toISOString().split("T")[0],
+      date: new Date(),
     });
   };
 
   const { settings } = useSettings();
+
+  const selectedMember = members.find(
+    (m) => m.id === Number(collectionFormData.memberId)
+  );
 
   // Get all active loans with member details
   const activeLoansList = useMemo(() => {
@@ -240,17 +245,15 @@ export default function Loans() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="issue-date">Date</Label>
-                  <Input
-                    id="issue-date"
-                    type="date"
-                    value={issueFormData.date}
-                    onChange={(e) =>
+                  <DatePicker
+                    date={issueFormData.date}
+                    onDateChange={(date) =>
                       setIssueFormData({
                         ...issueFormData,
-                        date: e.target.value,
+                        date: date || new Date(),
                       })
                     }
-                    required
+                    placeholder="Pick a date"
                   />
                 </div>
                 <div className="flex justify-end gap-4 pt-4">
@@ -318,8 +321,8 @@ export default function Loans() {
                       <SelectContent>
                         {memberLoansForCollection.map((l) => (
                           <SelectItem key={l.id} value={l.id.toString()}>
-                            Loan #{l.id} - Remaining: PKR{" "}
-                            {l.remainingAmount.toLocaleString()}
+                            Loan #{l.id} for {selectedMember?.name} - Remaining:
+                            PKR {l.remainingAmount.toLocaleString()}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -346,17 +349,15 @@ export default function Loans() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="collection-date">Date</Label>
-                  <Input
-                    id="collection-date"
-                    type="date"
-                    value={collectionFormData.date}
-                    onChange={(e) =>
+                  <DatePicker
+                    date={collectionFormData.date}
+                    onDateChange={(date) =>
                       setCollectionFormData({
                         ...collectionFormData,
-                        date: e.target.value,
+                        date: date || new Date(),
                       })
                     }
-                    required
+                    placeholder="Pick a date"
                   />
                 </div>
                 <div className="flex justify-end gap-4 pt-4">
