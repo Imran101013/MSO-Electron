@@ -10,6 +10,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { YearPicker } from "@/components/ui/year-picker";
 
 interface DatePickerProps {
   date?: Date;
@@ -25,6 +26,23 @@ export function DatePicker({
   className,
 }: DatePickerProps) {
   const [open, setOpen] = React.useState(false);
+  const [view, setView] = React.useState<"calendar" | "year">("calendar");
+  const [selectedYear, setSelectedYear] = React.useState<number | undefined>(
+    date instanceof Date ? date.getFullYear() : undefined
+  );
+
+  const handleYearSelect = (year: number) => {
+    setSelectedYear(year);
+    setView("calendar");
+    // Set the date to January 1st of the selected year
+    const newDate = new Date(year, 0, 1);
+    onDateChange?.(newDate);
+  };
+
+  const handleDateSelect = (selectedDate: Date | undefined) => {
+    onDateChange?.(selectedDate);
+    setOpen(false);
+  };
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -37,19 +55,31 @@ export function DatePicker({
             className
           )}>
           <CalendarIcon className="mr-2 h-4 w-4" />
-          {date ? format(date, "PPP") : <span>{placeholder}</span>}
+          <span
+            className="cursor-pointer underline"
+            onClick={(e) => {
+              e.stopPropagation();
+              setView("year");
+              setOpen(true);
+            }}>
+            {date ? format(date, "PPP") : placeholder}
+          </span>
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0">
-        <Calendar
-          mode="single"
-          selected={date}
-          onSelect={(selectedDate) => {
-            onDateChange?.(selectedDate);
-            setOpen(false);
-          }}
-          initialFocus
-        />
+        {view === "year" ? (
+          <YearPicker
+            selectedYear={selectedYear}
+            onYearSelect={handleYearSelect}
+          />
+        ) : (
+          <Calendar
+            mode="single"
+            selected={date}
+            onSelect={handleDateSelect}
+            initialFocus
+          />
+        )}
       </PopoverContent>
     </Popover>
   );
