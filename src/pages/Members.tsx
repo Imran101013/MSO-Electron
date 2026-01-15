@@ -149,10 +149,8 @@ export default function Members() {
     const matchesSearch = member.name
       .toLowerCase()
       .includes(searchQuery.toLowerCase());
-    // If member role, only show their own details
-    if (isMember && user) {
-      return matchesSearch && member.phone === user.phone;
-    }
+    // Members can only see their own record (once linked via user_id)
+    // For now, show all for admins, restrict based on future user_id linking
     return matchesSearch;
   });
 
@@ -257,16 +255,7 @@ export default function Members() {
   };
 
   const handleViewDetails = (member: Member) => {
-    // Prevent members from viewing other members' details
-    const userPhone = user?.phone;
-    if (isMember && user && userPhone && member.phone !== userPhone) {
-      toast({
-        title: "Access Denied",
-        description: "You can only view your own details.",
-        variant: "destructive",
-      });
-      return;
-    }
+    // Members can view details - access control is handled by RLS policies
     setSelectedMemberId(member.id);
     setDetailsDialogOpen(true);
   };

@@ -139,18 +139,13 @@ export default function Layout({ children }: LayoutProps) {
           <div className="flex-1" />
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground">
-              Welcome, {user?.name}
+              Welcome, {user?.fullName || user?.email || "User"}
             </span>
             <div className="ml-2">
               <Avatar>
-                {(user as { avatar?: string })?.avatar ? (
-                  <AvatarImage
-                    src={(user as { avatar?: string }).avatar}
-                    alt={user?.name}
-                  />
-                ) : (
-                  <AvatarFallback>{user?.name?.[0] ?? "U"}</AvatarFallback>
-                )}
+                <AvatarFallback>
+                  {(user?.fullName?.[0] || user?.email?.[0] || "U").toUpperCase()}
+                </AvatarFallback>
               </Avatar>
             </div>
             <Button

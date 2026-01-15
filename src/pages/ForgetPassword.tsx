@@ -1,8 +1,7 @@
 import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Input, PasswordInput } from "@/components/ui/input";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Card,
@@ -12,35 +11,36 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Mail } from "lucide-react";
+import { Mail, Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function ForgetPassword() {
-  const [phone, setPhone] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+  const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  const { resetPassword } = useAuth();
-  const navigate = useNavigate();
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setMessage("");
+    setIsLoading(true);
 
-    if (newPassword !== confirmPassword) {
-      setError("New passwords do not match");
-      return;
-    }
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(
+      email.trim(),
+      {
+        redirectTo: `${window.location.origin}/change-password`,
+      }
+    );
 
-    const trimmedPhone = phone.trim();
-    if (resetPassword(trimmedPhone, newPassword)) {
-      setMessage(
-        "Password reset successfully! You can now log in with your new password."
-      );
-      setTimeout(() => navigate("/login"), 2000);
+    setIsLoading(false);
+
+    if (resetError) {
+      setError(resetError.message);
     } else {
-      setError("Phone not found. Please check your phone number.");
+      setMessage(
+        "If an account exists with this email, you will receive a password reset link."
+      );
     }
   };
 
@@ -53,40 +53,21 @@ export default function ForgetPassword() {
           </div>
           <CardTitle className="text-2xl">Reset Password</CardTitle>
           <CardDescription>
-            Enter your phone number and new password
+            Enter your email to receive a password reset link
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="phone">Phone Number</Label>
+              <Label htmlFor="email">Email</Label>
               <Input
-                id="phone"
-                type="tel"
-                placeholder="Enter your phone number"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
+                id="email"
+                type="email"
+                placeholder="Enter your email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="newPassword">New Password</Label>
-              <PasswordInput
-                id="newPassword"
-                placeholder="Enter new password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="confirmPassword">Confirm New Password</Label>
-              <PasswordInput
-                id="confirmPassword"
-                placeholder="Confirm new password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
+                disabled={isLoading}
               />
             </div>
             {error && (
@@ -99,8 +80,15 @@ export default function ForgetPassword() {
                 <AlertDescription>{message}</AlertDescription>
               </Alert>
             )}
-            <Button type="submit" className="w-full">
-              Reset Password
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                "Send Reset Link"
+              )}
             </Button>
           </form>
           <div className="mt-4 text-center">
