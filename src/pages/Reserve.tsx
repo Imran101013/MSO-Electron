@@ -34,7 +34,7 @@ export default function Reserve() {
   const [formData, setFormData] = useState({
     type: "donation",
     amount: "",
-    date: new Date().toISOString().split("T")[0],
+    date: undefined as Date | undefined,
     donorName: "",
     notes: "",
   });
@@ -44,7 +44,7 @@ export default function Reserve() {
     const payload = {
       type: formData.type as "donation" | "expense",
       amount: Number(formData.amount || 0),
-      date: formData.date.toISOString().split("T")[0],
+      date: formData.date ? formData.date.toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
       donorName: formData.donorName || undefined,
       notes: formData.notes || undefined,
     };
@@ -54,7 +54,7 @@ export default function Reserve() {
     setFormData({
       type: "donation",
       amount: "",
-      date: new Date(),
+      date: undefined,
       donorName: "",
       notes: "",
     });

@@ -330,13 +330,14 @@ export default function Members() {
 
     const updatedMembers = members.map((m) => {
       if (m.id === selectedMember.id) {
+        const dateString = contributionForm.date!.toISOString().split("T")[0];
         const newContribution: MonthlyContribution = {
-          month: contributionForm.date,
+          month: dateString,
           amount: amount,
           paid: amount > 0,
         };
         const newAttendance = {
-          date: contributionForm.date,
+          date: dateString,
           present: contributionForm.present,
         };
         return {
