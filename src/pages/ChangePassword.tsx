@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { Input, PasswordInput } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Card,
@@ -12,18 +12,19 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Lock } from "lucide-react";
+import { Lock, Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function ChangePassword() {
-  const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  const { changePassword, user } = useAuth();
+  const [isLoading, setIsLoading] = useState(false);
+  const { user } = useAuth();
   const navigate = useNavigate();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setMessage("");
@@ -33,21 +34,29 @@ export default function ChangePassword() {
       return;
     }
 
-    if (user.password !== currentPassword) {
-      setError("Current password is incorrect");
-      return;
-    }
-
     if (newPassword !== confirmPassword) {
       setError("New passwords do not match");
       return;
     }
 
-    if (changePassword(newPassword)) {
+    if (newPassword.length < 6) {
+      setError("Password must be at least 6 characters");
+      return;
+    }
+
+    setIsLoading(true);
+
+    const { error: updateError } = await supabase.auth.updateUser({
+      password: newPassword,
+    });
+
+    setIsLoading(false);
+
+    if (updateError) {
+      setError(updateError.message);
+    } else {
       setMessage("Password changed successfully!");
       setTimeout(() => navigate("/"), 2000);
-    } else {
-      setError("Failed to change password");
     }
   };
 
@@ -64,16 +73,6 @@ export default function ChangePassword() {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="currentPassword">Current Password</Label>
-              <PasswordInput
-                id="currentPassword"
-                placeholder="Enter current password"
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-2">
               <Label htmlFor="newPassword">New Password</Label>
               <PasswordInput
                 id="newPassword"
@@ -81,6 +80,7 @@ export default function ChangePassword() {
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 required
+                disabled={isLoading}
               />
             </div>
             <div className="space-y-2">
@@ -91,6 +91,7 @@ export default function ChangePassword() {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
+                disabled={isLoading}
               />
             </div>
             {error && (
@@ -103,8 +104,15 @@ export default function ChangePassword() {
                 <AlertDescription>{message}</AlertDescription>
               </Alert>
             )}
-            <Button type="submit" className="w-full">
-              Change Password
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Changing...
+                </>
+              ) : (
+                "Change Password"
+              )}
             </Button>
           </form>
         </CardContent>
