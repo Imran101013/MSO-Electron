@@ -108,7 +108,7 @@ export default function Meetings() {
   const editForm = useForm<MeetingFormValues>({
     resolver: zodResolver(meetingSchema),
     defaultValues: {
-      date: "",
+      date: undefined,
       agenda: "",
       decisions: "",
       contributions: [],
@@ -136,7 +136,7 @@ export default function Meetings() {
   const scheduleForm = useForm<UpcomingMeetingFormValues>({
     resolver: zodResolver(upcomingMeetingSchema),
     defaultValues: {
-      date: "",
+      date: undefined,
       time: "",
       venue: "",
     },
@@ -147,9 +147,10 @@ export default function Meetings() {
   );
 
   const onSubmit = (data: MeetingFormValues) => {
+    const dateString = data.date.toISOString().split("T")[0];
     const newMeeting = {
       id: meetings.length + 1,
-      date: data.date,
+      date: dateString,
       agenda: data.agenda,
       decisions: data.decisions,
       contributions:
@@ -176,7 +177,7 @@ export default function Meetings() {
             monthlyContributions: [
               ...updatedMember.monthlyContributions,
               {
-                month: data.date,
+                month: dateString,
                 amount: contribution.amount,
                 // infer paid from whether an amount was provided
                 paid: contribution.amount > 0,
@@ -185,7 +186,7 @@ export default function Meetings() {
             attendance: [
               ...updatedMember.attendance,
               {
-                date: data.date,
+                date: dateString,
                 present: !!contribution.present,
               },
             ],
@@ -198,7 +199,7 @@ export default function Meetings() {
             attendance: [
               ...updatedMember.attendance,
               {
-                date: data.date,
+                date: dateString,
                 present: !!contribution.present,
               },
             ],
@@ -229,6 +230,8 @@ export default function Meetings() {
 
     const meetingToEdit = meetings.find((m) => m.id === editMeetingId);
     if (!meetingToEdit) return;
+
+    const dateString = data.date.toISOString().split("T")[0];
 
     // Calculate the difference in contributions to update members' budgets
     const oldContributions = meetingToEdit.contributions;
@@ -276,7 +279,7 @@ export default function Meetings() {
             monthlyContributions: [
               ...updatedMember.monthlyContributions,
               {
-                month: data.date,
+                month: dateString,
                 amount: newContrib.amount,
                 paid: newContrib.amount > 0,
               },
@@ -289,7 +292,7 @@ export default function Meetings() {
           attendance: [
             ...updatedMember.attendance,
             {
-              date: data.date,
+              date: dateString,
               present: !!newContrib.present,
             },
           ],
@@ -304,7 +307,7 @@ export default function Meetings() {
       m.id === editMeetingId
         ? {
             ...m,
-            date: data.date,
+            date: dateString,
             agenda: data.agenda,
             decisions: data.decisions,
             contributions:
@@ -323,7 +326,7 @@ export default function Meetings() {
 
   const handleEditMeeting = (meeting: (typeof meetings)[0]) => {
     editForm.reset({
-      date: meeting.date,
+      date: new Date(meeting.date),
       agenda: meeting.agenda,
       decisions: meeting.decisions,
       contributions: meeting.contributions,
@@ -386,7 +389,7 @@ export default function Meetings() {
   const onScheduleSubmit = (data: UpcomingMeetingFormValues) => {
     const newUpcomingMeeting = {
       id: upcomingMeetings.length + 1,
-      date: data.date,
+      date: data.date.toISOString().split("T")[0],
       time: data.time,
       venue: data.venue,
     };
