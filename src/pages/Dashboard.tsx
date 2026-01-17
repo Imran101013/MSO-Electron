@@ -137,7 +137,7 @@ export default function Dashboard() {
       {/* Page Header */}
       <div>
         <h2 className="text-3xl font-semibold text-foreground">Dashboard</h2>
-        <p className="text-muted-foreground mt-1">Welcome to AL-Hilal</p>
+        <p className="text-muted-foreground mt-1">Welcome to MSO</p>
       </div>
 
       {/* Stats Grid */}
@@ -167,8 +167,8 @@ export default function Dashboard() {
           trend={
             loansTrend
               ? `${loansTrend.amount >= 0 ? "+" : ""}PKR ${Math.abs(
-                  loansTrend.amount
-                ).toLocaleString()} net change`
+                loansTrend.amount
+              ).toLocaleString()} net change`
               : undefined
           }
           trendUp={loansTrend ? loansTrend.amount < 0 : undefined}
