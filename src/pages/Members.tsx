@@ -2,7 +2,6 @@ import {
   Card,
   CardContent,
   CardHeader,
-  CardDescription,
 } from "@/components/ui/card";
 import {
   Pagination,
@@ -33,12 +32,11 @@ import {
 import {
   Plus,
   Search,
-  Mail,
-  Phone,
   Pencil,
   Trash2,
   Eye,
   Upload,
+  Loader2,
 } from "lucide-react";
 import {
   Dialog,
@@ -70,12 +68,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useState } from "react";
-import { useToast } from "@/hooks/use-toast";
-import {
-  useOrganization,
-  Member,
-  MonthlyContribution,
-} from "@/contexts/OrganizationContext";
 import { ORGANIZATION_CONFIG } from "@/config/organization";
 import { useSettings } from "@/contexts/SettingsContext";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -83,6 +75,9 @@ import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
 import { DatePicker } from "@/components/ui/date-picker";
+import { useMembers, DbMember } from "@/hooks/useMembers";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 const formSchema = z.object({
   name: z
@@ -113,44 +108,32 @@ const formSchema = z.object({
 type MemberFormValues = z.infer<typeof formSchema>;
 
 export default function Members() {
-  const { members, setMembers } = useOrganization();
-  const { user, isMember } = useAuth();
+  const { members, isLoading, addMember, updateMember, deleteMember, fetchMembers } = useMembers();
+  const { isMember, isAdmin } = useAuth();
   const [open, setOpen] = useState(false);
-  const [editingMember, setEditingMember] = useState<Member | null>(null);
+  const [editingMember, setEditingMember] = useState<DbMember | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [memberToDelete, setMemberToDelete] = useState<Member | null>(null);
+  const [memberToDelete, setMemberToDelete] = useState<DbMember | null>(null);
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
-  const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
-  const [addContributionDialogOpen, setAddContributionDialogOpen] =
-    useState(false);
-  const [contributionForm, setContributionForm] = useState({
-    date: undefined as Date | undefined,
-    amount: "",
-    present: true,
-  });
+  const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [profilePicturePreview, setProfilePicturePreview] =
-    useState<string>("");
+  const [profilePicturePreview, setProfilePicturePreview] = useState<string>("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
 
   const MEMBERS_PER_PAGE = 5;
-
   const { settings } = useSettings();
 
-  // Derive selectedMember from current members array to keep it in sync
   const selectedMember = selectedMemberId
     ? members.find((m) => m.id === selectedMemberId) || null
     : null;
 
-  // Filter members based on search query and role
   const filteredMembers = members.filter((member) => {
     const matchesSearch = member.name
       .toLowerCase()
       .includes(searchQuery.toLowerCase());
-    // Members can only see their own record (once linked via user_id)
-    // For now, show all for admins, restrict based on future user_id linking
     return matchesSearch;
   });
 
@@ -159,7 +142,6 @@ export default function Members() {
   const endIndex = startIndex + MEMBERS_PER_PAGE;
   const currentMembers = filteredMembers.slice(startIndex, endIndex);
 
-  // Get suggestions for autocomplete
   const suggestions =
     searchQuery.length > 0
       ? members
@@ -183,79 +165,63 @@ export default function Members() {
     },
   });
 
-  const onSubmit = (data: MemberFormValues) => {
+  const onSubmit = async (data: MemberFormValues) => {
+    setIsSubmitting(true);
+    
+    const formData = {
+      name: data.name,
+      father_name: data.fatherName,
+      email: data.email,
+      phone: data.phone,
+      address: data.address,
+      dob: data.dob ? format(data.dob, "yyyy-MM-dd") : null,
+      join_date: format(data.joinDate, "yyyy-MM-dd"),
+      profile_picture: data.profilePicture,
+    };
+
     if (editingMember) {
-      // Update existing member
-      const updatedMembers = members.map((m) =>
-        m.id === editingMember.id ? { ...m, ...data } : m
-      );
-      setMembers(updatedMembers);
-      toast({
-        title: "Member Updated",
-        description: `${data.name} has been successfully updated.`,
-      });
-      setEditingMember(null);
+      await updateMember(editingMember.id, formData);
     } else {
-      // Add new member
-      const newMember: Member = {
-        id: members.length + 1,
-        name: data.name,
-        fatherName: data.fatherName,
-        dob: data.dob,
-        email: data.email,
-        phone: data.phone,
-        address: data.address,
-        joinDate: data.joinDate,
-        profilePicture: data.profilePicture,
-        monthlyContributions: [],
-        attendance: [],
-        loans: [],
-        totalBudget: 0,
-      };
-      setMembers([...members, newMember]);
-      toast({
-        title: "Member Added",
-        description: `${data.name} has been successfully added.`,
-      });
+      await addMember(formData);
     }
+    
+    setIsSubmitting(false);
     form.reset();
     setOpen(false);
+    setEditingMember(null);
+    setProfilePicturePreview("");
   };
 
-  const handleEdit = (member: Member) => {
+  const handleEdit = (member: DbMember) => {
     setEditingMember(member);
     form.reset({
       name: member.name,
-      fatherName: member.fatherName,
-      dob: member.dob,
-      email: member.email,
-      phone: member.phone,
-      address: member.address,
-      joinDate: member.joinDate,
-      profilePicture: member.profilePicture || "",
+      fatherName: member.father_name,
+      dob: member.dob ? new Date(member.dob) : undefined,
+      email: member.email || "",
+      phone: member.phone || "",
+      address: member.address || "",
+      joinDate: new Date(member.join_date),
+      profilePicture: member.profile_picture || "",
     });
+    setProfilePicturePreview(member.profile_picture || "");
     setOpen(true);
   };
 
-  const handleDeleteClick = (member: Member) => {
+  const handleDeleteClick = (member: DbMember) => {
     setMemberToDelete(member);
     setDeleteDialogOpen(true);
   };
 
-  const handleDeleteConfirm = () => {
+  const handleDeleteConfirm = async () => {
     if (memberToDelete) {
-      setMembers(members.filter((m) => m.id !== memberToDelete.id));
-      toast({
-        title: "Member Deleted",
-        description: `${memberToDelete.name} has been removed.`,
-      });
+      await deleteMember(memberToDelete.id, memberToDelete.name);
       setMemberToDelete(null);
     }
     setDeleteDialogOpen(false);
   };
 
-  const handleViewDetails = (member: Member) => {
-    // Members can view details - access control is handled by RLS policies
+  const handleViewDetails = (member: DbMember) => {
     setSelectedMemberId(member.id);
     setDetailsDialogOpen(true);
   };
@@ -267,13 +233,12 @@ export default function Members() {
   const handleSearchChange = (value: string) => {
     setSearchQuery(value);
     setShowSuggestions(value.length > 0);
-    setCurrentPage(1); // Reset to first page on search
+    setCurrentPage(1);
   };
 
-  const handleSelectMember = (member: Member) => {
+  const handleSelectMember = (member: DbMember) => {
     setSearchQuery(member.name);
     setShowSuggestions(false);
-    // Small delay to ensure state updates before opening dialog
     setTimeout(() => {
       handleViewDetails(member);
     }, 100);
@@ -288,67 +253,81 @@ export default function Members() {
     }
   };
 
-  const handleProfilePictureChange = (
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
+  const handleProfilePictureChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (typeof reader.result === "string") {
-          setProfilePicturePreview(reader.result);
-          form.setValue("profilePicture", reader.result);
-        }
-      };
-      reader.readAsDataURL(file);
-    }
-  };
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}.${fileExt}`;
+      const filePath = `members/${fileName}`;
 
-  const handleAddContribution = () => {
-    if (!selectedMember) return;
+      const { error: uploadError } = await supabase.storage
+        .from('profile-pictures')
+        .upload(filePath, file);
 
-    const amount = parseFloat(contributionForm.amount) || 0;
-    if (!contributionForm.date || amount <= 0) {
-      toast({
-        title: "Invalid Input",
-        description: "Please provide a valid date and amount.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const updatedMembers = members.map((m) => {
-      if (m.id === selectedMember.id) {
-        const dateString = contributionForm.date!.toISOString().split("T")[0];
-        const newContribution: MonthlyContribution = {
-          month: dateString,
-          amount: amount,
-          paid: amount > 0,
-        };
-        const newAttendance = {
-          date: dateString,
-          present: contributionForm.present,
-        };
-        return {
-          ...m,
-          monthlyContributions: [...m.monthlyContributions, newContribution],
-          attendance: [...m.attendance, newAttendance],
-          totalBudget: m.totalBudget + amount,
-        };
+      if (uploadError) {
+        toast({
+          title: "Upload Error",
+          description: "Failed to upload profile picture",
+          variant: "destructive",
+        });
+        return;
       }
-      return m;
-    });
 
-    setMembers(updatedMembers);
-    setContributionForm({ date: undefined, amount: "", present: true });
-    setAddContributionDialogOpen(false);
-    toast({
-      title: "Contribution Added",
-      description: `Past contribution of PKR ${amount.toLocaleString()} has been added to ${
-        selectedMember.name
-      }.`,
-    });
+      const { data } = supabase.storage
+        .from('profile-pictures')
+        .getPublicUrl(filePath);
+
+      setProfilePicturePreview(data.publicUrl);
+      form.setValue("profilePicture", data.publicUrl);
+    }
   };
+
+  const handleUpdatePhoto = async (memberId: string) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (file) {
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${Date.now()}.${fileExt}`;
+        const filePath = `members/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('profile-pictures')
+          .upload(filePath, file);
+
+        if (uploadError) {
+          toast({
+            title: "Upload Error",
+            description: "Failed to upload profile picture",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        const { data } = supabase.storage
+          .from('profile-pictures')
+          .getPublicUrl(filePath);
+
+        await updateMember(memberId, { profile_picture: data.publicUrl });
+        toast({
+          title: "Profile Picture Updated",
+          description: "The member's profile picture has been updated.",
+        });
+      }
+    };
+    input.click();
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -358,7 +337,7 @@ export default function Members() {
             Manage organization members
           </p>
         </div>
-        {!isMember && (
+        {isAdmin && (
           <Dialog open={open} onOpenChange={handleDialogClose}>
             <DialogTrigger asChild>
               <Button className="gap-2">
@@ -385,9 +364,7 @@ export default function Members() {
                 </div>
               </DialogHeader>
               <Form {...form}>
-                <form
-                  onSubmit={form.handleSubmit(onSubmit)}
-                  className="space-y-4">
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                   <FormField
                     control={form.control}
                     name="name"
@@ -431,7 +408,6 @@ export default function Members() {
                       </FormItem>
                     )}
                   />
-
                   <FormField
                     control={form.control}
                     name="email"
@@ -445,7 +421,6 @@ export default function Members() {
                       </FormItem>
                     )}
                   />
-
                   <FormField
                     control={form.control}
                     name="phone"
@@ -465,9 +440,7 @@ export default function Members() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Address</FormLabel>
-                        <Select
-                          onValueChange={field.onChange}
-                          value={field.value}>
+                        <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue placeholder="Select your address" />
@@ -501,18 +474,12 @@ export default function Members() {
                       </FormItem>
                     )}
                   />
-
-                  {/* Profile Picture Upload */}
+                  
                   <div className="space-y-2">
                     <Label>Profile Picture</Label>
                     <div className="flex items-center gap-4">
                       <Avatar className="h-20 w-20">
-                        <AvatarImage
-                          src={
-                            profilePicturePreview ||
-                            editingMember?.profilePicture
-                          }
-                        />
+                        <AvatarImage src={profilePicturePreview || editingMember?.profile_picture || undefined} />
                         <AvatarFallback className="bg-gradient-primary">
                           <Upload className="w-8 h-8 text-primary-foreground" />
                         </AvatarFallback>
@@ -536,13 +503,23 @@ export default function Members() {
                       type="button"
                       variant="outline"
                       onClick={() => handleDialogClose(false)}
-                      className="px-6 py-2.5 rounded-lg hover:bg-muted/50 transition-all duration-200">
-                      Cancel Add Member
+                      className="px-6 py-2.5 rounded-lg hover:bg-muted/50 transition-all duration-200"
+                    >
+                      Cancel
                     </Button>
                     <Button
                       type="submit"
-                      className="px-6 py-2.5 rounded-lg bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary shadow-lg hover:shadow-xl transition-all duration-200">
-                      {editingMember ? "Update Member" : "Add Member"}
+                      disabled={isSubmitting}
+                      className="px-6 py-2.5 rounded-lg bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary shadow-lg hover:shadow-xl transition-all duration-200"
+                    >
+                      {isSubmitting ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          {editingMember ? "Updating..." : "Adding..."}
+                        </>
+                      ) : (
+                        editingMember ? "Update Member" : "Add Member"
+                      )}
                     </Button>
                   </div>
                 </form>
@@ -562,27 +539,25 @@ export default function Members() {
                 className="pl-10"
                 value={searchQuery}
                 onChange={(e) => handleSearchChange(e.target.value)}
-                onFocus={() =>
-                  searchQuery.length > 0 && setShowSuggestions(true)
-                }
+                onFocus={() => searchQuery.length > 0 && setShowSuggestions(true)}
                 onBlur={() => {
-                  // Delay to allow click on suggestion to register
                   setTimeout(() => setShowSuggestions(false), 200);
                 }}
               />
               {showSuggestions && suggestions.length > 0 && (
                 <div
                   className="absolute top-full left-0 right-0 mt-2 bg-background border border-border rounded-md shadow-lg z-50 max-h-60 overflow-y-auto"
-                  onMouseDown={(e) => e.preventDefault()} // Prevent input blur on click
+                  onMouseDown={(e) => e.preventDefault()}
                 >
                   {suggestions.map((member) => (
                     <button
                       key={member.id}
                       type="button"
                       onClick={() => handleSelectMember(member)}
-                      className="w-full text-left px-4 py-3 hover:bg-accent transition-colors flex items-center gap-3 border-b border-border last:border-b-0">
+                      className="w-full text-left px-4 py-3 hover:bg-accent transition-colors flex items-center gap-3 border-b border-border last:border-b-0"
+                    >
                       <Avatar className="h-8 w-8 flex-shrink-0">
-                        <AvatarImage src={member.profilePicture} />
+                        <AvatarImage src={member.profile_picture || undefined} />
                         <AvatarFallback className="bg-gradient-primary">
                           <span className="text-primary-foreground text-sm font-semibold">
                             {member.name
@@ -608,59 +583,73 @@ export default function Members() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            {currentMembers.map((member) => (
-              <div
-                key={member.id}
-                className="flex items-center justify-between p-1 rounded-lg border border-border hover:bg-muted/50 transition-colors">
-                <div className="flex items-center gap-4">
-                  <Avatar className="h-12 w-12">
-                    <AvatarImage src={member.profilePicture} />
-                    <AvatarFallback className="bg-gradient-primary">
-                      <span className="text-primary-foreground font-semibold">
-                        {member.name
-                          .split(" ")
-                          .map((n) => n[0])
-                          .join("")}
-                      </span>
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <h3 className="font-semibold text-foreground">
-                      {member.name}
-                    </h3>
-                    <p className="text-sm text-muted-foreground">
-                      Joined Al-Hilal on:{" "}
-                      {format(new Date(member.joinDate), settings.dateFormat)}
-                    </p>
+          {currentMembers.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              {searchQuery ? "No members found matching your search." : "No members yet. Add the first member to get started."}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {currentMembers.map((member) => (
+                <div
+                  key={member.id}
+                  className="flex items-center justify-between p-1 rounded-lg border border-border hover:bg-muted/50 transition-colors"
+                >
+                  <div className="flex items-center gap-4">
+                    <Avatar className="h-12 w-12">
+                      <AvatarImage src={member.profile_picture || undefined} />
+                      <AvatarFallback className="bg-gradient-primary">
+                        <span className="text-primary-foreground font-semibold">
+                          {member.name
+                            .split(" ")
+                            .map((n) => n[0])
+                            .join("")}
+                        </span>
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <h3 className="font-semibold text-foreground">
+                        {member.name}
+                      </h3>
+                      <p className="text-sm text-muted-foreground">
+                        Joined Al-Hilal on:{" "}
+                        {format(new Date(member.join_date), settings.dateFormat)}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleViewDetails(member)}
+                      className="h-8 w-8"
+                    >
+                      <Eye className="w-4 h-4" />
+                    </Button>
+                    {isAdmin && (
+                      <>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleEdit(member)}
+                          className="h-8 w-8"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDeleteClick(member)}
+                          className="h-8 w-8 text-destructive hover:text-destructive"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleViewDetails(member)}
-                    className="h-8 w-8">
-                    <Eye className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleEdit(member)}
-                    className="h-8 w-8">
-                    <Pencil className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleDeleteClick(member)}
-                    className="h-8 w-8 text-destructive hover:text-destructive">
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -669,14 +658,8 @@ export default function Members() {
           <PaginationContent>
             <PaginationItem>
               <PaginationPrevious
-                onClick={() =>
-                  currentPage > 1 && handlePageChange(currentPage - 1)
-                }
-                className={
-                  currentPage === 1
-                    ? "pointer-events-none opacity-50"
-                    : "cursor-pointer"
-                }
+                onClick={() => currentPage > 1 && handlePageChange(currentPage - 1)}
+                className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
               />
             </PaginationItem>
             {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
@@ -684,21 +667,16 @@ export default function Members() {
                 <PaginationLink
                   onClick={() => handlePageChange(page)}
                   isActive={currentPage === page}
-                  className="cursor-pointer">
+                  className="cursor-pointer"
+                >
                   {page}
                 </PaginationLink>
               </PaginationItem>
             ))}
             <PaginationItem>
               <PaginationNext
-                onClick={() =>
-                  currentPage < totalPages && handlePageChange(currentPage + 1)
-                }
-                className={
-                  currentPage === totalPages
-                    ? "pointer-events-none opacity-50"
-                    : "cursor-pointer"
-                }
+                onClick={() => currentPage < totalPages && handlePageChange(currentPage + 1)}
+                className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
               />
             </PaginationItem>
           </PaginationContent>
@@ -718,7 +696,8 @@ export default function Members() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteConfirm}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -732,7 +711,8 @@ export default function Members() {
           if (!open) {
             setSelectedMemberId(null);
           }
-        }}>
+        }}
+      >
         <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Member Details</DialogTitle>
@@ -741,7 +721,7 @@ export default function Members() {
             <div className="space-y-6">
               <div className="flex items-center gap-4 pb-4 border-b">
                 <Avatar className="h-20 w-20">
-                  <AvatarImage src={selectedMember.profilePicture} />
+                  <AvatarImage src={selectedMember.profile_picture || undefined} />
                   <AvatarFallback className="bg-gradient-primary">
                     <span className="text-primary-foreground font-semibold text-xl">
                       {selectedMember.name
@@ -756,77 +736,53 @@ export default function Members() {
                     {selectedMember.name}
                   </h3>
                   <p className="text-muted-foreground">
-                    Father: {selectedMember.fatherName}
+                    Father: {selectedMember.father_name}
                   </p>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    const input = document.createElement("input");
-                    input.type = "file";
-                    input.accept = "image/*";
-                    input.onchange = (e) => {
-                      const file = (e.target as HTMLInputElement).files?.[0];
-                      if (file && selectedMember) {
-                        const reader = new FileReader();
-                        reader.onloadend = () => {
-                          const base64String = reader.result as string;
-                          const updatedMembers = members.map((m) =>
-                            m.id === selectedMember.id
-                              ? { ...m, profilePicture: base64String }
-                              : m
-                          );
-                          setMembers(updatedMembers);
-                          toast({
-                            title: "Profile Picture Updated",
-                            description:
-                              "The member's profile picture has been updated.",
-                          });
-                        };
-                        reader.readAsDataURL(file);
-                      }
-                    };
-                    input.click();
-                  }}
-                  className="pb-1 gap-2">
-                  <Upload className="w-4 h-4" />
-                  Update Photo
-                </Button>
+                {isAdmin && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleUpdatePhoto(selectedMember.id)}
+                    className="pb-1 gap-2"
+                  >
+                    <Upload className="w-4 h-4" />
+                    Update Photo
+                  </Button>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm text-muted-foreground">Email</p>
-                  <p className="font-medium">{selectedMember.email}</p>
+                  <p className="font-medium">{selectedMember.email || "N/A"}</p>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Phone</p>
-                  <p className="font-medium">{selectedMember.phone}</p>
+                  <p className="font-medium">{selectedMember.phone || "N/A"}</p>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Date of Birth</p>
                   <p className="font-medium">
-                    {format(new Date(selectedMember.dob), settings.dateFormat)}
+                    {selectedMember.dob
+                      ? format(new Date(selectedMember.dob), settings.dateFormat)
+                      : "N/A"}
                   </p>
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Joined</p>
+                  <p className="text-sm text-muted-foreground">Join Date</p>
                   <p className="font-medium">
-                    {format(
-                      new Date(selectedMember.joinDate),
-                      settings.dateFormat
-                    )}
+                    {format(new Date(selectedMember.join_date), settings.dateFormat)}
                   </p>
                 </div>
-                <div className="col-span-2">
+                <div>
                   <p className="text-sm text-muted-foreground">Address</p>
-                  <p className="font-medium">{selectedMember.address}</p>
+                  <p className="font-medium">{selectedMember.address || "N/A"}</p>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Total Budget</p>
-                  <p className="font-medium text-lg text-primary">
-                    PKR {selectedMember.totalBudget.toLocaleString()}
+                  <p className="font-medium">
+                    PKR {(selectedMember.total_budget || 0).toLocaleString()}
                   </p>
                 </div>
               </div>
@@ -836,276 +792,46 @@ export default function Members() {
                   <TabsTrigger value="contributions">Contributions</TabsTrigger>
                   <TabsTrigger value="loans">Loans</TabsTrigger>
                 </TabsList>
-
-                <TabsContent value="contributions" className="space-y-4">
-                  <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <div>
-                        <CardDescription>
-                          Monthly contribution and attendance history
-                        </CardDescription>
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setAddContributionDialogOpen(true)}
-                        className="pb-1 gap-2">
-                        <Plus className="w-4 h-4" />
-                        Add Past Contribution
-                      </Button>
-                    </CardHeader>
-                    <CardContent>
-                      {selectedMember.monthlyContributions.length > 0 ? (
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Meeting Date</TableHead>
-                              <TableHead>Amount</TableHead>
-                              <TableHead>Attendance</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {selectedMember.monthlyContributions
-                              .sort(
-                                (a, b) =>
-                                  new Date(a.month).getTime() -
-                                  new Date(b.month).getTime()
-                              )
-                              .map((contribution, index) => {
-                                const attendanceRecord =
-                                  selectedMember.attendance.find(
-                                    (a) => a.date === contribution.month
-                                  );
-                                return (
-                                  <TableRow key={index}>
-                                    <TableCell>
-                                      {format(
-                                        new Date(contribution.month),
-                                        settings.dateFormat
-                                      )}
-                                    </TableCell>
-                                    <TableCell>
-                                      PKR {contribution.amount.toLocaleString()}
-                                    </TableCell>
-                                    <TableCell>
-                                      <span
-                                        className={`px-2 py-1 rounded-full text-xs ${
-                                          attendanceRecord?.present
-                                            ? "bg-green-100 text-green-700"
-                                            : "bg-red-100 text-red-700"
-                                        }`}>
-                                        {attendanceRecord?.present
-                                          ? "Present"
-                                          : "Absent"}
-                                      </span>
-                                    </TableCell>
-                                  </TableRow>
-                                );
-                              })}
-                          </TableBody>
-                        </Table>
-                      ) : (
-                        <p className="text-muted-foreground text-center py-4">
-                          No contributions recorded
-                        </p>
-                      )}
-                    </CardContent>
-                  </Card>
+                <TabsContent value="contributions" className="mt-4">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Amount</TableHead>
+                        <TableHead>Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      <TableRow>
+                        <TableCell colSpan={3} className="text-center text-muted-foreground">
+                          No contributions recorded yet
+                        </TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
                 </TabsContent>
-
-                <TabsContent value="loans" className="space-y-4">
-                  <Card>
-                    <CardHeader>
-                      <CardDescription>Loan history and status</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      {selectedMember.loans.length > 0 ? (
-                        <div className="space-y-6">
-                          {selectedMember.loans.map((loan) => {
-                            const effectiveInterest = settings.applyLoanInterest
-                              ? settings.loanInterestRate
-                              : 0;
-                            const amountWithInterest =
-                              loan.amount * (1 + effectiveInterest / 100);
-                            return (
-                              <div
-                                key={loan.id}
-                                className="border rounded-lg p-4">
-                                <div className="flex justify-between items-start mb-4">
-                                  <div>
-                                    <h4 className="font-semibold">
-                                      Loan #{loan.id}
-                                    </h4>
-                                    <p className="text-sm text-muted-foreground">
-                                      Issued:{" "}
-                                      {format(
-                                        new Date(loan.date),
-                                        settings.dateFormat
-                                      )}
-                                    </p>
-                                  </div>
-                                  <span
-                                    className={`px-2 py-1 rounded-full text-xs ${
-                                      loan.status === "Paid"
-                                        ? "bg-green-100 text-green-700"
-                                        : "bg-orange-100 text-orange-700"
-                                    }`}>
-                                    {loan.status}
-                                  </span>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-4 mb-4">
-                                  <div>
-                                    <p className="text-sm text-muted-foreground">
-                                      Principal Amount
-                                    </p>
-                                    <p className="font-medium">
-                                      PKR {loan.amount.toLocaleString()}
-                                    </p>
-                                  </div>
-                                  <div>
-                                    <p className="text-sm text-muted-foreground">
-                                      Amount with Interest
-                                    </p>
-                                    <p className="font-medium">
-                                      PKR {amountWithInterest.toLocaleString()}
-                                    </p>
-                                  </div>
-                                  <div>
-                                    <p className="text-sm text-muted-foreground">
-                                      Remaining Amount
-                                    </p>
-                                    <p className="font-medium text-destructive">
-                                      PKR{" "}
-                                      {loan.remainingAmount.toLocaleString()}
-                                    </p>
-                                  </div>
-                                  <div>
-                                    <p className="text-sm text-muted-foreground">
-                                      Interest Rate
-                                    </p>
-                                    <p className="font-medium">
-                                      {effectiveInterest}%
-                                    </p>
-                                  </div>
-                                </div>
-
-                                {loan.installments.length > 0 && (
-                                  <div>
-                                    <h5 className="font-medium mb-2">
-                                      Installment History
-                                    </h5>
-                                    <Table>
-                                      <TableHeader>
-                                        <TableRow>
-                                          <TableHead>Date</TableHead>
-                                          <TableHead>Amount Paid</TableHead>
-                                        </TableRow>
-                                      </TableHeader>
-                                      <TableBody>
-                                        {loan.installments.map(
-                                          (installment, index) => (
-                                            <TableRow key={index}>
-                                              <TableCell>
-                                                {format(
-                                                  new Date(installment.date),
-                                                  settings.dateFormat
-                                                )}
-                                              </TableCell>
-                                              <TableCell>
-                                                PKR{" "}
-                                                {installment.amount.toLocaleString()}
-                                              </TableCell>
-                                            </TableRow>
-                                          )
-                                        )}
-                                      </TableBody>
-                                    </Table>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <p className="text-muted-foreground text-center py-4">
-                          No loans recorded
-                        </p>
-                      )}
-                    </CardContent>
-                  </Card>
+                <TabsContent value="loans" className="mt-4">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Amount</TableHead>
+                        <TableHead>Remaining</TableHead>
+                        <TableHead>Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center text-muted-foreground">
+                          No loans recorded yet
+                        </TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
                 </TabsContent>
               </Tabs>
             </div>
           )}
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
-        open={addContributionDialogOpen}
-        onOpenChange={setAddContributionDialogOpen}>
-        <DialogContent className="sm:max-w-[400px]">
-          <DialogHeader>
-            <DialogTitle>Add Past Contribution</DialogTitle>
-            <DialogDescription>
-              Add a past meeting contribution for {selectedMember?.name}.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label>Meeting Date</Label>
-              <DatePicker
-                date={contributionForm.date}
-                onDateChange={(date) =>
-                  setContributionForm({
-                    ...contributionForm,
-                    date,
-                  })
-                }
-                placeholder="Select meeting date"
-              />
-            </div>
-            <div>
-              <Label htmlFor="contribution-amount">Amount (PKR)</Label>
-              <Input
-                id="contribution-amount"
-                type="number"
-                placeholder="0"
-                value={contributionForm.amount}
-                onChange={(e) =>
-                  setContributionForm({
-                    ...contributionForm,
-                    amount: e.target.value,
-                  })
-                }
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="contribution-present"
-                checked={contributionForm.present}
-                onChange={(e) =>
-                  setContributionForm({
-                    ...contributionForm,
-                    present: e.target.checked,
-                  })
-                }
-                className="w-4 h-4 rounded border-border"
-              />
-              <Label htmlFor="contribution-present" className="cursor-pointer">
-                Present
-              </Label>
-            </div>
-          </div>
-          <div className="flex justify-end gap-3 pt-4">
-            <Button
-              variant="outline"
-              onClick={() => setAddContributionDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleAddContribution}>Add Contribution</Button>
-          </div>
         </DialogContent>
       </Dialog>
     </div>
