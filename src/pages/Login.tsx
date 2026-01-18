@@ -46,7 +46,7 @@ export default function Login() {
             <LogIn className="w-6 h-6 text-primary-foreground" />
           </div>
           <CardTitle className="text-2xl">Welcome Back</CardTitle>
-          <CardDescription>Sign in to your AL-Hilal account</CardDescription>
+          <CardDescription>Sign in to your MSO account</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">

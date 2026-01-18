@@ -37,6 +37,8 @@ import {
   Eye,
   Upload,
   Loader2,
+  UserCheck,
+  Clock,
 } from "lucide-react";
 import {
   Dialog,
@@ -108,7 +110,7 @@ const formSchema = z.object({
 type MemberFormValues = z.infer<typeof formSchema>;
 
 export default function Members() {
-  const { members, isLoading, addMember, updateMember, deleteMember, fetchMembers } = useMembers();
+  const { members, isLoading, addMember, updateMember, deleteMember, fetchMembers, approveMember } = useMembers();
   const { isMember, isAdmin } = useAuth();
   const [open, setOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<DbMember | null>(null);
@@ -616,7 +618,13 @@ export default function Members() {
                       </p>
                     </div>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex items-center gap-2">
+                    {!member.is_approved && (
+                      <span className="flex items-center gap-1 text-xs text-amber-600 bg-amber-100 dark:bg-amber-900/30 dark:text-amber-400 px-2 py-1 rounded-full">
+                        <Clock className="w-3 h-3" />
+                        Pending
+                      </span>
+                    )}
                     <Button
                       variant="ghost"
                       size="icon"
@@ -627,6 +635,17 @@ export default function Members() {
                     </Button>
                     {isAdmin && (
                       <>
+                        {!member.is_approved && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => approveMember(member.id, member.name)}
+                            className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-100"
+                            title="Approve member"
+                          >
+                            <UserCheck className="w-4 h-4" />
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="icon"
