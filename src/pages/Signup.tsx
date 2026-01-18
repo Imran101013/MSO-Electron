@@ -62,7 +62,7 @@ export default function Signup() {
           </div>
           <CardTitle className="text-2xl">Create Account</CardTitle>
           <CardDescription>
-            Join AL-Hilal Organization
+            Join MSO
           </CardDescription>
         </CardHeader>
         <CardContent>

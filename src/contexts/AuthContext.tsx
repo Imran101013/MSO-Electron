@@ -64,7 +64,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     return { fullName: data.full_name };
   };
 
-  const buildAuthUser = async (authUser: User): Promise<AuthUser> => {
+  const buildAuthUser = async (authUser: User): Promise<AuthUser | null> => {
+    // Check if user is approved as a member FIRST
+    const { data: memberData, error: memberError } = await supabase
+      .from("members")
+      .select("is_approved")
+      .eq("user_id", authUser.id)
+      .maybeSingle();
+
+    // If member record doesn't exist or user is not approved, return null
+    if (memberError || !memberData || !memberData.is_approved) {
+      return null;
+    }
+
     const [role, profile] = await Promise.all([
       fetchUserRole(authUser.id),
       fetchUserProfile(authUser.id),
@@ -83,12 +95,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         setSession(session);
-        
+
         if (session?.user) {
           // Use setTimeout to avoid potential deadlock with Supabase client
           setTimeout(async () => {
             const authUser = await buildAuthUser(session.user);
-            setUser(authUser);
+            if (authUser) {
+              setUser(authUser);
+            } else {
+              // User exists in auth but is not approved, sign them out
+              setUser(null);
+              await supabase.auth.signOut();
+            }
             setIsLoading(false);
           }, 0);
         } else {
@@ -101,10 +119,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     // THEN check for existing session
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
-      
+
       if (session?.user) {
         const authUser = await buildAuthUser(session.user);
-        setUser(authUser);
+        if (authUser) {
+          setUser(authUser);
+        } else {
+          setUser(null);
+          await supabase.auth.signOut();
+        }
       }
       setIsLoading(false);
     });
@@ -163,6 +186,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     if (error) {
       return { error: error.message };
     }
+
+    // Sign out the user immediately after signup so they don't get auto-logged in
+    // User will need to wait for admin approval and then login manually
+    await supabase.auth.signOut();
+    setUser(null);
+    setSession(null);
 
     return { error: null };
   };
