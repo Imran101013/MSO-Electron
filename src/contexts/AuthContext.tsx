@@ -113,13 +113,32 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   }, []);
 
   const login = async (email: string, password: string): Promise<{ error: string | null }> => {
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
     if (error) {
       return { error: error.message };
+    }
+
+    // Check if member is approved
+    if (data.user) {
+      const { data: memberData, error: memberError } = await supabase
+        .from("members")
+        .select("is_approved")
+        .eq("user_id", data.user.id)
+        .maybeSingle();
+
+      if (memberError) {
+        await supabase.auth.signOut();
+        return { error: "Failed to verify account status" };
+      }
+
+      if (memberData && !memberData.is_approved) {
+        await supabase.auth.signOut();
+        return { error: "Your account is pending approval. Please wait for an admin to approve your account." };
+      }
     }
 
     return { error: null };

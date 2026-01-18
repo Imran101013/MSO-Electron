@@ -161,6 +161,7 @@ export type Database = {
           email: string | null
           father_name: string
           id: string
+          is_approved: boolean
           join_date: string
           name: string
           phone: string | null
@@ -176,6 +177,7 @@ export type Database = {
           email?: string | null
           father_name: string
           id?: string
+          is_approved?: boolean
           join_date?: string
           name: string
           phone?: string | null
@@ -191,6 +193,7 @@ export type Database = {
           email?: string | null
           father_name?: string
           id?: string
+          is_approved?: boolean
           join_date?: string
           name?: string
           phone?: string | null

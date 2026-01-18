@@ -14,6 +14,7 @@ export interface DbMember {
   join_date: string;
   profile_picture: string | null;
   total_budget: number;
+  is_approved: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -148,6 +149,31 @@ export function useMembers() {
     return true;
   };
 
+  const approveMember = async (id: string, name: string) => {
+    const { error } = await supabase
+      .from("members")
+      .update({ is_approved: true })
+      .eq("id", id);
+
+    if (error) {
+      console.error("Error approving member:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to approve member",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    toast({
+      title: "Member Approved",
+      description: `${name} can now sign in.`,
+    });
+
+    await fetchMembers();
+    return true;
+  };
+
   useEffect(() => {
     fetchMembers();
   }, []);
@@ -159,5 +185,6 @@ export function useMembers() {
     addMember,
     updateMember,
     deleteMember,
+    approveMember,
   };
 }
