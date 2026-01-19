@@ -16,7 +16,7 @@ import {
   Clock,
 } from "lucide-react";
 import { useSettings } from "@/contexts/SettingsContext";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, isFuture, isToday } from "date-fns";
 import { formatTimeTo12Hour } from "@/lib/utils";
 import { useMemo } from "react";
 import {
@@ -38,10 +38,44 @@ import { useReserveTransactions } from "@/hooks/useReserveTransactions";
 export default function Dashboard() {
   const { settings } = useSettings();
   const { members, isLoading: membersLoading } = useMembers();
-  const { upcomingMeetings, isLoading: meetingsLoading } = useMeetings();
+  const { meetings, upcomingMeetings, isLoading: meetingsLoading } = useMeetings();
   const { loans, installments, isLoading: loansLoading } = useLoans();
   const { contributions, isLoading: contributionsLoading } = useContributions();
   const { getReserveFundTotal, isLoading: reserveLoading } = useReserveTransactions();
+
+  // Get future meetings from both tables
+  const allUpcomingMeetings = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    // Future meetings from meetings table (with agenda)
+    const futureMeetings = meetings
+      .filter(m => {
+        const meetingDate = parseISO(m.meeting_date);
+        return isFuture(meetingDate) || isToday(meetingDate);
+      })
+      .map(m => ({
+        id: m.id,
+        date: m.meeting_date,
+        venue: m.agenda,
+        time: null as string | null,
+        type: 'meeting' as const,
+      }));
+
+    // Scheduled upcoming meetings (with venue/time)
+    const scheduled = upcomingMeetings.map(m => ({
+      id: m.id,
+      date: m.meeting_date,
+      venue: m.venue,
+      time: m.meeting_time,
+      type: 'upcoming' as const,
+    }));
+
+    // Combine and sort by date
+    return [...futureMeetings, ...scheduled].sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
+  }, [meetings, upcomingMeetings]);
 
   // Calculate total members (only approved)
   const totalMembers = useMemo(() => {
@@ -166,9 +200,9 @@ export default function Dashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {upcomingMeetings.length > 0 ? (
+            {allUpcomingMeetings.length > 0 ? (
               <div className="space-y-4">
-                {upcomingMeetings.map((meeting) => (
+                {allUpcomingMeetings.map((meeting) => (
                   <div
                     key={meeting.id}
                     className="p-4 rounded-lg border bg-red-200">
@@ -182,10 +216,10 @@ export default function Dashboard() {
                             </h4>
                             <p className="text-xl font-bold text-orange-700 mt-1">
                               {format(
-                                parseISO(meeting.meeting_date),
+                                parseISO(meeting.date),
                                 settings.dateFormat
                               )}{" "}
-                              {meeting.meeting_time && `at ${formatTimeTo12Hour(meeting.meeting_time)}`}
+                              {meeting.time && `at ${formatTimeTo12Hour(meeting.time)}`}
                             </p>
                           </div>
                         </div>
