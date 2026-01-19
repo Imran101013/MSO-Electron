@@ -15,11 +15,10 @@ import {
   TrendingUp,
   Clock,
 } from "lucide-react";
-import { useOrganization } from "@/contexts/OrganizationContext";
 import { useSettings } from "@/contexts/SettingsContext";
-import { format, parseISO, isPast } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { formatTimeTo12Hour } from "@/lib/utils";
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import {
   BarChart,
   Bar,
@@ -30,78 +29,81 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
+import { useMembers } from "@/hooks/useMembers";
+import { useMeetings } from "@/hooks/useMeetings";
+import { useLoans } from "@/hooks/useLoans";
+import { useContributions } from "@/hooks/useContributions";
+import { useReserveTransactions } from "@/hooks/useReserveTransactions";
 
 export default function Dashboard() {
-  const {
-    totalBudget,
-    totalMembers,
-    activeLoans,
-    reserveFund,
-    upcomingMeetings,
-    setUpcomingMeetings,
-    budgetTrend,
-    loansTrend,
-    reserveTrend,
-    meetings,
-    members,
-  } = useOrganization();
-
   const { settings } = useSettings();
-  const effectiveInterestRate = settings.applyLoanInterest
-    ? settings.loanInterestRate
-    : 0;
+  const { members, isLoading: membersLoading } = useMembers();
+  const { upcomingMeetings, isLoading: meetingsLoading } = useMeetings();
+  const { loans, installments, isLoading: loansLoading } = useLoans();
+  const { contributions, isLoading: contributionsLoading } = useContributions();
+  const { getReserveFundTotal, isLoading: reserveLoading } = useReserveTransactions();
+
+  // Calculate total members (only approved)
+  const totalMembers = useMemo(() => {
+    return members.filter(m => m.is_approved).length;
+  }, [members]);
+
+  // Calculate total budget from contributions
+  const totalBudget = useMemo(() => {
+    return contributions.reduce((sum, c) => sum + c.amount, 0);
+  }, [contributions]);
+
+  // Calculate active loans (remaining amount)
+  const activeLoans = useMemo(() => {
+    return loans
+      .filter(loan => loan.status === "active")
+      .reduce((sum, loan) => sum + loan.remaining_amount, 0);
+  }, [loans]);
+
+  // Reserve fund total
+  const reserveFund = useMemo(() => {
+    return getReserveFundTotal();
+  }, [getReserveFundTotal]);
 
   // Aggregate budget contributions by month-year
   const budgetData = useMemo(() => {
     const monthlyData: { [key: string]: number } = {};
-    meetings.forEach((meeting) => {
-      const date = new Date(meeting.date);
+    contributions.forEach((contribution) => {
+      const date = new Date(contribution.contribution_date);
       const monthKey = format(date, "yyyy-MM");
-      const contributions = meeting.contributions.reduce(
-        (sum, c) => sum + c.amount,
-        0
-      );
-      monthlyData[monthKey] = (monthlyData[monthKey] || 0) + contributions;
+      monthlyData[monthKey] = (monthlyData[monthKey] || 0) + contribution.amount;
     });
     return Object.entries(monthlyData)
       .map(([month, budget]) => ({
-        month: format(new Date(month + "-01"), settings.dateFormat),
+        month: format(new Date(month + "-01"), "MMM yyyy"),
         budget,
       }))
       .sort(
         (a, b) => new Date(a.month).getTime() - new Date(b.month).getTime()
       );
-  }, [meetings]);
+  }, [contributions]);
 
-  // Aggregate loan issued by month-year from members.loans (including interest)
+  // Aggregate loan issued by month-year
   const loanIssuedData = useMemo(() => {
     const monthlyData: { [key: string]: number } = {};
-    members.forEach((member) => {
-      member.loans.forEach((loan) => {
-        const date = new Date(loan.date);
-        const monthKey = format(date, "yyyy-MM");
-        const issuedAmount = loan.amount * (1 + effectiveInterestRate / 100);
-        monthlyData[monthKey] = (monthlyData[monthKey] || 0) + issuedAmount;
-      });
+    loans.forEach((loan) => {
+      const date = new Date(loan.loan_date);
+      const monthKey = format(date, "yyyy-MM");
+      monthlyData[monthKey] = (monthlyData[monthKey] || 0) + loan.amount;
     });
     return monthlyData;
-  }, [members, effectiveInterestRate]);
+  }, [loans]);
 
-  // Aggregate loan recovered by month-year from members' loan installments
+  // Aggregate loan recovered by month-year from installments
   const loanRecoveredData = useMemo(() => {
     const monthlyData: { [key: string]: number } = {};
-    members.forEach((member) => {
-      member.loans.forEach((loan) => {
-        loan.installments.forEach((installment) => {
-          const date = new Date(installment.date);
-          const monthKey = format(date, "yyyy-MM");
-          monthlyData[monthKey] =
-            (monthlyData[monthKey] || 0) + installment.amount;
-        });
-      });
+    installments.forEach((installment) => {
+      const date = new Date(installment.payment_date);
+      const monthKey = format(date, "yyyy-MM");
+      monthlyData[monthKey] = (monthlyData[monthKey] || 0) + installment.amount;
     });
     return monthlyData;
-  }, [members]);
+  }, [installments]);
 
   // Combine issued and recovered for loans trend
   const loansData = useMemo(() => {
@@ -120,17 +122,7 @@ export default function Dashboard() {
       );
   }, [loanIssuedData, loanRecoveredData]);
 
-  // Filter out past meetings
-  useEffect(() => {
-    const filteredMeetings = upcomingMeetings.filter((meeting) => {
-      const meetingDateTime = parseISO(`${meeting.date}T${meeting.time}`);
-      return !isPast(meetingDateTime);
-    });
-
-    if (filteredMeetings.length !== upcomingMeetings.length) {
-      setUpcomingMeetings(filteredMeetings);
-    }
-  }, [upcomingMeetings, setUpcomingMeetings]);
+  const isLoading = membersLoading || meetingsLoading || loansLoading || contributionsLoading || reserveLoading;
 
   return (
     <div className="space-y-8">
@@ -144,47 +136,23 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard
           title="Total Members"
-          value={totalMembers.toString()}
+          value={isLoading ? "..." : totalMembers.toString()}
           icon={Users}
         />
         <StatCard
           title="Total Budget"
-          value={`PKR ${totalBudget.toLocaleString()}`}
+          value={isLoading ? "..." : `PKR ${totalBudget.toLocaleString()}`}
           icon={Wallet}
-          // trend={
-          //   budgetTrend
-          //     ? `${budgetTrend.amount >= 0 ? "+" : ""}PKR ${Math.abs(
-          //         budgetTrend.amount
-          //       ).toLocaleString()} (${budgetTrend.percentage.toFixed(1)}%)`
-          //     : undefined
-          // }
-          trendUp={budgetTrend ? budgetTrend.amount >= 0 : undefined}
         />
         <StatCard
           title="Active Loans"
-          value={`PKR ${activeLoans.toLocaleString()}`}
+          value={isLoading ? "..." : `PKR ${activeLoans.toLocaleString()}`}
           icon={HandCoins}
-          trend={
-            loansTrend
-              ? `${loansTrend.amount >= 0 ? "+" : ""}PKR ${Math.abs(
-                loansTrend.amount
-              ).toLocaleString()} net change`
-              : undefined
-          }
-          trendUp={loansTrend ? loansTrend.amount < 0 : undefined}
         />
         <StatCard
           title="Reserve Fund"
-          value={`PKR ${reserveFund.toLocaleString()}`}
+          value={isLoading ? "..." : `PKR ${reserveFund.toLocaleString()}`}
           icon={PiggyBank}
-          // trend={
-          //   reserveTrend
-          //     ? `${reserveTrend.amount >= 0 ? "+" : ""}PKR ${Math.abs(
-          //         reserveTrend.amount
-          //       ).toLocaleString()}`
-          //     : undefined
-          // }
-          trendUp={reserveTrend ? reserveTrend.amount >= 0 : undefined}
         />
       </div>
 
@@ -210,14 +178,14 @@ export default function Dashboard() {
                         <div className="flex justify-between items-start">
                           <div>
                             <h4 className="font-semibold text-foreground">
-                              {meeting.venue}
+                              {meeting.venue || "TBD"}
                             </h4>
                             <p className="text-xl font-bold text-orange-700 mt-1">
                               {format(
-                                parseISO(meeting.date),
+                                parseISO(meeting.meeting_date),
                                 settings.dateFormat
                               )}{" "}
-                              at {formatTimeTo12Hour(meeting.time)}
+                              {meeting.meeting_time && `at ${formatTimeTo12Hour(meeting.meeting_time)}`}
                             </p>
                           </div>
                         </div>
@@ -254,7 +222,7 @@ export default function Dashboard() {
                   Total Members
                 </span>
                 <span className="text-lg font-semibold text-foreground">
-                  {totalMembers}
+                  {isLoading ? "..." : totalMembers}
                 </span>
               </div>
               <div className="flex justify-between items-center">
@@ -262,7 +230,7 @@ export default function Dashboard() {
                   Total Budget
                 </span>
                 <span className="text-lg font-semibold text-foreground">
-                  PKR {totalBudget.toLocaleString()}
+                  {isLoading ? "..." : `PKR ${totalBudget.toLocaleString()}`}
                 </span>
               </div>
               <div className="flex justify-between items-center">
@@ -270,7 +238,7 @@ export default function Dashboard() {
                   Active Loans
                 </span>
                 <span className="text-lg font-semibold text-foreground">
-                  PKR {activeLoans.toLocaleString()}
+                  {isLoading ? "..." : `PKR ${activeLoans.toLocaleString()}`}
                 </span>
               </div>
             </div>
@@ -299,7 +267,7 @@ export default function Dashboard() {
                   <XAxis dataKey="month" />
                   <YAxis />
                   <Tooltip
-                    formatter={(value) => `PKR ${value.toLocaleString()}`}
+                    formatter={(value) => `PKR ${Number(value).toLocaleString()}`}
                   />
                   <Legend />
                   <Bar
@@ -336,7 +304,7 @@ export default function Dashboard() {
                   <XAxis dataKey="month" />
                   <YAxis />
                   <Tooltip
-                    formatter={(value) => `PKR ${value.toLocaleString()}`}
+                    formatter={(value) => `PKR ${Number(value).toLocaleString()}`}
                   />
                   <Legend />
                   <Bar dataKey="issued" fill="#ef4444" name="Loans Issued" />
