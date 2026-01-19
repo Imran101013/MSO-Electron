@@ -30,6 +30,7 @@ export default function PDFsPage() {
       toast.error("Please select a member to generate ledger.");
       return;
     }
+
     const member = members.find((m) => m.id === selectedMemberId);
     if (!member) {
       toast.error("Selected member not found");
@@ -46,7 +47,7 @@ export default function PDFsPage() {
 
   const handleMeetingsLedger = async () => {
     try {
-      await generateReport("meetings", { members }, settings);
+      await generateReport("meetings", { members, meetings }, settings);
       toast.success("Meetings ledger generated");
     } catch (err: unknown) {
       toast.error((err instanceof Error ? err.message : "Failed to generate meetings ledger") || "Failed to generate meetings ledger");
@@ -90,7 +91,7 @@ export default function PDFsPage() {
       const loan = member.loans.find((l) => l.id === loanId);
       await generateReport(
         "loan-ledger",
-        { member, members },
+        { member, members, loanId },
         settings
       );
       toast.success("Loan ledger generated");
@@ -103,7 +104,7 @@ export default function PDFsPage() {
     try {
       await generateReport(
         "reserve-transactions",
-        { members },
+        { transactions: reserveTransactions },
         settings
       );
       toast.success("Reserve transactions ledger generated");
@@ -153,7 +154,7 @@ export default function PDFsPage() {
           totalLoans,
           totalLoanRecovered,
           reserveFund,
-          organizationName: "Hilal Connect Organization",
+          organizationName: settings.organizationName,
         },
         settings
       );

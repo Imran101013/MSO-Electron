@@ -1,6 +1,12 @@
-import { createContext, useContext, useState, ReactNode } from "react";
+import { createContext, useContext, useState, ReactNode, useEffect } from "react";
 import { ORGANIZATION_CONFIG, LoanStatus } from "@/config/organization";
 import { useSettings } from "./SettingsContext";
+import { useMembers, DbMember } from "@/hooks/useMembers";
+import { useLoans, DbLoan, DbLoanInstallment } from "@/hooks/useLoans";
+import { useContributions, DbContribution } from "@/hooks/useContributions";
+import { useAttendance, DbAttendance } from "@/hooks/useAttendance";
+import { useMeetings, DbMeeting, DbUpcomingMeeting } from "@/hooks/useMeetings";
+import { useReserveTransactions } from "@/hooks/useReserveTransactions";
 
 export interface MonthlyContribution {
   month: string;
@@ -155,8 +161,77 @@ const OrganizationContext = createContext<OrganizationContextType | undefined>(
   undefined
 );
 
-const initialMembers: Member[] = [];
-const initialMeetings: Meeting[] = [];
+const initialMembers: Member[] = [
+  {
+    id: 1,
+    name: "John Doe",
+    fatherName: "Father Doe",
+    dob: new Date("1990-01-01"),
+    email: "john@example.com",
+    phone: "03001234567",
+    address: "123 Main St",
+    joinDate: new Date("2023-01-01"),
+    monthlyContributions: [
+      { month: "2024-01", amount: 500, paid: true },
+      { month: "2024-02", amount: 500, paid: false }
+    ],
+    attendance: [
+      { date: "2024-01-01", present: true },
+      { date: "2024-02-01", present: false }
+    ],
+    loans: [
+      {
+        id: 1,
+        amount: 5000,
+        date: "2024-01-15",
+        status: "Active",
+        remainingAmount: 3000,
+        installments: [
+          { date: "2024-02-01", amount: 1000 },
+          { date: "2024-03-01", amount: 1000 }
+        ]
+      }
+    ],
+    totalBudget: 10000
+  },
+  {
+    id: 2,
+    name: "Jane Smith",
+    fatherName: "Father Smith",
+    dob: new Date("1992-05-15"),
+    email: "jane@example.com",
+    phone: "03009876543",
+    address: "456 Oak St",
+    joinDate: new Date("2023-03-01"),
+    monthlyContributions: [
+      { month: "2024-01", amount: 500, paid: true },
+      { month: "2024-02", amount: 500, paid: true }
+    ],
+    attendance: [
+      { date: "2024-01-01", present: true },
+      { date: "2024-02-01", present: true }
+    ],
+    loans: [],
+    totalBudget: 15000
+  }
+];
+const initialMeetings: Meeting[] = [
+  {
+    id: 1,
+    date: "2024-01-15",
+    agenda: "Monthly meeting and loan approvals",
+    decisions: "Approved 3 new loans",
+    contributions: [
+      { memberId: 1, amount: 500, present: true },
+      { memberId: 2, amount: 500, present: true }
+    ],
+    loanCollections: [
+      { memberId: 1, loanId: 1, amount: 1000 }
+    ],
+    loanIssues: [],
+    reserveFundDonations: []
+  }
+];
 const initialUpcomingMeetings: UpcomingMeeting[] = [];
 
 export function OrganizationProvider({ children }: { children: ReactNode }) {
@@ -167,7 +242,16 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   );
   const [reserveTransactions, setReserveTransactions] = useState<
     ReserveTransaction[]
-  >([]);
+  >([
+    {
+      id: 1,
+      type: "donation",
+      amount: 2000,
+      date: "2024-01-01",
+      donorName: "Anonymous",
+      notes: "General donation"
+    }
+  ]);
   const [profitDistributions, setProfitDistributions] = useState<
     ProfitDistribution[]
   >([]);
@@ -177,6 +261,128 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   const effectiveInterestRate = settings.applyLoanInterest
     ? settings.loanInterestRate
     : 0;
+
+  // Load data from Supabase
+  const { members: dbMembers } = useMembers();
+  const { loans: dbLoans, installments: dbInstallments } = useLoans();
+  const { contributions: dbContributions } = useContributions();
+  const { attendance: dbAttendance } = useAttendance();
+  const { meetings: dbMeetings, upcomingMeetings: dbUpcomingMeetings } = useMeetings();
+  const { transactions: dbReserveTransactions } = useReserveTransactions();
+
+  // Transform database data to context format
+  useEffect(() => {
+    if (dbMembers.length > 0) {
+      const transformedMembers: Member[] = dbMembers.map((dbMember: DbMember) => {
+        // Get loans for this member
+        const memberLoans = dbLoans
+          .filter((loan: DbLoan) => loan.member_id === dbMember.id)
+          .map((loan: DbLoan) => {
+            const loanInstallments = dbInstallments
+              .filter((inst: DbLoanInstallment) => inst.loan_id === loan.id)
+              .map((inst: DbLoanInstallment) => ({
+                date: inst.payment_date,
+                amount: inst.amount,
+              }));
+
+            return {
+              id: parseInt(loan.id),
+              amount: loan.amount,
+              date: loan.loan_date,
+              status: loan.status as LoanStatus,
+              remainingAmount: loan.remaining_amount,
+              installments: loanInstallments,
+            };
+          });
+
+        // Get contributions for this member
+        const memberContributions = dbContributions
+          .filter((contrib: DbContribution) => contrib.member_id === dbMember.id)
+          .map((contrib: DbContribution) => ({
+            month: contrib.contribution_date,
+            amount: contrib.amount,
+            paid: true, // Assume paid if contribution exists
+          }));
+
+        // Get attendance for this member
+        const memberAttendance = dbAttendance
+          .filter((att: DbAttendance) => att.member_id === dbMember.id)
+          .map((att: DbAttendance) => ({
+            date: att.created_at.split('T')[0], // Use created_at date as attendance date
+            present: att.present,
+          }));
+
+        return {
+          id: parseInt(dbMember.id),
+          name: dbMember.name,
+          fatherName: dbMember.father_name,
+          dob: dbMember.dob ? new Date(dbMember.dob) : new Date(),
+          email: dbMember.email || '',
+          phone: dbMember.phone || '',
+          address: dbMember.address || '',
+          joinDate: new Date(dbMember.join_date),
+          profilePicture: dbMember.profile_picture || undefined,
+          monthlyContributions: memberContributions,
+          attendance: memberAttendance,
+          loans: memberLoans,
+          totalBudget: dbMember.total_budget,
+        };
+      });
+
+      setMembers(transformedMembers);
+    } else {
+      // Use sample data if no database data is available
+      setMembers(initialMembers);
+    }
+  }, [dbMembers, dbLoans, dbInstallments, dbContributions, dbAttendance]);
+
+  // Transform meetings data
+  useEffect(() => {
+    if (dbMeetings.length > 0) {
+      const transformedMeetings: Meeting[] = dbMeetings.map((dbMeeting: DbMeeting) => ({
+        id: parseInt(dbMeeting.id),
+        date: dbMeeting.meeting_date,
+        agenda: dbMeeting.agenda,
+        decisions: dbMeeting.decisions || '',
+        contributions: [], // TODO: Load meeting contributions
+        loanCollections: [], // TODO: Load meeting loan collections
+        loanIssues: [], // TODO: Load meeting loan issues
+        reserveFundDonations: [], // TODO: Load reserve fund donations
+      }));
+
+      setMeetings(transformedMeetings);
+    }
+  }, [dbMeetings]);
+
+  // Transform upcoming meetings data
+  useEffect(() => {
+    if (dbUpcomingMeetings.length > 0) {
+      const transformedUpcomingMeetings: UpcomingMeeting[] = dbUpcomingMeetings.map((dbMeeting: DbUpcomingMeeting) => ({
+        id: parseInt(dbMeeting.id),
+        date: dbMeeting.meeting_date,
+        time: dbMeeting.meeting_time || '',
+        venue: dbMeeting.venue || '',
+      }));
+
+      setUpcomingMeetings(transformedUpcomingMeetings);
+    }
+  }, [dbUpcomingMeetings]);
+
+  // Transform reserve transactions data
+  useEffect(() => {
+    if (dbReserveTransactions.length > 0) {
+      const transformedTransactions: ReserveTransaction[] = dbReserveTransactions.map((transaction) => ({
+        id: parseInt(transaction.id),
+        type: transaction.transaction_type as "donation" | "expense",
+        amount: transaction.amount,
+        date: transaction.transaction_date,
+        donorName: transaction.donor_name || undefined,
+        notes: transaction.notes || undefined,
+      }));
+
+      setReserveTransactions(transformedTransactions);
+    }
+  }, [dbReserveTransactions]);
 
   // Calculate total members
   const totalMembers = members.length;

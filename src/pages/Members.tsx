@@ -78,6 +78,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
 import { DatePicker } from "@/components/ui/date-picker";
 import { useMembers, DbMember } from "@/hooks/useMembers";
+import { useContributions, DbContribution } from "@/hooks/useContributions";
+import { useLoans, DbLoan } from "@/hooks/useLoans";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -111,6 +113,8 @@ type MemberFormValues = z.infer<typeof formSchema>;
 
 export default function Members() {
   const { members, isLoading, addMember, updateMember, deleteMember, fetchMembers, approveMember } = useMembers();
+  const { getMemberContributions } = useContributions();
+  const { getLoansByMember } = useLoans();
   const { isMember, isAdmin } = useAuth();
   const [open, setOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<DbMember | null>(null);
@@ -123,6 +127,9 @@ export default function Members() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [profilePicturePreview, setProfilePicturePreview] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [memberContributions, setMemberContributions] = useState<DbContribution[]>([]);
+  const [memberLoans, setMemberLoans] = useState<DbLoan[]>([]);
+  const [isLoadingMemberData, setIsLoadingMemberData] = useState(false);
   const { toast } = useToast();
 
   const MEMBERS_PER_PAGE = 5;
@@ -223,9 +230,30 @@ export default function Members() {
     setDeleteDialogOpen(false);
   };
 
-  const handleViewDetails = (member: DbMember) => {
+  const handleViewDetails = async (member: DbMember) => {
     setSelectedMemberId(member.id);
     setDetailsDialogOpen(true);
+    setIsLoadingMemberData(true);
+
+    try {
+      // Fetch member contributions and loans in parallel
+      const [contributions, loans] = await Promise.all([
+        getMemberContributions(member.id),
+        getLoansByMember(member.id)
+      ]);
+
+      setMemberContributions(contributions);
+      setMemberLoans(loans);
+    } catch (error) {
+      console.error("Error fetching member data:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load member contribution and loan details",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingMemberData(false);
+    }
   };
 
   const handlePageChange = (page: number) => {
@@ -729,6 +757,8 @@ export default function Members() {
           setDetailsDialogOpen(open);
           if (!open) {
             setSelectedMemberId(null);
+            setMemberContributions([]);
+            setMemberLoans([]);
           }
         }}
       >
@@ -821,11 +851,34 @@ export default function Members() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      <TableRow>
-                        <TableCell colSpan={3} className="text-center text-muted-foreground">
-                          No contributions recorded yet
-                        </TableCell>
-                      </TableRow>
+                      {isLoadingMemberData ? (
+                        <TableRow>
+                          <TableCell colSpan={3} className="text-center text-muted-foreground">
+                            <Loader2 className="w-4 h-4 animate-spin mx-auto" />
+                            Loading contributions...
+                          </TableCell>
+                        </TableRow>
+                      ) : memberContributions.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={3} className="text-center text-muted-foreground">
+                            No contributions recorded yet
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        memberContributions.map((contribution) => (
+                          <TableRow key={contribution.id}>
+                            <TableCell>
+                              {format(new Date(contribution.contribution_date), settings.dateFormat)}
+                            </TableCell>
+                            <TableCell>PKR {contribution.amount.toLocaleString()}</TableCell>
+                            <TableCell>
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
+                                Completed
+                              </span>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
                     </TableBody>
                   </Table>
                 </TabsContent>
@@ -840,11 +893,39 @@ export default function Members() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      <TableRow>
-                        <TableCell colSpan={4} className="text-center text-muted-foreground">
-                          No loans recorded yet
-                        </TableCell>
-                      </TableRow>
+                      {isLoadingMemberData ? (
+                        <TableRow>
+                          <TableCell colSpan={4} className="text-center text-muted-foreground">
+                            <Loader2 className="w-4 h-4 animate-spin mx-auto" />
+                            Loading loans...
+                          </TableCell>
+                        </TableRow>
+                      ) : memberLoans.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={4} className="text-center text-muted-foreground">
+                            No loans recorded yet
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        memberLoans.map((loan) => (
+                          <TableRow key={loan.id}>
+                            <TableCell>
+                              {format(new Date(loan.loan_date), settings.dateFormat)}
+                            </TableCell>
+                            <TableCell>PKR {loan.amount.toLocaleString()}</TableCell>
+                            <TableCell>PKR {loan.remaining_amount.toLocaleString()}</TableCell>
+                            <TableCell>
+                              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                                loan.status === 'paid'
+                                  ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
+                                  : 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300'
+                              }`}>
+                                {loan.status === 'paid' ? 'Paid' : 'Active'}
+                              </span>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
                     </TableBody>
                   </Table>
                 </TabsContent>

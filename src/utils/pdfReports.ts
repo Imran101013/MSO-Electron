@@ -16,6 +16,7 @@ export interface ReportData {
 export interface Settings {
   applyLoanInterest: boolean;
   loanInterestRate: number;
+  organizationName: string;
 }
 
 export interface Meeting {
@@ -172,7 +173,7 @@ export class PDFReports {
     this.doc = new jsPDF();
     this.currentY = this.margin;
 
-    this.addHeader(`Member Ledger - ${member.name}`, "Al Hilal Society");
+    this.addHeader(`Member Ledger - ${member.name}`, settings.organizationName || "Al-Hilal Society");
 
     // Member details
     this.doc.setFontSize(11);
@@ -247,7 +248,7 @@ export class PDFReports {
     this.doc = new jsPDF();
     this.currentY = this.margin;
 
-    this.addHeader("Loan Register", "Al-Hilal Society");
+    this.addHeader("Loan Register", settings.organizationName || "Al-Hilal Society");
 
     const loanHeaders = [
       "Member Name",
@@ -284,11 +285,11 @@ export class PDFReports {
     return this.doc;
   }
 
-  generateContributionRegister(members: Member[]) {
+  generateContributionRegister(members: Member[], settings?: Settings) {
     this.doc = new jsPDF();
     this.currentY = this.margin;
 
-    this.addHeader("Contribution Register", "Al-Hilal Society");
+    this.addHeader("Contribution Register", settings?.organizationName || "Al-Hilal Society");
 
     const contributionHeaders = [
       "Member Name",
@@ -360,11 +361,11 @@ export class PDFReports {
     return this.doc;
   }
 
-  generateAttendanceReport(members: Member[]) {
+  generateAttendanceReport(members: Member[], settings?: Settings) {
     this.doc = new jsPDF();
     this.currentY = this.margin;
 
-    this.addHeader("Attendance Report", "Al-Hilal Society");
+    this.addHeader("Attendance Report", settings?.organizationName || "Al-Hilal Society");
 
     const attendanceHeaders = ["Member Name", "Date", "Present"];
     const attendanceData: string[][] = [];
@@ -389,11 +390,11 @@ export class PDFReports {
     return this.doc;
   }
 
-  generateMemberDirectory(members: Member[]) {
+  generateMemberDirectory(members: Member[], settings?: Settings) {
     this.doc = new jsPDF();
     this.currentY = this.margin;
 
-    this.addHeader("Member Directory", "Al-Hilal Society");
+    this.addHeader("Member Directory", settings?.organizationName || "Al-Hilal Society");
 
     const directoryHeaders = [
       "Name",
@@ -420,11 +421,11 @@ export class PDFReports {
     return this.doc;
   }
 
-  generateMeetingLedger(members: Member[], meetings: Meeting[]) {
+  generateMeetingLedger(members: Member[], meetings: Meeting[], settings?: Settings) {
     this.doc = new jsPDF();
     this.currentY = this.margin;
 
-    this.addHeader("Meetings Ledger", "Al-Hilal Society");
+    this.addHeader("Meetings Ledger", settings?.organizationName || "Al-Hilal Society");
 
     if (!meetings || meetings.length === 0) {
       this.doc.setFontSize(12);
@@ -524,12 +525,13 @@ export class PDFReports {
       date: string | Date;
       donorName?: string;
       notes?: string;
-    }>
+    }>,
+    settings?: Settings
   ) {
     this.doc = new jsPDF();
     this.currentY = this.margin;
 
-    this.addHeader("Reserve Transactions", "Al-Hilal Society");
+    this.addHeader("Reserve Transactions", settings?.organizationName || "Al-Hilal Society");
 
     if (!transactions || transactions.length === 0) {
       this.doc.setFontSize(12);
@@ -557,7 +559,8 @@ export class PDFReports {
   generateLoanLedgerForLoan(
     members: Member[],
     memberId: number,
-    loanId: number
+    loanId: number,
+    settings?: Settings
   ) {
     this.doc = new jsPDF();
     this.currentY = this.margin;
@@ -565,7 +568,7 @@ export class PDFReports {
     const member = members.find((m) => m.id === memberId);
     this.addHeader(
       `Loan Ledger - ${member ? member.name : `Member ${memberId}`}`,
-      "Al-Hilal Society"
+      settings?.organizationName || "Al-Hilal Society"
     );
 
     if (!member) {
@@ -679,7 +682,7 @@ export const generateReport = async (
       filename = "Loan_Register.pdf";
       break;
     case "contribution-register":
-      doc = reports.generateContributionRegister(data.members);
+      doc = reports.generateContributionRegister(data.members, settings);
       filename = "Contribution_Register.pdf";
       break;
     case "financial-summary": {
@@ -711,12 +714,12 @@ export const generateReport = async (
     case "attendance":
     case "meetings": {
       const meetingsData = data.meetings || [];
-      doc = reports.generateMeetingLedger(data.members || [], meetingsData);
+      doc = reports.generateMeetingLedger(data.members || [], meetingsData, settings);
       filename = "Meetings_Ledger.pdf";
       break;
     }
     case "reserve-transactions":
-      doc = reports.generateReserveTransactionsLedger(data.transactions || []);
+      doc = reports.generateReserveTransactionsLedger(data.transactions || [], settings);
       filename = "Reserve_Transactions.pdf";
       break;
     case "loan-ledger": {
@@ -727,7 +730,8 @@ export const generateReport = async (
       doc = reports.generateLoanLedgerForLoan(
         data.members || [],
         member.id,
-        loanId
+        loanId,
+        settings
       );
       filename = `Loan_Ledger_${member.name.replace(
         /\s+/g,
@@ -736,7 +740,7 @@ export const generateReport = async (
       break;
     }
     case "member-directory":
-      doc = reports.generateMemberDirectory(data.members);
+      doc = reports.generateMemberDirectory(data.members, settings);
       filename = "Member_Directory.pdf";
       break;
     default:
