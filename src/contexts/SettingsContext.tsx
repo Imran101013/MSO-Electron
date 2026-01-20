@@ -58,7 +58,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       itemsPerPage: ORGANIZATION_CONFIG.ITEMS_PER_PAGE || 10,
       enableAnimations: ORGANIZATION_CONFIG.ENABLE_ANIMATIONS ?? true,
       language: ORGANIZATION_CONFIG.LANGUAGE || "en",
-      organizationName: "MSO Society Chitral",
+      organizationName: "MSO",
     };
   });
 

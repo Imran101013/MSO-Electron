@@ -187,7 +187,7 @@ export default function PDFsPage() {
       <div>
         <h2 className="text-3xl font-semibold text-foreground">PDF Reports</h2>
         <p className="text-muted-foreground">
-          Download ledgers and society reports
+          Download ledgers MSO reports
         </p>
       </div>
 

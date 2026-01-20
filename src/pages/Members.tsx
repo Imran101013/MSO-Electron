@@ -1,8 +1,4 @@
-import {
-  Card,
-  CardContent,
-  CardHeader,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
   Pagination,
   PaginationContent,
@@ -88,13 +84,13 @@ const formSchema = z.object({
     .string()
     .min(
       ORGANIZATION_CONFIG.MINIMUM_NAME_LENGTH,
-      `Name must be at least ${ORGANIZATION_CONFIG.MINIMUM_NAME_LENGTH} characters`
+      `Name must be at least ${ORGANIZATION_CONFIG.MINIMUM_NAME_LENGTH} characters`,
     ),
   fatherName: z
     .string()
     .min(
       ORGANIZATION_CONFIG.MINIMUM_NAME_LENGTH,
-      `Father name must be at least ${ORGANIZATION_CONFIG.MINIMUM_NAME_LENGTH} characters`
+      `Father name must be at least ${ORGANIZATION_CONFIG.MINIMUM_NAME_LENGTH} characters`,
     ),
   dob: z.date({ required_error: "Date of birth is required" }),
   email: z.string().email("Invalid email address"),
@@ -102,7 +98,7 @@ const formSchema = z.object({
     .string()
     .min(
       ORGANIZATION_CONFIG.MINIMUM_PHONE_LENGTH,
-      `Phone number must be at least ${ORGANIZATION_CONFIG.MINIMUM_PHONE_LENGTH} characters`
+      `Phone number must be at least ${ORGANIZATION_CONFIG.MINIMUM_PHONE_LENGTH} characters`,
     ),
   address: z.string().min(1, "Address is required"),
   joinDate: z.date({ required_error: "Join date is required" }),
@@ -112,7 +108,15 @@ const formSchema = z.object({
 type MemberFormValues = z.infer<typeof formSchema>;
 
 export default function Members() {
-  const { members, isLoading, addMember, updateMember, deleteMember, fetchMembers, approveMember } = useMembers();
+  const {
+    members,
+    isLoading,
+    addMember,
+    updateMember,
+    deleteMember,
+    fetchMembers,
+    approveMember,
+  } = useMembers();
   const { getMemberContributions } = useContributions();
   const { getLoansByMember } = useLoans();
   const { isMember, isAdmin } = useAuth();
@@ -125,9 +129,12 @@ export default function Members() {
   const [currentPage, setCurrentPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [profilePicturePreview, setProfilePicturePreview] = useState<string>("");
+  const [profilePicturePreview, setProfilePicturePreview] =
+    useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [memberContributions, setMemberContributions] = useState<DbContribution[]>([]);
+  const [memberContributions, setMemberContributions] = useState<
+    DbContribution[]
+  >([]);
   const [memberLoans, setMemberLoans] = useState<DbLoan[]>([]);
   const [isLoadingMemberData, setIsLoadingMemberData] = useState(false);
   const { toast } = useToast();
@@ -155,7 +162,7 @@ export default function Members() {
     searchQuery.length > 0
       ? members
           .filter((member) =>
-            member.name.toLowerCase().includes(searchQuery.toLowerCase())
+            member.name.toLowerCase().includes(searchQuery.toLowerCase()),
           )
           .slice(0, 5)
       : [];
@@ -176,7 +183,7 @@ export default function Members() {
 
   const onSubmit = async (data: MemberFormValues) => {
     setIsSubmitting(true);
-    
+
     const formData = {
       name: data.name,
       father_name: data.fatherName,
@@ -193,7 +200,7 @@ export default function Members() {
     } else {
       await addMember(formData);
     }
-    
+
     setIsSubmitting(false);
     form.reset();
     setOpen(false);
@@ -239,7 +246,7 @@ export default function Members() {
       // Fetch member contributions and loans in parallel
       const [contributions, loans] = await Promise.all([
         getMemberContributions(member.id),
-        getLoansByMember(member.id)
+        getLoansByMember(member.id),
       ]);
 
       setMemberContributions(contributions);
@@ -283,15 +290,17 @@ export default function Members() {
     }
   };
 
-  const handleProfilePictureChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleProfilePictureChange = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
     const file = e.target.files?.[0];
     if (file) {
-      const fileExt = file.name.split('.').pop();
+      const fileExt = file.name.split(".").pop();
       const fileName = `${Date.now()}.${fileExt}`;
       const filePath = `members/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
-        .from('profile-pictures')
+        .from("profile-pictures")
         .upload(filePath, file);
 
       if (uploadError) {
@@ -304,7 +313,7 @@ export default function Members() {
       }
 
       const { data } = supabase.storage
-        .from('profile-pictures')
+        .from("profile-pictures")
         .getPublicUrl(filePath);
 
       setProfilePicturePreview(data.publicUrl);
@@ -319,12 +328,12 @@ export default function Members() {
     input.onchange = async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (file) {
-        const fileExt = file.name.split('.').pop();
+        const fileExt = file.name.split(".").pop();
         const fileName = `${Date.now()}.${fileExt}`;
         const filePath = `members/${fileName}`;
 
         const { error: uploadError } = await supabase.storage
-          .from('profile-pictures')
+          .from("profile-pictures")
           .upload(filePath, file);
 
         if (uploadError) {
@@ -337,7 +346,7 @@ export default function Members() {
         }
 
         const { data } = supabase.storage
-          .from('profile-pictures')
+          .from("profile-pictures")
           .getPublicUrl(filePath);
 
         await updateMember(memberId, { profile_picture: data.publicUrl });
@@ -394,7 +403,9 @@ export default function Members() {
                 </div>
               </DialogHeader>
               <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                <form
+                  onSubmit={form.handleSubmit(onSubmit)}
+                  className="space-y-4">
                   <FormField
                     control={form.control}
                     name="name"
@@ -470,7 +481,9 @@ export default function Members() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Address</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
+                        <Select
+                          onValueChange={field.onChange}
+                          value={field.value}>
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue placeholder="Select your address" />
@@ -504,12 +517,18 @@ export default function Members() {
                       </FormItem>
                     )}
                   />
-                  
+
                   <div className="space-y-2">
                     <Label>Profile Picture</Label>
                     <div className="flex items-center gap-4">
                       <Avatar className="h-20 w-20">
-                        <AvatarImage src={profilePicturePreview || editingMember?.profile_picture || undefined} />
+                        <AvatarImage
+                          src={
+                            profilePicturePreview ||
+                            editingMember?.profile_picture ||
+                            undefined
+                          }
+                        />
                         <AvatarFallback className="bg-gradient-primary">
                           <Upload className="w-8 h-8 text-primary-foreground" />
                         </AvatarFallback>
@@ -533,22 +552,22 @@ export default function Members() {
                       type="button"
                       variant="outline"
                       onClick={() => handleDialogClose(false)}
-                      className="px-6 py-2.5 rounded-lg hover:bg-muted/50 transition-all duration-200"
-                    >
+                      className="px-6 py-2.5 rounded-lg hover:bg-muted/50 transition-all duration-200">
                       Cancel
                     </Button>
                     <Button
                       type="submit"
                       disabled={isSubmitting}
-                      className="px-6 py-2.5 rounded-lg bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary shadow-lg hover:shadow-xl transition-all duration-200"
-                    >
+                      className="px-6 py-2.5 rounded-lg bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary shadow-lg hover:shadow-xl transition-all duration-200">
                       {isSubmitting ? (
                         <>
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                           {editingMember ? "Updating..." : "Adding..."}
                         </>
+                      ) : editingMember ? (
+                        "Update Member"
                       ) : (
-                        editingMember ? "Update Member" : "Add Member"
+                        "Add Member"
                       )}
                     </Button>
                   </div>
@@ -569,7 +588,9 @@ export default function Members() {
                 className="pl-10"
                 value={searchQuery}
                 onChange={(e) => handleSearchChange(e.target.value)}
-                onFocus={() => searchQuery.length > 0 && setShowSuggestions(true)}
+                onFocus={() =>
+                  searchQuery.length > 0 && setShowSuggestions(true)
+                }
                 onBlur={() => {
                   setTimeout(() => setShowSuggestions(false), 200);
                 }}
@@ -577,17 +598,17 @@ export default function Members() {
               {showSuggestions && suggestions.length > 0 && (
                 <div
                   className="absolute top-full left-0 right-0 mt-2 bg-background border border-border rounded-md shadow-lg z-50 max-h-60 overflow-y-auto"
-                  onMouseDown={(e) => e.preventDefault()}
-                >
+                  onMouseDown={(e) => e.preventDefault()}>
                   {suggestions.map((member) => (
                     <button
                       key={member.id}
                       type="button"
                       onClick={() => handleSelectMember(member)}
-                      className="w-full text-left px-4 py-3 hover:bg-accent transition-colors flex items-center gap-3 border-b border-border last:border-b-0"
-                    >
+                      className="w-full text-left px-4 py-3 hover:bg-accent transition-colors flex items-center gap-3 border-b border-border last:border-b-0">
                       <Avatar className="h-8 w-8 flex-shrink-0">
-                        <AvatarImage src={member.profile_picture || undefined} />
+                        <AvatarImage
+                          src={member.profile_picture || undefined}
+                        />
                         <AvatarFallback className="bg-gradient-primary">
                           <span className="text-primary-foreground text-sm font-semibold">
                             {member.name
@@ -615,15 +636,16 @@ export default function Members() {
         <CardContent>
           {currentMembers.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              {searchQuery ? "No members found matching your search." : "No members yet. Add the first member to get started."}
+              {searchQuery
+                ? "No members found matching your search."
+                : "No members yet. Add the first member to get started."}
             </div>
           ) : (
             <div className="space-y-4">
               {currentMembers.map((member) => (
                 <div
                   key={member.id}
-                  className="flex items-center justify-between p-1 rounded-lg border border-border hover:bg-muted/50 transition-colors"
-                >
+                  className="flex items-center justify-between p-1 rounded-lg border border-border hover:bg-muted/50 transition-colors">
                   <div className="flex items-center gap-4">
                     <Avatar className="h-12 w-12">
                       <AvatarImage src={member.profile_picture || undefined} />
@@ -641,8 +663,11 @@ export default function Members() {
                         {member.name}
                       </h3>
                       <p className="text-sm text-muted-foreground">
-                        Joined Al-Hilal on:{" "}
-                        {format(new Date(member.join_date), settings.dateFormat)}
+                        Joined MSO on:{" "}
+                        {format(
+                          new Date(member.join_date),
+                          settings.dateFormat,
+                        )}
                       </p>
                     </div>
                   </div>
@@ -657,8 +682,7 @@ export default function Members() {
                       variant="ghost"
                       size="icon"
                       onClick={() => handleViewDetails(member)}
-                      className="h-8 w-8"
-                    >
+                      className="h-8 w-8">
                       <Eye className="w-4 h-4" />
                     </Button>
                     {isAdmin && (
@@ -667,10 +691,11 @@ export default function Members() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => approveMember(member.id, member.name)}
+                            onClick={() =>
+                              approveMember(member.id, member.name)
+                            }
                             className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-100"
-                            title="Approve member"
-                          >
+                            title="Approve member">
                             <UserCheck className="w-4 h-4" />
                           </Button>
                         )}
@@ -678,16 +703,14 @@ export default function Members() {
                           variant="ghost"
                           size="icon"
                           onClick={() => handleEdit(member)}
-                          className="h-8 w-8"
-                        >
+                          className="h-8 w-8">
                           <Pencil className="w-4 h-4" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon"
                           onClick={() => handleDeleteClick(member)}
-                          className="h-8 w-8 text-destructive hover:text-destructive"
-                        >
+                          className="h-8 w-8 text-destructive hover:text-destructive">
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </>
@@ -705,8 +728,14 @@ export default function Members() {
           <PaginationContent>
             <PaginationItem>
               <PaginationPrevious
-                onClick={() => currentPage > 1 && handlePageChange(currentPage - 1)}
-                className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                onClick={() =>
+                  currentPage > 1 && handlePageChange(currentPage - 1)
+                }
+                className={
+                  currentPage === 1
+                    ? "pointer-events-none opacity-50"
+                    : "cursor-pointer"
+                }
               />
             </PaginationItem>
             {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
@@ -714,16 +743,21 @@ export default function Members() {
                 <PaginationLink
                   onClick={() => handlePageChange(page)}
                   isActive={currentPage === page}
-                  className="cursor-pointer"
-                >
+                  className="cursor-pointer">
                   {page}
                 </PaginationLink>
               </PaginationItem>
             ))}
             <PaginationItem>
               <PaginationNext
-                onClick={() => currentPage < totalPages && handlePageChange(currentPage + 1)}
-                className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                onClick={() =>
+                  currentPage < totalPages && handlePageChange(currentPage + 1)
+                }
+                className={
+                  currentPage === totalPages
+                    ? "pointer-events-none opacity-50"
+                    : "cursor-pointer"
+                }
               />
             </PaginationItem>
           </PaginationContent>
@@ -743,8 +777,7 @@ export default function Members() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteConfirm}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -760,8 +793,7 @@ export default function Members() {
             setMemberContributions([]);
             setMemberLoans([]);
           }
-        }}
-      >
+        }}>
         <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Member Details</DialogTitle>
@@ -770,7 +802,9 @@ export default function Members() {
             <div className="space-y-6">
               <div className="flex items-center gap-4 pb-4 border-b">
                 <Avatar className="h-20 w-20">
-                  <AvatarImage src={selectedMember.profile_picture || undefined} />
+                  <AvatarImage
+                    src={selectedMember.profile_picture || undefined}
+                  />
                   <AvatarFallback className="bg-gradient-primary">
                     <span className="text-primary-foreground font-semibold text-xl">
                       {selectedMember.name
@@ -793,8 +827,7 @@ export default function Members() {
                     variant="outline"
                     size="sm"
                     onClick={() => handleUpdatePhoto(selectedMember.id)}
-                    className="pb-1 gap-2"
-                  >
+                    className="pb-1 gap-2">
                     <Upload className="w-4 h-4" />
                     Update Photo
                   </Button>
@@ -814,19 +847,27 @@ export default function Members() {
                   <p className="text-sm text-muted-foreground">Date of Birth</p>
                   <p className="font-medium">
                     {selectedMember.dob
-                      ? format(new Date(selectedMember.dob), settings.dateFormat)
+                      ? format(
+                          new Date(selectedMember.dob),
+                          settings.dateFormat,
+                        )
                       : "N/A"}
                   </p>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Join Date</p>
                   <p className="font-medium">
-                    {format(new Date(selectedMember.join_date), settings.dateFormat)}
+                    {format(
+                      new Date(selectedMember.join_date),
+                      settings.dateFormat,
+                    )}
                   </p>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Address</p>
-                  <p className="font-medium">{selectedMember.address || "N/A"}</p>
+                  <p className="font-medium">
+                    {selectedMember.address || "N/A"}
+                  </p>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Total Budget</p>
@@ -853,14 +894,18 @@ export default function Members() {
                     <TableBody>
                       {isLoadingMemberData ? (
                         <TableRow>
-                          <TableCell colSpan={3} className="text-center text-muted-foreground">
+                          <TableCell
+                            colSpan={3}
+                            className="text-center text-muted-foreground">
                             <Loader2 className="w-4 h-4 animate-spin mx-auto" />
                             Loading contributions...
                           </TableCell>
                         </TableRow>
                       ) : memberContributions.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={3} className="text-center text-muted-foreground">
+                          <TableCell
+                            colSpan={3}
+                            className="text-center text-muted-foreground">
                             No contributions recorded yet
                           </TableCell>
                         </TableRow>
@@ -868,9 +913,14 @@ export default function Members() {
                         memberContributions.map((contribution) => (
                           <TableRow key={contribution.id}>
                             <TableCell>
-                              {format(new Date(contribution.contribution_date), settings.dateFormat)}
+                              {format(
+                                new Date(contribution.contribution_date),
+                                settings.dateFormat,
+                              )}
                             </TableCell>
-                            <TableCell>PKR {contribution.amount.toLocaleString()}</TableCell>
+                            <TableCell>
+                              PKR {contribution.amount.toLocaleString()}
+                            </TableCell>
                             <TableCell>
                               <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
                                 Completed
@@ -895,14 +945,18 @@ export default function Members() {
                     <TableBody>
                       {isLoadingMemberData ? (
                         <TableRow>
-                          <TableCell colSpan={4} className="text-center text-muted-foreground">
+                          <TableCell
+                            colSpan={4}
+                            className="text-center text-muted-foreground">
                             <Loader2 className="w-4 h-4 animate-spin mx-auto" />
                             Loading loans...
                           </TableCell>
                         </TableRow>
                       ) : memberLoans.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={4} className="text-center text-muted-foreground">
+                          <TableCell
+                            colSpan={4}
+                            className="text-center text-muted-foreground">
                             No loans recorded yet
                           </TableCell>
                         </TableRow>
@@ -910,17 +964,25 @@ export default function Members() {
                         memberLoans.map((loan) => (
                           <TableRow key={loan.id}>
                             <TableCell>
-                              {format(new Date(loan.loan_date), settings.dateFormat)}
+                              {format(
+                                new Date(loan.loan_date),
+                                settings.dateFormat,
+                              )}
                             </TableCell>
-                            <TableCell>PKR {loan.amount.toLocaleString()}</TableCell>
-                            <TableCell>PKR {loan.remaining_amount.toLocaleString()}</TableCell>
                             <TableCell>
-                              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                                loan.status === 'paid'
-                                  ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
-                                  : 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300'
-                              }`}>
-                                {loan.status === 'paid' ? 'Paid' : 'Active'}
+                              PKR {loan.amount.toLocaleString()}
+                            </TableCell>
+                            <TableCell>
+                              PKR {loan.remaining_amount.toLocaleString()}
+                            </TableCell>
+                            <TableCell>
+                              <span
+                                className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                                  loan.status === "paid"
+                                    ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
+                                    : "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300"
+                                }`}>
+                                {loan.status === "paid" ? "Paid" : "Active"}
                               </span>
                             </TableCell>
                           </TableRow>

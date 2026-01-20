@@ -80,15 +80,17 @@ export default function Layout({ children }: LayoutProps) {
       <Sidebar>
         <SidebarHeader>
           <div className="flex items-center gap-3 px-2 py-2">
-            <div className="w-10 h-10 rounded-lg bg-gradient-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-xl">
-                AH
-              </span>
+            <div className="w-14 h-14">
+              <img
+                src="public/MSO-Logo.png"
+                alt="MSO Logo"
+                className="w-14 h-14 object-contain"
+              />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-sidebar-foreground">
-                AL-Hilal
-              </h1>
+              <p className="text-sm font-bold text-sidebar-foreground">
+                MOGH STUDENTS ORGANISATION
+              </p>
             </div>
           </div>
         </SidebarHeader>
