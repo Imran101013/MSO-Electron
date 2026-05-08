@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { dbQuery } from "@/lib/db";
 import { useToast } from "@/hooks/use-toast";
 
 export interface DbMember {
@@ -37,154 +37,70 @@ export function useMembers() {
 
   const fetchMembers = async () => {
     setIsLoading(true);
-    const { data, error } = await supabase
-      .from("members")
-      .select("*")
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      console.error("Error fetching members:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load members",
-        variant: "destructive",
-      });
-    } else {
-      setMembers(data || []);
+    try {
+      const data = await dbQuery<DbMember>('SELECT * FROM public.members ORDER BY created_at DESC');
+      setMembers(data);
+    } catch (err: any) {
+      toast({ title: "Error", description: "Failed to load members", variant: "destructive" });
     }
     setIsLoading(false);
   };
 
   const addMember = async (formData: MemberFormData) => {
-    const { data, error } = await supabase
-      .from("members")
-      .insert({
-        name: formData.name,
-        father_name: formData.father_name,
-        email: formData.email,
-        phone: formData.phone,
-        address: formData.address,
-        dob: formData.dob,
-        join_date: formData.join_date,
-        profile_picture: formData.profile_picture || null,
-      })
-      .select()
-      .single();
-
-    if (error) {
-      console.error("Error adding member:", error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to add member",
-        variant: "destructive",
-      });
+    try {
+      const rows = await dbQuery<DbMember>(
+        'INSERT INTO public.members (name, father_name, email, phone, address, dob, join_date, profile_picture) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *',
+        [formData.name, formData.father_name, formData.email, formData.phone, formData.address, formData.dob, formData.join_date, formData.profile_picture || null]
+      );
+      toast({ title: "Member Added", description: `${formData.name} has been successfully added.` });
+      await fetchMembers();
+      return rows[0];
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message || "Failed to add member", variant: "destructive" });
       return null;
     }
-
-    toast({
-      title: "Member Added",
-      description: `${formData.name} has been successfully added.`,
-    });
-
-    await fetchMembers();
-    return data;
   };
 
   const updateMember = async (id: string, formData: Partial<MemberFormData>) => {
-    const { error } = await supabase
-      .from("members")
-      .update({
-        name: formData.name,
-        father_name: formData.father_name,
-        email: formData.email,
-        phone: formData.phone,
-        address: formData.address,
-        dob: formData.dob,
-        join_date: formData.join_date,
-        profile_picture: formData.profile_picture,
-      })
-      .eq("id", id);
-
-    if (error) {
-      console.error("Error updating member:", error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to update member",
-        variant: "destructive",
-      });
+    try {
+      await dbQuery(
+        'UPDATE public.members SET name=$1, father_name=$2, email=$3, phone=$4, address=$5, dob=$6, join_date=$7, profile_picture=$8 WHERE id=$9',
+        [formData.name, formData.father_name, formData.email, formData.phone, formData.address, formData.dob, formData.join_date, formData.profile_picture, id]
+      );
+      toast({ title: "Member Updated", description: "Member has been successfully updated." });
+      await fetchMembers();
+      return true;
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message || "Failed to update member", variant: "destructive" });
       return false;
     }
-
-    toast({
-      title: "Member Updated",
-      description: "Member has been successfully updated.",
-    });
-
-    await fetchMembers();
-    return true;
   };
 
   const deleteMember = async (id: string, name: string) => {
-    const { error } = await supabase
-      .from("members")
-      .delete()
-      .eq("id", id);
-
-    if (error) {
-      console.error("Error deleting member:", error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to delete member",
-        variant: "destructive",
-      });
+    try {
+      await dbQuery('DELETE FROM public.members WHERE id=$1', [id]);
+      toast({ title: "Member Deleted", description: `${name} has been removed.` });
+      await fetchMembers();
+      return true;
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message || "Failed to delete member", variant: "destructive" });
       return false;
     }
-
-    toast({
-      title: "Member Deleted",
-      description: `${name} has been removed.`,
-    });
-
-    await fetchMembers();
-    return true;
   };
 
   const approveMember = async (id: string, name: string) => {
-    const { error } = await supabase
-      .from("members")
-      .update({ is_approved: true })
-      .eq("id", id);
-
-    if (error) {
-      console.error("Error approving member:", error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to approve member",
-        variant: "destructive",
-      });
+    try {
+      await dbQuery('UPDATE public.members SET is_approved=true WHERE id=$1', [id]);
+      toast({ title: "Member Approved", description: `${name} can now sign in.` });
+      await fetchMembers();
+      return true;
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message || "Failed to approve member", variant: "destructive" });
       return false;
     }
-
-    toast({
-      title: "Member Approved",
-      description: `${name} can now sign in.`,
-    });
-
-    await fetchMembers();
-    return true;
   };
 
-  useEffect(() => {
-    fetchMembers();
-  }, []);
+  useEffect(() => { fetchMembers(); }, []);
 
-  return {
-    members,
-    isLoading,
-    fetchMembers,
-    addMember,
-    updateMember,
-    deleteMember,
-    approveMember,
-  };
+  return { members, isLoading, fetchMembers, addMember, updateMember, deleteMember, approveMember };
 }

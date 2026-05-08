@@ -13,9 +13,9 @@ import {
 } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Lock, Loader2 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 
 export default function ChangePassword() {
+  const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [message, setMessage] = useState("");
@@ -29,31 +29,16 @@ export default function ChangePassword() {
     setError("");
     setMessage("");
 
-    if (!user) {
-      setError("User not authenticated");
-      return;
-    }
-
-    if (newPassword !== confirmPassword) {
-      setError("New passwords do not match");
-      return;
-    }
-
-    if (newPassword.length < 6) {
-      setError("Password must be at least 6 characters");
-      return;
-    }
+    if (!user) { setError("User not authenticated"); return; }
+    if (newPassword !== confirmPassword) { setError("New passwords do not match"); return; }
+    if (newPassword.length < 6) { setError("Password must be at least 6 characters"); return; }
 
     setIsLoading(true);
-
-    const { error: updateError } = await supabase.auth.updateUser({
-      password: newPassword,
-    });
-
+    const res = await (window as any).electronAPI.changePassword(user.id, currentPassword, newPassword);
     setIsLoading(false);
 
-    if (updateError) {
-      setError(updateError.message);
+    if (res.error) {
+      setError(res.error);
     } else {
       setMessage("Password changed successfully!");
       setTimeout(() => navigate("/"), 2000);
@@ -72,6 +57,17 @@ export default function ChangePassword() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="currentPassword">Current Password</Label>
+              <PasswordInput
+                id="currentPassword"
+                placeholder="Enter current password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                required
+                disabled={isLoading}
+              />
+            </div>
             <div className="space-y-2">
               <Label htmlFor="newPassword">New Password</Label>
               <PasswordInput

@@ -1,26 +1,19 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, TrendingUp, TrendingDown } from "lucide-react";
+import { Plus, TrendingUp, TrendingDown, PiggyBank, Wallet, ArrowDownCircle } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useState } from "react";
 import { DatePicker } from "@/components/ui/date-picker";
+import { cn } from "@/lib/utils";
 
 export default function Reserve() {
   const {
@@ -30,6 +23,7 @@ export default function Reserve() {
     totalDonations,
     totalExpenses,
   } = useOrganization();
+
   const [open, setOpen] = useState(false);
   const [formData, setFormData] = useState({
     type: "donation",
@@ -41,246 +35,265 @@ export default function Reserve() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const payload = {
+    addReserveTransaction({
       type: formData.type as "donation" | "expense",
       amount: Number(formData.amount || 0),
-      date: formData.date ? formData.date.toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
+      date: formData.date
+        ? formData.date.toISOString().split("T")[0]
+        : new Date().toISOString().split("T")[0],
       donorName: formData.donorName || undefined,
       notes: formData.notes || undefined,
-    };
-
-    addReserveTransaction(payload);
-    setOpen(false);
-    setFormData({
-      type: "donation",
-      amount: "",
-      date: undefined,
-      donorName: "",
-      notes: "",
     });
+    setOpen(false);
+    setFormData({ type: "donation", amount: "", date: undefined, donorName: "", notes: "" });
   };
 
-  const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
-  ) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-  };
-
-  const handleTypeChange = (value: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      type: value,
-    }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   return (
     <div className="space-y-6">
+
+      {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-semibold text-foreground">
-            Reserve Fund
-          </h2>
-          <p className="text-muted-foreground mt-1">
-            Track donations and fund allocation
-          </p>
+        <div className="flex items-center gap-4">
+          <div className="w-11 h-11 rounded-xl bg-gradient-primary flex items-center justify-center shadow-md">
+            <PiggyBank className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-bold text-foreground">Reserve Fund</h2>
+            <p className="text-sm text-muted-foreground">Track donations and fund allocation</p>
+          </div>
         </div>
+
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button className="gap-2">
-              <Plus className="w-4 h-4" />
-              Add Transaction
+            <Button className="gap-2 shadow-sm">
+              <Plus className="w-4 h-4" /> Add Transaction
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[560px] max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl border border-border p-4 bg-gradient-to-br from-background/70 to-muted/10">
-            <form
-              onSubmit={handleSubmit}
-              className="flex flex-col h-full max-h-[90vh]">
-              <DialogHeader>
-                <DialogTitle>Add Transaction</DialogTitle>
-              </DialogHeader>
+          <DialogContent className="sm:max-w-[480px] flex flex-col max-h-[90vh] p-0 gap-0 overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center gap-4 px-6 py-5 border-b bg-muted/30 flex-shrink-0">
+              <div className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center shadow-md flex-shrink-0">
+                <Plus className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-foreground">Add Transaction</h2>
+                <p className="text-xs text-muted-foreground">Record a deposit or expense</p>
+              </div>
+            </div>
 
-              <div className="flex-1 overflow-y-auto py-4 space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="type">Transaction Type</Label>
-                  <Select
-                    value={formData.type}
-                    onValueChange={handleTypeChange}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select type" />
-                    </SelectTrigger>
+            <form onSubmit={handleSubmit} className="flex flex-col min-h-0 flex-1">
+              <div className="overflow-y-auto flex-1 px-6 py-5 space-y-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium">Transaction Type</Label>
+                  <Select value={formData.type} onValueChange={(v) => setFormData((p) => ({ ...p, type: v }))}>
+                    <SelectTrigger className="h-9"><SelectValue placeholder="Select type" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="donation">Reserve Fund</SelectItem>
+                      <SelectItem value="donation">Deposit / Donation</SelectItem>
                       <SelectItem value="expense">Expense</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="amount">Amount (PKR)</Label>
-                  <Input
-                    id="amount"
-                    name="amount"
-                    type="text"
-                    placeholder="Enter amount"
-                    value={formData.amount}
-                    onChange={handleInputChange}
-                    required
-                  />
+                <div className="space-y-1.5">
+                  <Label htmlFor="amount" className="text-xs font-medium">Amount (PKR)</Label>
+                  <Input id="amount" name="amount" type="text" placeholder="Enter amount" className="h-9"
+                    value={formData.amount} onChange={handleInputChange} required />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="date">Date</Label>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium">Date</Label>
                   <DatePicker
                     date={formData.date}
-                    onDateChange={(date) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        date: date || new Date(),
-                      }))
-                    }
+                    onDateChange={(date) => setFormData((p) => ({ ...p, date: date || new Date() }))}
                     placeholder="Pick a date"
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="donorName">
-                    {formData.type === "donation" ? "Source" : "Spend at:"}
+                <div className="space-y-1.5">
+                  <Label htmlFor="donorName" className="text-xs font-medium">
+                    {formData.type === "donation" ? "Source" : "Spent At"}
                   </Label>
-                  <Input
-                    id="donorName"
-                    name="donorName"
-                    placeholder={
-                      formData.type === "donation"
-                        ? "Enter source name"
-                        : "Enter expense details"
-                    }
-                    value={formData.donorName}
-                    onChange={handleInputChange}
-                  />
+                  <Input id="donorName" name="donorName" className="h-9"
+                    placeholder={formData.type === "donation" ? "Enter source name" : "Enter expense details"}
+                    value={formData.donorName} onChange={handleInputChange} />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="notes">Notes</Label>
-                  <Textarea
-                    id="notes"
-                    name="notes"
-                    placeholder="Add any additional notes"
-                    value={formData.notes}
-                    onChange={handleInputChange}
-                  />
+                <div className="space-y-1.5">
+                  <Label htmlFor="notes" className="text-xs font-medium">Notes</Label>
+                  <Textarea id="notes" name="notes" placeholder="Add any additional notes"
+                    value={formData.notes} onChange={handleInputChange} rows={3} className="resize-none" />
                 </div>
               </div>
 
-              <div className="flex justify-end gap-4 pt-4 border-t">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setOpen(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit">Add Transaction</Button>
+              <div className="flex-shrink-0 flex justify-end gap-3 px-6 py-4 border-t bg-muted/20">
+                <Button type="button" variant="outline" size="sm" onClick={() => setOpen(false)}>Cancel</Button>
+                <Button type="submit" size="sm">Add Transaction</Button>
               </div>
             </form>
           </DialogContent>
         </Dialog>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="shadow-md">
-          <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Total Balance</p>
-            <p className="text-xl font-semibold text-foreground mt-2">
-              PKR {reserveFund.toLocaleString()}
-            </p>
-          </CardContent>
-        </Card>
-        {/* <Card className="shadow-md">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-secondary/10 flex items-center justify-center">
-                <TrendingUp className="w-5 h-5 text-secondary" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Total Reserve Fund</p>
-                <p className="text-xl font-semibold text-foreground">
-                  PKR {totalDonations.toLocaleString()}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card> */}
-        <Card className="shadow-md">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-destructive/10 flex items-center justify-center">
-                <TrendingDown className="w-5 h-5 text-destructive" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Total Expenses</p>
-                <p className="text-xl font-semibold text-foreground">
-                  PKR {totalExpenses.toLocaleString()}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      {/* Stat Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <StatCard
+          icon={Wallet}
+          label="Current Balance"
+          value={`PKR ${reserveFund.toLocaleString()}`}
+          iconClass="bg-gradient-primary"
+          valueClass="text-foreground"
+        />
+        <StatCard
+          icon={TrendingUp}
+          label="Total Deposits"
+          value={`PKR ${totalDonations.toLocaleString()}`}
+          iconClass="bg-emerald-500"
+          valueClass="text-emerald-600 dark:text-emerald-400"
+        />
+        <StatCard
+          icon={ArrowDownCircle}
+          label="Total Expenses"
+          value={`PKR ${totalExpenses.toLocaleString()}`}
+          iconClass="bg-rose-500"
+          valueClass="text-rose-600 dark:text-rose-400"
+        />
       </div>
 
-      <Card className="shadow-md">
-        <CardHeader>
-          <CardTitle>Recent Transactions</CardTitle>
+      {/* Transactions Table */}
+      <Card className="shadow-md border-0">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center">
+                <TrendingUp className="w-4 h-4 text-primary" />
+              </div>
+              Recent Transactions
+            </CardTitle>
+            {reserveTransactions.length > 0 && (
+              <span className="text-xs text-muted-foreground bg-muted px-2.5 py-1 rounded-full">
+                {reserveTransactions.length} record{reserveTransactions.length !== 1 ? "s" : ""}
+              </span>
+            )}
+          </div>
         </CardHeader>
-        <CardContent>
+
+        <CardContent className="p-0">
           {reserveTransactions.length === 0 ? (
-            <div className="text-center py-12">
-              <TrendingUp className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold text-foreground mb-2">
-                No transactions yet
-              </h3>
-              <p className="text-muted-foreground mb-6">
+            <div className="text-center py-16 px-6">
+              <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
+                <PiggyBank className="w-7 h-7 text-muted-foreground" />
+              </div>
+              <h3 className="text-sm font-semibold text-foreground mb-1">No transactions yet</h3>
+              <p className="text-xs text-muted-foreground mb-5">
                 Start tracking donations and expenses for the reserve fund
               </p>
               <Dialog open={open} onOpenChange={setOpen}>
                 <DialogTrigger asChild>
-                  <Button className="gap-2">
-                    <Plus className="w-4 h-4" />
-                    Add Transaction
+                  <Button size="sm" className="gap-2">
+                    <Plus className="w-3.5 h-3.5" /> Add Transaction
                   </Button>
                 </DialogTrigger>
               </Dialog>
             </div>
           ) : (
-            <div className="space-y-3">
-              {reserveTransactions.map((tx) => (
+            <div className="divide-y divide-border/60">
+              {/* Table header */}
+              <div className="grid grid-cols-12 px-5 py-2.5 bg-muted/50">
+                <span className="col-span-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">#</span>
+                <span className="col-span-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Type</span>
+                <span className="col-span-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Source / Spent At</span>
+                <span className="col-span-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Notes</span>
+                <span className="col-span-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Date</span>
+                <span className="col-span-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground text-right">Amount</span>
+              </div>
+
+              {/* Rows */}
+              {[...reserveTransactions].reverse().map((tx, idx) => (
                 <div
                   key={tx.id}
-                  className="flex items-center justify-between p-3 rounded border">
-                  <div>
-                    <div className="text-sm font-medium">
-                      {tx.type === "donation" ? "Donation" : "Expense"}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {tx.date} • {tx.donorName ?? "-"}
-                    </div>
-                  </div>
-                  <div
-                    className={`font-semibold ${
+                  className="grid grid-cols-12 px-5 py-3.5 items-center hover:bg-muted/30 transition-colors"
+                >
+                  <span className="col-span-1 text-xs text-muted-foreground">
+                    {reserveTransactions.length - idx}
+                  </span>
+
+                  <div className="col-span-2">
+                    <span className={cn(
+                      "inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full",
                       tx.type === "donation"
-                        ? "text-secondary"
-                        : "text-destructive"
-                    }`}>
-                    PKR {tx.amount.toLocaleString()}
+                        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+                        : "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400"
+                    )}>
+                      {tx.type === "donation"
+                        ? <TrendingUp className="w-3 h-3" />
+                        : <TrendingDown className="w-3 h-3" />}
+                      {tx.type === "donation" ? "Deposit" : "Expense"}
+                    </span>
                   </div>
+
+                  <span className="col-span-3 text-sm text-foreground truncate pr-2">
+                    {tx.donorName || <span className="text-muted-foreground">—</span>}
+                  </span>
+
+                  <span className="col-span-3 text-xs text-muted-foreground truncate pr-2">
+                    {tx.notes || "—"}
+                  </span>
+
+                  <span className="col-span-2 text-xs text-muted-foreground">{tx.date}</span>
+
+                  <span className={cn(
+                    "col-span-1 text-sm font-bold text-right",
+                    tx.type === "donation"
+                      ? "text-emerald-600 dark:text-emerald-400"
+                      : "text-rose-600 dark:text-rose-400"
+                  )}>
+                    {tx.type === "donation" ? "+" : "-"}PKR {tx.amount.toLocaleString()}
+                  </span>
                 </div>
               ))}
+
+              {/* Footer totals */}
+              <div className="grid grid-cols-12 px-5 py-3 bg-muted/40 border-t border-border/60">
+                <span className="col-span-11 text-xs font-semibold text-muted-foreground">Net Balance</span>
+                <span className="col-span-1 text-sm font-bold text-right text-foreground">
+                  PKR {reserveFund.toLocaleString()}
+                </span>
+              </div>
             </div>
           )}
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function StatCard({
+  icon: Icon, label, value, iconClass, valueClass,
+}: {
+  icon: React.ElementType;
+  label: string;
+  value: string;
+  iconClass: string;
+  valueClass: string;
+}) {
+  return (
+    <Card className="card-hover border-0 shadow-md">
+      <CardContent className="p-5">
+        <div className="flex items-start justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
+            <p className={cn("text-xl font-bold mt-2", valueClass)}>{value}</p>
+          </div>
+          <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shadow-sm", iconClass)}>
+            <Icon className="w-5 h-5 text-white" />
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

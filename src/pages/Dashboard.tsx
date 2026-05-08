@@ -159,201 +159,169 @@ export default function Dashboard() {
   const isLoading = membersLoading || meetingsLoading || loansLoading || contributionsLoading || reserveLoading;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* Page Header */}
-      <div>
-        <h2 className="text-3xl font-semibold text-foreground">Dashboard</h2>
-        <p className="text-muted-foreground mt-1">Welcome to MSO</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-foreground">Dashboard</h2>
+          <p className="text-sm text-muted-foreground mt-0.5">Overview of MSO activity</p>
+        </div>
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title="Total Members"
-          value={isLoading ? "..." : totalMembers.toString()}
+          value={isLoading ? "—" : totalMembers.toString()}
           icon={Users}
+          iconColor="bg-gradient-primary"
         />
         <StatCard
           title="Total Budget"
-          value={isLoading ? "..." : `PKR ${totalBudget.toLocaleString()}`}
+          value={isLoading ? "—" : `PKR ${totalBudget.toLocaleString()}`}
           icon={Wallet}
+          iconColor="bg-gradient-secondary"
         />
         <StatCard
           title="Active Loans"
-          value={isLoading ? "..." : `PKR ${activeLoans.toLocaleString()}`}
+          value={isLoading ? "—" : `PKR ${activeLoans.toLocaleString()}`}
           icon={HandCoins}
+          iconColor="bg-rose-500"
         />
         <StatCard
           title="Reserve Fund"
-          value={isLoading ? "..." : `PKR ${reserveFund.toLocaleString()}`}
+          value={isLoading ? "—" : `PKR ${reserveFund.toLocaleString()}`}
           icon={PiggyBank}
+          iconColor="bg-gradient-accent"
         />
       </div>
 
       {/* Quick Info */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="shadow-md">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-primary" />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Card className="shadow-md border-0">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center">
+                <Calendar className="w-4 h-4 text-primary" />
+              </div>
               Upcoming Meetings
             </CardTitle>
           </CardHeader>
           <CardContent>
             {allUpcomingMeetings.length > 0 ? (
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {allUpcomingMeetings.map((meeting) => (
-                  <div
-                    key={meeting.id}
-                    className="p-4 rounded-lg border bg-red-200">
-                    <div className="flex items-start gap-3">
-                      <Clock className="w-5 h-5 text-primary mt-0.5" />
-                      <div className="flex-1">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <h4 className="font-semibold text-foreground">
-                              {meeting.venue || "TBD"}
-                            </h4>
-                            <p className="text-xl font-bold text-orange-700 mt-1">
-                              {format(
-                                parseISO(meeting.date),
-                                settings.dateFormat
-                              )}{" "}
-                              {meeting.time && `at ${formatTimeTo12Hour(meeting.time)}`}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
+                  <div key={meeting.id} className="flex items-start gap-3 p-3 rounded-lg bg-muted/50 border border-border/50">
+                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <Clock className="w-4 h-4 text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-sm text-foreground truncate">{meeting.venue || "TBD"}</p>
+                      <p className="text-sm font-bold text-primary mt-0.5">
+                        {format(parseISO(meeting.date), settings.dateFormat)}
+                        {meeting.time && ` at ${formatTimeTo12Hour(meeting.time)}`}
+                      </p>
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
               <div className="text-center py-8">
-                <Calendar className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-                <p className="text-sm text-muted-foreground">
-                  No upcoming meetings scheduled
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Schedule a meeting from the Meetings page
-                </p>
+                <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
+                  <Calendar className="w-6 h-6 text-muted-foreground" />
+                </div>
+                <p className="text-sm font-medium text-muted-foreground">No upcoming meetings</p>
+                <p className="text-xs text-muted-foreground mt-1">Schedule one from the Meetings page</p>
               </div>
             )}
           </CardContent>
         </Card>
 
-        <Card className="shadow-md">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-secondary" />
+        <Card className="shadow-md border-0">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <div className="w-7 h-7 rounded-lg bg-secondary/10 flex items-center justify-center">
+                <TrendingUp className="w-4 h-4 text-secondary" />
+              </div>
               Quick Stats
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">
-                  Total Members
-                </span>
-                <span className="text-lg font-semibold text-foreground">
-                  {isLoading ? "..." : totalMembers}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">
-                  Total Budget
-                </span>
-                <span className="text-lg font-semibold text-foreground">
-                  {isLoading ? "..." : `PKR ${totalBudget.toLocaleString()}`}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">
-                  Active Loans
-                </span>
-                <span className="text-lg font-semibold text-foreground">
-                  {isLoading ? "..." : `PKR ${activeLoans.toLocaleString()}`}
-                </span>
-              </div>
+            <div className="space-y-3">
+              {[
+                { label: "Total Members", value: isLoading ? "—" : totalMembers },
+                { label: "Total Budget", value: isLoading ? "—" : `PKR ${totalBudget.toLocaleString()}` },
+                { label: "Active Loans", value: isLoading ? "—" : `PKR ${activeLoans.toLocaleString()}` },
+                { label: "Reserve Fund", value: isLoading ? "—" : `PKR ${reserveFund.toLocaleString()}` },
+              ].map(({ label, value }) => (
+                <div key={label} className="flex justify-between items-center py-2 border-b border-border/50 last:border-0">
+                  <span className="text-sm text-muted-foreground">{label}</span>
+                  <span className="text-sm font-semibold text-foreground">{value}</span>
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>
       </div>
 
       {/* Trend Graphs */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Budget Trend Graph */}
-        <Card className="shadow-md">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Wallet className="w-5 h-5 text-primary" />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Card className="shadow-md border-0">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center">
+                <Wallet className="w-4 h-4 text-primary" />
+              </div>
               Monthly Budget Trend
             </CardTitle>
-            <CardDescription>
-              Organization's total budget over time
-            </CardDescription>
+            <CardDescription className="text-xs">Organization's total budget over time</CardDescription>
           </CardHeader>
           <CardContent>
             {budgetData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={budgetData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="month" />
-                  <YAxis />
-                  <Tooltip
-                    formatter={(value) => `PKR ${Number(value).toLocaleString()}`}
-                  />
-                  <Legend />
-                  <Bar
-                    dataKey="budget"
-                    fill="#8b5cf6"
-                    name="Budget Contributions"
-                  />
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={budgetData} barSize={28}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} />
+                  <Tooltip formatter={(value) => `PKR ${Number(value).toLocaleString()}`} />
+                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                  <Bar dataKey="budget" fill="hsl(var(--primary))" name="Budget Contributions" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
               <div className="text-center py-12">
-                <p className="text-sm text-muted-foreground">
-                  No data available yet
-                </p>
+                <p className="text-sm text-muted-foreground">No data available yet</p>
               </div>
             )}
           </CardContent>
         </Card>
 
-        {/* Loans Trend Graph */}
-        <Card className="shadow-md">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <HandCoins className="w-5 h-5 text-secondary" />
+        <Card className="shadow-md border-0">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <div className="w-7 h-7 rounded-lg bg-secondary/10 flex items-center justify-center">
+                <HandCoins className="w-4 h-4 text-secondary" />
+              </div>
               Monthly Loans Trend
             </CardTitle>
-            <CardDescription>Loans issued and recovered trends</CardDescription>
+            <CardDescription className="text-xs">Loans issued and recovered trends</CardDescription>
           </CardHeader>
           <CardContent>
             {loansData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={loansData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="month" />
-                  <YAxis />
-                  <Tooltip
-                    formatter={(value) => `PKR ${Number(value).toLocaleString()}`}
-                  />
-                  <Legend />
-                  <Bar dataKey="issued" fill="#ef4444" name="Loans Issued" />
-                  <Bar
-                    dataKey="recovered"
-                    fill="#22c55e"
-                    name="Loans Recovered"
-                  />
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={loansData} barSize={20}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} />
+                  <Tooltip formatter={(value) => `PKR ${Number(value).toLocaleString()}`} />
+                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                  <Bar dataKey="issued" fill="#ef4444" name="Loans Issued" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="recovered" fill="#22c55e" name="Loans Recovered" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
               <div className="text-center py-12">
-                <p className="text-sm text-muted-foreground">
-                  No data available yet
-                </p>
+                <p className="text-sm text-muted-foreground">No data available yet</p>
               </div>
             )}
           </CardContent>

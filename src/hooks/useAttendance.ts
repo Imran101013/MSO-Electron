@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { dbQuery } from "@/lib/db";
 import { useToast } from "@/hooks/use-toast";
 
 export interface DbAttendance {
@@ -23,153 +23,67 @@ export function useAttendance() {
 
   const fetchAttendance = async (meetingId?: string) => {
     setIsLoading(true);
-    let query = supabase.from("attendance").select("*");
-    
-    if (meetingId) {
-      query = query.eq("meeting_id", meetingId);
-    }
-
-    const { data, error } = await query.order("created_at", { ascending: false });
-
-    if (error) {
-      console.error("Error fetching attendance:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load attendance",
-        variant: "destructive",
-      });
-    } else {
-      setAttendance(data || []);
+    try {
+      const sql = meetingId
+        ? 'SELECT * FROM public.attendance WHERE meeting_id=$1 ORDER BY created_at DESC'
+        : 'SELECT * FROM public.attendance ORDER BY created_at DESC';
+      const data = await dbQuery<DbAttendance>(sql, meetingId ? [meetingId] : []);
+      setAttendance(data);
+    } catch {
+      toast({ title: "Error", description: "Failed to load attendance", variant: "destructive" });
     }
     setIsLoading(false);
   };
 
   const recordAttendance = async (formData: AttendanceFormData) => {
-    // Check if attendance already exists for this meeting/member
-    const { data: existing } = await supabase
-      .from("attendance")
-      .select("id")
-      .eq("meeting_id", formData.meeting_id)
-      .eq("member_id", formData.member_id)
-      .maybeSingle();
-
-    if (existing) {
-      // Update existing attendance
-      const { error } = await supabase
-        .from("attendance")
-        .update({ present: formData.present })
-        .eq("id", existing.id);
-
-      if (error) {
-        console.error("Error updating attendance:", error);
-        toast({
-          title: "Error",
-          description: error.message || "Failed to update attendance",
-          variant: "destructive",
-        });
-        return false;
+    try {
+      const existing = await dbQuery<{ id: string }>(
+        'SELECT id FROM public.attendance WHERE meeting_id=$1 AND member_id=$2',
+        [formData.meeting_id, formData.member_id]
+      );
+      if (existing.length > 0) {
+        await dbQuery('UPDATE public.attendance SET present=$1 WHERE id=$2', [formData.present, existing[0].id]);
+      } else {
+        await dbQuery('INSERT INTO public.attendance (meeting_id, member_id, present) VALUES ($1,$2,$3)', [formData.meeting_id, formData.member_id, formData.present]);
       }
-    } else {
-      // Insert new attendance
-      const { error } = await supabase
-        .from("attendance")
-        .insert({
-          meeting_id: formData.meeting_id,
-          member_id: formData.member_id,
-          present: formData.present,
-        });
-
-      if (error) {
-        console.error("Error recording attendance:", error);
-        toast({
-          title: "Error",
-          description: error.message || "Failed to record attendance",
-          variant: "destructive",
-        });
-        return false;
-      }
+      await fetchAttendance(formData.meeting_id);
+      return true;
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message || "Failed to record attendance", variant: "destructive" });
+      return false;
     }
-
-    await fetchAttendance(formData.meeting_id);
-    return true;
   };
 
   const bulkRecordAttendance = async (meetingId: string, attendanceList: { memberId: string; present: boolean }[]) => {
-    // Delete existing attendance for this meeting
-    await supabase
-      .from("attendance")
-      .delete()
-      .eq("meeting_id", meetingId);
-
-    // Insert new attendance records
-    const records = attendanceList.map(item => ({
-      meeting_id: meetingId,
-      member_id: item.memberId,
-      present: item.present,
-    }));
-
-    const { error } = await supabase
-      .from("attendance")
-      .insert(records);
-
-    if (error) {
-      console.error("Error recording bulk attendance:", error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to record attendance",
-        variant: "destructive",
-      });
+    try {
+      await dbQuery('DELETE FROM public.attendance WHERE meeting_id=$1', [meetingId]);
+      for (const item of attendanceList) {
+        await dbQuery('INSERT INTO public.attendance (meeting_id, member_id, present) VALUES ($1,$2,$3)', [meetingId, item.memberId, item.present]);
+      }
+      toast({ title: "Attendance Recorded", description: "Attendance has been saved successfully." });
+      return true;
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message || "Failed to record attendance", variant: "destructive" });
       return false;
     }
-
-    toast({
-      title: "Attendance Recorded",
-      description: "Attendance has been saved successfully.",
-    });
-
-    return true;
   };
 
   const getAttendanceForMeeting = async (meetingId: string) => {
-    const { data, error } = await supabase
-      .from("attendance")
-      .select("*")
-      .eq("meeting_id", meetingId);
-
-    if (error) {
-      console.error("Error fetching meeting attendance:", error);
-      return [];
-    }
-
-    return data || [];
+    try {
+      return await dbQuery<DbAttendance>('SELECT * FROM public.attendance WHERE meeting_id=$1', [meetingId]);
+    } catch { return []; }
   };
 
   const getMemberAttendance = async (memberId: string) => {
-    const { data, error } = await supabase
-      .from("attendance")
-      .select("*, meetings(meeting_date)")
-      .eq("member_id", memberId)
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      console.error("Error fetching member attendance:", error);
-      return [];
-    }
-
-    return data || [];
+    try {
+      return await dbQuery(
+        'SELECT a.*, m.meeting_date FROM public.attendance a LEFT JOIN public.meetings m ON m.id = a.meeting_id WHERE a.member_id=$1 ORDER BY a.created_at DESC',
+        [memberId]
+      );
+    } catch { return []; }
   };
 
-  useEffect(() => {
-    fetchAttendance();
-  }, []);
+  useEffect(() => { fetchAttendance(); }, []);
 
-  return {
-    attendance,
-    isLoading,
-    fetchAttendance,
-    recordAttendance,
-    bulkRecordAttendance,
-    getAttendanceForMeeting,
-    getMemberAttendance,
-  };
+  return { attendance, isLoading, fetchAttendance, recordAttendance, bulkRecordAttendance, getAttendanceForMeeting, getMemberAttendance };
 }

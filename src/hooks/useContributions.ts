@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { dbQuery } from "@/lib/db";
 import { useToast } from "@/hooks/use-toast";
 
 export interface DbContribution {
@@ -25,157 +25,66 @@ export function useContributions() {
 
   const fetchContributions = async () => {
     setIsLoading(true);
-    const { data, error } = await supabase
-      .from("monthly_contributions")
-      .select("*")
-      .order("contribution_date", { ascending: false });
-
-    if (error) {
-      console.error("Error fetching contributions:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load contributions",
-        variant: "destructive",
-      });
-    } else {
-      setContributions(data || []);
+    try {
+      const data = await dbQuery<DbContribution>('SELECT * FROM public.monthly_contributions ORDER BY contribution_date DESC');
+      setContributions(data);
+    } catch {
+      toast({ title: "Error", description: "Failed to load contributions", variant: "destructive" });
     }
     setIsLoading(false);
   };
 
   const addContribution = async (formData: ContributionFormData) => {
-    const { data, error } = await supabase
-      .from("monthly_contributions")
-      .insert({
-        member_id: formData.member_id,
-        meeting_id: formData.meeting_id || null,
-        amount: formData.amount,
-        contribution_date: formData.contribution_date,
-      })
-      .select()
-      .single();
-
-    if (error) {
-      console.error("Error adding contribution:", error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to add contribution",
-        variant: "destructive",
-      });
+    try {
+      const rows = await dbQuery<DbContribution>(
+        'INSERT INTO public.monthly_contributions (member_id, meeting_id, amount, contribution_date) VALUES ($1,$2,$3,$4) RETURNING *',
+        [formData.member_id, formData.meeting_id || null, formData.amount, formData.contribution_date]
+      );
+      await dbQuery('UPDATE public.members SET total_budget = total_budget + $1 WHERE id=$2', [formData.amount, formData.member_id]);
+      await fetchContributions();
+      return rows[0];
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message || "Failed to add contribution", variant: "destructive" });
       return null;
     }
-
-    // Update member's total_budget
-    const { data: member } = await supabase
-      .from("members")
-      .select("total_budget")
-      .eq("id", formData.member_id)
-      .single();
-
-    if (member) {
-      await supabase
-        .from("members")
-        .update({ total_budget: (member.total_budget || 0) + formData.amount })
-        .eq("id", formData.member_id);
-    }
-
-    await fetchContributions();
-    return data;
   };
 
   const bulkAddContributions = async (meetingId: string, contributionsList: { memberId: string; amount: number }[], date: string) => {
-    const records = contributionsList
-      .filter(c => c.amount > 0)
-      .map(item => ({
-        member_id: item.memberId,
-        meeting_id: meetingId,
-        amount: item.amount,
-        contribution_date: date,
-      }));
-
-    if (records.length === 0) {
+    const records = contributionsList.filter(c => c.amount > 0);
+    if (records.length === 0) return true;
+    try {
+      for (const item of records) {
+        await dbQuery(
+          'INSERT INTO public.monthly_contributions (member_id, meeting_id, amount, contribution_date) VALUES ($1,$2,$3,$4)',
+          [item.memberId, meetingId, item.amount, date]
+        );
+        await dbQuery('UPDATE public.members SET total_budget = total_budget + $1 WHERE id=$2', [item.amount, item.memberId]);
+      }
+      toast({ title: "Contributions Recorded", description: `${records.length} contribution(s) have been saved.` });
+      await fetchContributions();
       return true;
-    }
-
-    const { error } = await supabase
-      .from("monthly_contributions")
-      .insert(records);
-
-    if (error) {
-      console.error("Error recording contributions:", error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to record contributions",
-        variant: "destructive",
-      });
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message || "Failed to record contributions", variant: "destructive" });
       return false;
     }
-
-    // Update members' total_budget
-    for (const contrib of contributionsList.filter(c => c.amount > 0)) {
-      const { data: member } = await supabase
-        .from("members")
-        .select("total_budget")
-        .eq("id", contrib.memberId)
-        .single();
-
-      if (member) {
-        await supabase
-          .from("members")
-          .update({ total_budget: (member.total_budget || 0) + contrib.amount })
-          .eq("id", contrib.memberId);
-      }
-    }
-
-    toast({
-      title: "Contributions Recorded",
-      description: `${records.length} contribution(s) have been saved.`,
-    });
-
-    await fetchContributions();
-    return true;
   };
 
   const getMemberContributions = async (memberId: string) => {
-    const { data, error } = await supabase
-      .from("monthly_contributions")
-      .select("*")
-      .eq("member_id", memberId)
-      .order("contribution_date", { ascending: false });
-
-    if (error) {
-      console.error("Error fetching member contributions:", error);
-      return [];
-    }
-
-    return data || [];
+    try {
+      return await dbQuery<DbContribution>('SELECT * FROM public.monthly_contributions WHERE member_id=$1 ORDER BY contribution_date DESC', [memberId]);
+    } catch { return []; }
   };
 
   const getContributionsByMeeting = async (meetingId: string) => {
-    const { data, error } = await supabase
-      .from("monthly_contributions")
-      .select("*, members(name)")
-      .eq("meeting_id", meetingId);
-
-    if (error) {
-      console.error("Error fetching meeting contributions:", error);
-      return [];
-    }
-
-    return data || [];
+    try {
+      return await dbQuery(
+        'SELECT mc.*, m.name FROM public.monthly_contributions mc LEFT JOIN public.members m ON m.id = mc.member_id WHERE mc.meeting_id=$1',
+        [meetingId]
+      );
+    } catch { return []; }
   };
 
-  useEffect(() => {
-    fetchContributions();
-  }, []);
+  useEffect(() => { fetchContributions(); }, []);
 
-  return {
-    contributions,
-    isLoading,
-    fetchContributions,
-    addContribution,
-    bulkAddContributions,
-    getMemberContributions,
-    getContributionsByMeeting,
-  };
+  return { contributions, isLoading, fetchContributions, addContribution, bulkAddContributions, getMemberContributions, getContributionsByMeeting };
 }

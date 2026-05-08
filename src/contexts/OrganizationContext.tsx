@@ -714,31 +714,33 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     setReserveTransactions((prev) => [newTx, ...prev]);
   };
 
-  // Function to calculate budget ratios from latest meeting
+  // Function to calculate budget ratios from total contributions across all meetings
   const calculateBudgetRatios = () => {
-    if (meetings.length === 0) return [];
+    if (members.length === 0) return [];
 
-    // Get latest meeting
-    const latestMeeting = meetings.reduce((a, b) =>
-      new Date(a.date) > new Date(b.date) ? a : b
-    );
+    // Sum total contributions per member across all time
+    const memberTotals: Record<number, { memberId: number; memberName: string; total: number }> = {};
 
-    const totalBudget = latestMeeting.contributions.reduce(
-      (sum, c) => sum + c.amount,
-      0
-    );
-
-    if (totalBudget === 0) return [];
-
-    return latestMeeting.contributions.map((contrib) => {
-      const member = members.find((m) => m.id === contrib.memberId);
-      return {
-        memberId: contrib.memberId,
-        memberName: member?.name || "Unknown",
-        amount: contrib.amount,
-        ratio: contrib.amount / totalBudget,
-      };
+    members.forEach((member) => {
+      const total = member.monthlyContributions.reduce((s, c) => s + c.amount, 0);
+      if (total > 0) {
+        memberTotals[member.id] = {
+          memberId: member.id,
+          memberName: member.name,
+          total,
+        };
+      }
     });
+
+    const grandTotal = Object.values(memberTotals).reduce((s, m) => s + m.total, 0);
+    if (grandTotal === 0) return [];
+
+    return Object.values(memberTotals).map((m) => ({
+      memberId: m.memberId,
+      memberName: m.memberName,
+      amount: m.total,
+      ratio: m.total / grandTotal,
+    }));
   };
 
   // Function to distribute profit

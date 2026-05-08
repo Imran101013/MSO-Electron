@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { dbQuery } from "@/lib/db";
 import { useToast } from "@/hooks/use-toast";
 
 export interface DbLoan {
@@ -45,203 +45,87 @@ export function useLoans() {
 
   const fetchLoans = async () => {
     setIsLoading(true);
-    const { data, error } = await supabase
-      .from("loans")
-      .select("*, members(name)")
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      console.error("Error fetching loans:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load loans",
-        variant: "destructive",
-      });
-    } else {
-      const loansWithMembers = (data || []).map((loan: any) => ({
-        ...loan,
-        member_name: loan.members?.name,
-      }));
-      setLoans(loansWithMembers);
+    try {
+      const data = await dbQuery<LoanWithMember>(
+        'SELECT l.*, m.name as member_name FROM public.loans l LEFT JOIN public.members m ON m.id = l.member_id ORDER BY l.created_at DESC'
+      );
+      setLoans(data);
+    } catch (err: any) {
+      toast({ title: "Error", description: "Failed to load loans", variant: "destructive" });
     }
     setIsLoading(false);
   };
 
   const fetchInstallments = async (loanId?: string) => {
-    let query = supabase.from("loan_installments").select("*");
-    
-    if (loanId) {
-      query = query.eq("loan_id", loanId);
-    }
-
-    const { data, error } = await query.order("payment_date", { ascending: false });
-
-    if (error) {
-      console.error("Error fetching installments:", error);
-    } else {
-      setInstallments(data || []);
+    try {
+      const sql = loanId
+        ? 'SELECT * FROM public.loan_installments WHERE loan_id=$1 ORDER BY payment_date DESC'
+        : 'SELECT * FROM public.loan_installments ORDER BY payment_date DESC';
+      const data = await dbQuery<DbLoanInstallment>(sql, loanId ? [loanId] : []);
+      setInstallments(data);
+    } catch (err: any) {
+      console.error("Error fetching installments:", err);
     }
   };
 
   const issueLoan = async (formData: LoanFormData) => {
-    const { data, error } = await supabase
-      .from("loans")
-      .insert({
-        member_id: formData.member_id,
-        amount: formData.amount,
-        remaining_amount: formData.amount,
-        loan_date: formData.loan_date,
-        status: "active",
-      })
-      .select()
-      .single();
-
-    if (error) {
-      console.error("Error issuing loan:", error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to issue loan",
-        variant: "destructive",
-      });
+    try {
+      const rows = await dbQuery<DbLoan>(
+        'INSERT INTO public.loans (member_id, amount, remaining_amount, loan_date, status) VALUES ($1,$2,$2,$3,$4) RETURNING *',
+        [formData.member_id, formData.amount, formData.loan_date, 'active']
+      );
+      toast({ title: "Loan Issued", description: `Loan of PKR ${formData.amount.toLocaleString()} has been issued.` });
+      await fetchLoans();
+      return rows[0];
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message || "Failed to issue loan", variant: "destructive" });
       return null;
     }
-
-    toast({
-      title: "Loan Issued",
-      description: `Loan of PKR ${formData.amount.toLocaleString()} has been issued.`,
-    });
-
-    await fetchLoans();
-    return data;
   };
 
   const recordPayment = async (formData: InstallmentFormData) => {
-    // Get current loan
-    const { data: loan, error: loanError } = await supabase
-      .from("loans")
-      .select("remaining_amount, amount")
-      .eq("id", formData.loan_id)
-      .single();
+    try {
+      const loanRows = await dbQuery<DbLoan>('SELECT remaining_amount FROM public.loans WHERE id=$1', [formData.loan_id]);
+      const loan = loanRows[0];
+      if (!loan) { toast({ title: "Error", description: "Loan not found", variant: "destructive" }); return false; }
+      if (formData.amount > loan.remaining_amount) { toast({ title: "Error", description: "Payment exceeds remaining balance", variant: "destructive" }); return false; }
 
-    if (loanError || !loan) {
-      toast({
-        title: "Error",
-        description: "Loan not found",
-        variant: "destructive",
-      });
+      await dbQuery('INSERT INTO public.loan_installments (loan_id, amount, payment_date) VALUES ($1,$2,$3)', [formData.loan_id, formData.amount, formData.payment_date]);
+
+      const newRemaining = loan.remaining_amount - formData.amount;
+      const newStatus = newRemaining <= 0 ? 'paid' : 'active';
+      await dbQuery('UPDATE public.loans SET remaining_amount=$1, status=$2 WHERE id=$3', [newRemaining, newStatus, formData.loan_id]);
+
+      toast({ title: "Payment Recorded", description: `Payment of PKR ${formData.amount.toLocaleString()} has been recorded.` });
+      await fetchLoans();
+      await fetchInstallments(formData.loan_id);
+      return true;
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message || "Failed to record payment", variant: "destructive" });
       return false;
     }
-
-    if (formData.amount > loan.remaining_amount) {
-      toast({
-        title: "Error",
-        description: "Payment amount exceeds remaining balance",
-        variant: "destructive",
-      });
-      return false;
-    }
-
-    // Insert installment
-    const { error: installmentError } = await supabase
-      .from("loan_installments")
-      .insert({
-        loan_id: formData.loan_id,
-        amount: formData.amount,
-        payment_date: formData.payment_date,
-      });
-
-    if (installmentError) {
-      console.error("Error recording payment:", installmentError);
-      toast({
-        title: "Error",
-        description: installmentError.message || "Failed to record payment",
-        variant: "destructive",
-      });
-      return false;
-    }
-
-    // Update loan remaining amount
-    const newRemaining = loan.remaining_amount - formData.amount;
-    const newStatus = newRemaining <= 0 ? "paid" : "active";
-
-    const { error: updateError } = await supabase
-      .from("loans")
-      .update({
-        remaining_amount: newRemaining,
-        status: newStatus,
-      })
-      .eq("id", formData.loan_id);
-
-    if (updateError) {
-      console.error("Error updating loan:", updateError);
-      toast({
-        title: "Error",
-        description: updateError.message || "Failed to update loan",
-        variant: "destructive",
-      });
-      return false;
-    }
-
-    toast({
-      title: "Payment Recorded",
-      description: `Payment of PKR ${formData.amount.toLocaleString()} has been recorded.`,
-    });
-
-    await fetchLoans();
-    await fetchInstallments(formData.loan_id);
-    return true;
   };
 
   const getLoansByMember = async (memberId: string) => {
-    const { data, error } = await supabase
-      .from("loans")
-      .select("*")
-      .eq("member_id", memberId)
-      .order("loan_date", { ascending: false });
-
-    if (error) {
-      console.error("Error fetching member loans:", error);
-      return [];
-    }
-
-    return data || [];
+    try {
+      return await dbQuery<DbLoan>('SELECT * FROM public.loans WHERE member_id=$1 ORDER BY loan_date DESC', [memberId]);
+    } catch { return []; }
   };
 
-  const getActiveLoans = () => {
-    return loans.filter(loan => loan.status === "active");
-  };
+  const getActiveLoans = () => loans.filter(l => l.status === 'active');
 
   const getLoanStats = () => {
     const activeLoans = getActiveLoans();
-    const totalOutstanding = activeLoans.reduce((sum, loan) => sum + loan.remaining_amount, 0);
-    const totalIssued = loans.reduce((sum, loan) => sum + loan.amount, 0);
-    const totalRecovered = totalIssued - loans.reduce((sum, loan) => sum + loan.remaining_amount, 0);
-    const membersWithLoans = new Set(activeLoans.map(l => l.member_id)).size;
-
     return {
-      totalOutstanding,
-      totalIssued,
-      totalRecovered,
+      totalOutstanding: activeLoans.reduce((s, l) => s + Number(l.remaining_amount), 0),
+      totalIssued: loans.reduce((s, l) => s + Number(l.amount), 0),
+      totalRecovered: loans.reduce((s, l) => s + (Number(l.amount) - Number(l.remaining_amount)), 0),
       activeLoansCount: activeLoans.length,
-      membersWithLoans,
+      membersWithLoans: new Set(activeLoans.map(l => l.member_id)).size,
     };
   };
 
-  useEffect(() => {
-    fetchLoans();
-    fetchInstallments();
-  }, []);
+  useEffect(() => { fetchLoans(); fetchInstallments(); }, []);
 
-  return {
-    loans,
-    installments,
-    isLoading,
-    fetchLoans,
-    fetchInstallments,
-    issueLoan,
-    recordPayment,
-    getLoansByMember,
-    getActiveLoans,
-    getLoanStats,
-  };
+  return { loans, installments, isLoading, fetchLoans, fetchInstallments, issueLoan, recordPayment, getLoansByMember, getActiveLoans, getLoanStats };
 }

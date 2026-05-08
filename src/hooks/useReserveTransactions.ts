@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { dbQuery } from "@/lib/db";
 import { useToast } from "@/hooks/use-toast";
 
 export interface DbReserveTransaction {
@@ -27,76 +27,39 @@ export function useReserveTransactions() {
 
   const fetchTransactions = async () => {
     setIsLoading(true);
-    const { data, error } = await supabase
-      .from("reserve_transactions")
-      .select("*")
-      .order("transaction_date", { ascending: false });
-
-    if (error) {
-      console.error("Error fetching reserve transactions:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load reserve transactions",
-        variant: "destructive",
-      });
-    } else {
-      setTransactions(data || []);
+    try {
+      const data = await dbQuery<DbReserveTransaction>('SELECT * FROM public.reserve_transactions ORDER BY transaction_date DESC');
+      setTransactions(data);
+    } catch {
+      toast({ title: "Error", description: "Failed to load reserve transactions", variant: "destructive" });
     }
     setIsLoading(false);
   };
 
   const addTransaction = async (formData: ReserveTransactionFormData) => {
-    const { data, error } = await supabase
-      .from("reserve_transactions")
-      .insert({
-        transaction_type: formData.transaction_type,
-        amount: formData.amount,
-        donor_name: formData.donor_name || null,
-        notes: formData.notes || null,
-        transaction_date: formData.transaction_date,
-      })
-      .select()
-      .single();
-
-    if (error) {
-      console.error("Error adding transaction:", error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to add transaction",
-        variant: "destructive",
-      });
+    try {
+      const rows = await dbQuery<DbReserveTransaction>(
+        'INSERT INTO public.reserve_transactions (transaction_type, amount, donor_name, notes, transaction_date) VALUES ($1,$2,$3,$4,$5) RETURNING *',
+        [formData.transaction_type, formData.amount, formData.donor_name || null, formData.notes || null, formData.transaction_date]
+      );
+      toast({ title: "Transaction Added", description: `${formData.transaction_type} of PKR ${formData.amount.toLocaleString()} has been recorded.` });
+      await fetchTransactions();
+      return rows[0];
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message || "Failed to add transaction", variant: "destructive" });
       return null;
     }
-
-    toast({
-      title: "Transaction Added",
-      description: `${formData.transaction_type} of PKR ${formData.amount.toLocaleString()} has been recorded.`,
-    });
-
-    await fetchTransactions();
-    return data;
   };
 
   const getReserveFundTotal = () => {
     return transactions.reduce((total, tx) => {
-      if (tx.transaction_type === "donation" || tx.transaction_type === "profit_allocation") {
-        return total + tx.amount;
-      } else if (tx.transaction_type === "expense") {
-        return total - tx.amount;
-      }
+      if (tx.transaction_type === "donation" || tx.transaction_type === "profit_allocation") return total + Number(tx.amount);
+      if (tx.transaction_type === "expense") return total - Number(tx.amount);
       return total;
     }, 0);
   };
 
-  useEffect(() => {
-    fetchTransactions();
-  }, []);
+  useEffect(() => { fetchTransactions(); }, []);
 
-  return {
-    transactions,
-    isLoading,
-    fetchTransactions,
-    addTransaction,
-    getReserveFundTotal,
-  };
+  return { transactions, isLoading, fetchTransactions, addTransaction, getReserveFundTotal };
 }
