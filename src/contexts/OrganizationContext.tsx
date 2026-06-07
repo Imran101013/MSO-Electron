@@ -109,6 +109,7 @@ export interface Member {
   address: string;
   joinDate: Date;
   profilePicture?: string;
+  password?: string;
   monthlyContributions: MonthlyContribution[];
   attendance: Attendance[];
   loans: Loan[];

@@ -10,7 +10,7 @@ interface AuthUser {
 interface AuthContextType {
   user: AuthUser | null;
   session: null;
-  login: (email: string, password: string) => Promise<{ error: string | null }>;
+  login: (identifier: string, password: string) => Promise<{ error: string | null }>;
   signup: (email: string, password: string, fullName: string) => Promise<{ error: string | null }>;
   logout: () => Promise<void>;
   isAuthenticated: boolean;
@@ -45,10 +45,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, []);
 
-  const login = async (email: string, password: string): Promise<{ error: string | null }> => {
+  const login = async (identifier: string, password: string): Promise<{ error: string | null }> => {
     const api = (window as any).electronAPI;
     if (!api) return { error: 'Not running as desktop app. Please launch via Electron.' };
-    const res = await api.login(email, password);
+    const res = await api.login(identifier, password);
     if (res.error) return { error: res.error };
     localStorage.setItem(TOKEN_KEY, res.token);
     setUser(res.user);

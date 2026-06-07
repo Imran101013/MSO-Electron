@@ -13,6 +13,7 @@ export interface DbMember {
   dob: string | null;
   join_date: string;
   profile_picture: string | null;
+  login_password?: string | null;
   total_budget: number;
   is_approved: boolean;
   created_at: string;
@@ -46,15 +47,39 @@ export function useMembers() {
     setIsLoading(false);
   };
 
-  const addMember = async (formData: MemberFormData) => {
+  const addMember = async (formData: MemberFormData, isAdminCreated: boolean = true) => {
     try {
-      const rows = await dbQuery<DbMember>(
-        'INSERT INTO public.members (name, father_name, email, phone, address, dob, join_date, profile_picture) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *',
-        [formData.name, formData.father_name, formData.email, formData.phone, formData.address, formData.dob, formData.join_date, formData.profile_picture || null]
-      );
-      toast({ title: "Member Added", description: `${formData.name} has been successfully added.` });
+      let result: any;
+      if (isAdminCreated) {
+        // Use the new auth-create-member IPC handler to create user + member
+        const api = (window as any).electronAPI;
+        if (!api) return null;
+        result = await api.createMember(
+          formData.email,
+          formData.name,
+          formData.father_name,
+          formData.phone || null,
+          formData.address || null,
+          formData.dob || null,
+          formData.join_date
+        );
+        if (result.error) {
+          toast({ title: "Error", description: result.error, variant: "destructive" });
+          return null;
+        }
+        toast({ title: "Member Added", description: `${formData.name} has been successfully added with auto-generated password.` });
+      } else {
+        // Fallback: add member record only (for non-admin create)
+        const rows = await dbQuery<DbMember>(
+          'INSERT INTO public.members (name, father_name, email, phone, address, dob, join_date, profile_picture, is_approved) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,true) RETURNING *',
+          [formData.name, formData.father_name, formData.email, formData.phone, formData.address, formData.dob, formData.join_date, formData.profile_picture || null]
+        );
+        toast({ title: "Member Added", description: `${formData.name} has been successfully added.` });
+        await fetchMembers();
+        return rows[0];
+      }
       await fetchMembers();
-      return rows[0];
+      return { generatedPassword: result.generatedPassword };
     } catch (err: any) {
       toast({ title: "Error", description: err.message || "Failed to add member", variant: "destructive" });
       return null;

@@ -209,6 +209,14 @@ export default function MemberSearch() {
                   <p className="font-medium">{selectedMember.phone}</p>
                 </div>
                 <div>
+                  <p className="text-sm text-muted-foreground">Password</p>
+                  <p className="font-medium">{selectedMember.password || "N/A"}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Password</p>
+                  <p className="font-medium">{selectedMember.password || "N/A"}</p>
+                </div>
+                <div>
                   <p className="text-sm text-muted-foreground">Date of Birth</p>
                   <p className="font-medium">
                     {format(new Date(selectedMember.dob), settings.dateFormat)}

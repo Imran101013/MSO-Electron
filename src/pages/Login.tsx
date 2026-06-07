@@ -8,7 +8,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, ShieldCheck } from "lucide-react";
 
 export default function Login() {
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -19,7 +19,7 @@ export default function Login() {
     e.preventDefault();
     setError("");
     setIsLoading(true);
-    const { error } = await login(email.trim(), password);
+    const { error } = await login(identifier.trim(), password);
     setIsLoading(false);
     if (error) setError(error);
     else navigate("/");
@@ -68,13 +68,13 @@ export default function Login() {
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-sm font-medium">Email address</Label>
+              <Label htmlFor="identifier" className="text-sm font-medium">Phone number or email</Label>
               <Input
-                id="email"
-                type="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                id="identifier"
+                type="text"
+                placeholder="0300 1234567 or admin@mso.com"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
                 required
                 disabled={isLoading}
                 className="h-11"
