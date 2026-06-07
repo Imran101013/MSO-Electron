@@ -23,11 +23,11 @@
     "directories": {
       "output": "release"
     },
-    "icon": "public/MSO-Logo.png",
+    "icon": "release/.icon-ico/icon.ico",
     "forceCodeSigning": false,
     "win": {
       "target": "nsis",
-      "icon": "public/MSO-Logo.png",
+      "icon": "release/.icon-ico/icon.ico",
       "verifyUpdateCodeSignature": false
     },
     "nsis": {

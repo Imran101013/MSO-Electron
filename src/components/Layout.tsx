@@ -54,22 +54,22 @@ export default function Layout({ children }: LayoutProps) {
     <SidebarProvider>
       <Sidebar className="border-r border-sidebar-border">
         {/* Logo */}
-        <SidebarHeader className="px-4 py-4">
+        <SidebarHeader className="px-5 py-5">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center shadow-md flex-shrink-0">
-              <img src="public/MSO-Logo.png" alt="MSO" className="w-8 h-8 object-contain" />
+            <div className="w-9 h-9 rounded-xl bg-gradient-primary flex items-center justify-center shadow-lg flex-shrink-0 ring-2 ring-white/10">
+              <img src="./MSO-Logo.png" alt="MSO" className="w-7 h-7 object-contain" />
             </div>
             <div className="min-w-0">
-              <p className="text-xs font-bold text-sidebar-foreground leading-tight truncate">MOGH STUDENTS</p>
-              <p className="text-xs font-bold text-primary leading-tight truncate">ORGANISATION</p>
+              <p className="text-[11px] font-bold text-white/90 leading-tight tracking-wider uppercase">Mogh Students</p>
+              <p className="text-[11px] font-bold leading-tight" style={{color: 'hsl(221 83% 70%)'}} >Organisation</p>
             </div>
           </div>
         </SidebarHeader>
 
-        <Separator className="mx-4 w-auto opacity-50" />
+        <div className="mx-4 h-px bg-white/8" />
 
         {/* Nav */}
-        <SidebarContent className="px-2 py-3">
+        <SidebarContent className="px-3 py-3">
           <SidebarGroup>
             <SidebarGroupContent>
               <SidebarMenu className="space-y-0.5">
@@ -83,12 +83,12 @@ export default function Layout({ children }: LayoutProps) {
                           className={cn(
                             "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150",
                             isActive
-                              ? "bg-primary text-primary-foreground shadow-sm"
-                              : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                              ? "sidebar-nav-active"
+                              : "sidebar-nav-item"
                           )}
                         >
-                          <item.icon className="w-4 h-4 flex-shrink-0" />
-                          <span>{item.name}</span>
+                          <item.icon className={cn("w-4 h-4 flex-shrink-0", isActive ? "text-white" : "text-sidebar-foreground/60")} />
+                          <span className={isActive ? "text-white font-semibold" : ""}>{item.name}</span>
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -100,23 +100,24 @@ export default function Layout({ children }: LayoutProps) {
         </SidebarContent>
 
         {/* Footer */}
-        <SidebarFooter className="px-3 py-3 border-t border-sidebar-border">
-          <div className="flex items-center gap-3 px-2 py-2 rounded-lg bg-sidebar-accent mb-2">
+        <SidebarFooter className="px-3 py-3">
+          <div className="h-px bg-white/8 mb-3" />
+          <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-white/6 border border-white/8 mb-2">
             <Avatar className="w-8 h-8">
-              <AvatarFallback className="bg-primary text-primary-foreground text-xs font-bold">
+              <AvatarFallback className="bg-gradient-primary text-white text-xs font-bold shadow-sm">
                 {initials}
               </AvatarFallback>
             </Avatar>
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-semibold text-sidebar-foreground truncate">{displayName}</p>
-              <p className="text-xs text-muted-foreground capitalize">{user?.role}</p>
+              <p className="text-xs font-semibold text-white/90 truncate">{displayName}</p>
+              <p className="text-[10px] text-white/40 capitalize tracking-wide">{user?.role}</p>
             </div>
           </div>
           <div className="flex gap-1">
-            <Button variant="ghost" size="sm" onClick={handleLogout} className="flex-1 justify-start text-xs h-8">
+            <Button variant="ghost" size="sm" onClick={handleLogout} className="flex-1 justify-start text-xs h-8 text-white/50 hover:text-white hover:bg-white/8">
               <LogOut className="w-3.5 h-3.5 mr-2" /> Logout
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => navigate("/change-password")} className="flex-1 justify-start text-xs h-8">
+            <Button variant="ghost" size="sm" onClick={() => navigate("/change-password")} className="flex-1 justify-start text-xs h-8 text-white/50 hover:text-white hover:bg-white/8">
               <Lock className="w-3.5 h-3.5 mr-2" /> Password
             </Button>
           </div>
@@ -125,35 +126,38 @@ export default function Layout({ children }: LayoutProps) {
 
       <SidebarInset>
         {/* Top header */}
-        <header className="flex h-14 border-b shrink-0 items-center gap-3 px-4 bg-background/80 backdrop-blur-sm sticky top-0 z-10">
-          <SidebarTrigger className="-ml-1" />
-          <Separator orientation="vertical" className="h-5" />
+        <header className="flex h-14 border-b border-border/60 shrink-0 items-center gap-3 px-5 bg-background/95 backdrop-blur-md sticky top-0 z-10 shadow-sm">
+          <SidebarTrigger className="-ml-1 text-muted-foreground hover:text-foreground" />
+          <Separator orientation="vertical" className="h-5 opacity-40" />
           <div className="flex-1">
             <MemberSearch />
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground hidden sm:block">
-              {displayName}
-            </span>
-            <Avatar className="w-8 h-8">
-              <AvatarFallback className="bg-primary text-primary-foreground text-xs font-bold">
-                {initials}
-              </AvatarFallback>
-            </Avatar>
             <Button
               variant="ghost"
               size="icon"
-              className="w-8 h-8"
+              className="w-8 h-8 rounded-lg"
               onClick={() => updateSettings({ theme: settings.theme === "dark" ? "light" : "dark" })}
               title={`Switch to ${settings.theme === "dark" ? "light" : "dark"} mode`}
             >
               {settings.theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </Button>
+            <div className="flex items-center gap-2 pl-1 border-l border-border/60">
+              <Avatar className="w-8 h-8">
+                <AvatarFallback className="bg-gradient-primary text-white text-xs font-bold">
+                  {initials}
+                </AvatarFallback>
+              </Avatar>
+              <div className="hidden sm:block">
+                <p className="text-xs font-semibold text-foreground leading-tight">{displayName}</p>
+                <p className="text-[10px] text-muted-foreground capitalize">{user?.role}</p>
+              </div>
+            </div>
           </div>
         </header>
 
         {/* Page content */}
-        <main className="flex flex-1 flex-col gap-4 p-6">{children}</main>
+        <main className="flex flex-1 flex-col gap-4 p-6 bg-background">{children}</main>
       </SidebarInset>
     </SidebarProvider>
   );

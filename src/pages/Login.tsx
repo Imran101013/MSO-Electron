@@ -33,7 +33,7 @@ export default function Login() {
           <div className="absolute top-20 left-20 w-64 h-64 rounded-full bg-white/20 blur-3xl" />
           <div className="absolute bottom-20 right-20 w-80 h-80 rounded-full bg-white/10 blur-3xl" />
         </div>
-        <img src="public/MSO-Logo.png" alt="MSO Logo" className="w-28 h-28 object-contain mb-8 drop-shadow-2xl" />
+        <img src="./MSO-Logo.png" alt="MSO Logo" className="w-28 h-28 object-contain mb-8 drop-shadow-2xl" />
         <h1 className="text-4xl font-bold text-white text-center leading-tight">
           Mogh Students<br />Organisation
         </h1>
@@ -53,7 +53,7 @@ export default function Login() {
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="w-full max-w-md space-y-8">
           <div className="text-center lg:hidden mb-6">
-            <img src="public/MSO-Logo.png" alt="MSO Logo" className="w-16 h-16 object-contain mx-auto mb-3" />
+            <img src="./MSO-Logo.png" alt="MSO Logo" className="w-16 h-16 object-contain mx-auto mb-3" />
           </div>
 
           <div>

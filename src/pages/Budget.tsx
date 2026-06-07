@@ -13,7 +13,6 @@ import { useMeetings } from "@/hooks/useMeetings";
 import { cn } from "@/lib/utils";
 import { onMeetingSaved } from "@/lib/events";
 import { useLocation } from "react-router-dom";
-import { useLocation } from "react-router-dom";
 
 export default function Budget() {
   const { members, isLoading: membersLoading } = useMembers();

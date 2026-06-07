@@ -146,10 +146,10 @@ function createWindow() {
   const isDev = !app.isPackaged;
   if (isDev) {
     win.loadURL('http://localhost:8080');
-    win.webContents.openDevTools();
   } else {
     win.loadFile(path.join(__dirname, '../dist/index.html'));
   }
+  win.webContents.openDevTools();
 }
 
 app.whenReady().then(createWindow);
