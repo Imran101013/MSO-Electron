@@ -85,6 +85,36 @@ export default function Meetings() {
     setViewMeetingData({ attendance, contributions });
   };
 
+  const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  const shareLatestMeetingViaWhatsApp = async () => {
+    if (meetings.length === 0) {
+      toast({ title: "No meetings", description: "There is no meeting to share.", variant: "destructive" });
+      return;
+    }
+    const latestMeeting = meetings.reduce((latest, current) => new Date(current.meeting_date) > new Date(latest.meeting_date) ? current : latest, meetings[0]);
+    const message = `Latest meeting details:\n\nDate: ${format(new Date(latestMeeting.meeting_date), settings.dateFormat)}\nAgenda: ${latestMeeting.agenda}${latestMeeting.decisions ? `\nDecisions: ${latestMeeting.decisions}` : ""}`;
+    const api = (window as any).electronAPI;
+    if (!api?.openExternal) {
+      toast({ title: "Unable to open WhatsApp", description: "Desktop API not available.", variant: "destructive" });
+      return;
+    }
+    const membersToMessage = members.filter((member) => member.phone).map((member) => ({ id: member.id, name: member.name, phone: member.phone as string }));
+    if (membersToMessage.length === 0) {
+      toast({ title: "No phone numbers", description: "No members have a phone number to send WhatsApp messages.", variant: "destructive" });
+      return;
+    }
+    for (const member of membersToMessage) {
+      const phone = member.phone.replace(/\D/g, "");
+      if (!phone) continue;
+      const encoded = encodeURIComponent(`Hello ${member.name}, ${message}`);
+      const url = `https://api.whatsapp.com/send?phone=${phone}&text=${encoded}`;
+      await api.openExternal(url);
+      await delay(300);
+    }
+    toast({ title: "WhatsApp opened", description: `WhatsApp share opened for ${membersToMessage.length} members.` });
+  };
+
   const viewedMeeting = meetings.find(m => m.id === viewMeetingId);
 
   if (isLoading || membersLoading) return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
@@ -104,6 +134,7 @@ export default function Meetings() {
         </div>
         {isAdmin && (
           <div className="flex gap-2">
+            <Button variant="secondary" className="gap-2" onClick={shareLatestMeetingViaWhatsApp}><Users className="w-4 h-4" /> Share Latest Meeting</Button>
             {/* Schedule Dialog */}
             <Dialog open={isScheduleOpen} onOpenChange={setIsScheduleOpen}>
               <DialogTrigger asChild>

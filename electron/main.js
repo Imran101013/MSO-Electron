@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, shell } = require('electron');
 const path = require('path');
 const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
@@ -6,15 +6,6 @@ const jwt = require('jsonwebtoken');
 
 const JWT_SECRET = 'hilal-connect-secret-key-change-in-production';
 
-// Utility function to generate a random password
-function generateRandomPassword(length = 10) {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
-  let password = '';
-  for (let i = 0; i < length; i++) {
-    password += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return password;
-}
 
 const pool = new Pool({
   host: 'localhost',
@@ -38,12 +29,12 @@ ipcMain.handle('db-query', async (_, { sql, params }) => {
 });
 
 // Auth: Login
-ipcMain.handle('auth-login', async (_, { identifier, password }) => {
+ipcMain.handle('auth-login', async (_, { email, password }) => {
   const client = await pool.connect();
   try {
     const result = await client.query(
-      'SELECT u.id, u.email, u.password_hash, u.full_name, m.is_approved, r.role FROM public.users u LEFT JOIN public.members m ON m.user_id = u.id LEFT JOIN public.user_roles r ON r.user_id = u.id WHERE u.email = $1 OR m.phone = $1 LIMIT 1',
-      [identifier]
+      'SELECT u.id, u.email, u.password_hash, u.full_name, m.is_approved, r.role FROM public.users u LEFT JOIN public.members m ON m.user_id = u.id LEFT JOIN public.user_roles r ON r.user_id = u.id WHERE u.email = $1 LIMIT 1',
+      [email]
     );
 
     const user = result.rows[0];
@@ -91,8 +82,8 @@ ipcMain.handle('auth-signup', async (_, { email, password, fullName }) => {
     );
 
     await client.query(
-      'INSERT INTO public.members (user_id, name, father_name, email, join_date, is_approved, login_password) VALUES ($1, $2, $3, $4, CURRENT_DATE, false, $5)',
-      [userId, fullName || 'New Member', '', email, password]
+      'INSERT INTO public.members (user_id, name, father_name, email, join_date, is_approved, login_password) VALUES ($1, $2, $3, $4, CURRENT_DATE, false, NULL)',
+      [userId, fullName || 'New Member', '', email]
     );
 
     await client.query(
@@ -120,46 +111,12 @@ ipcMain.handle('auth-verify', async (_, { token }) => {
   }
 });
 
-// Auth: Create member (admin creates a new member with auto-generated password)
-ipcMain.handle('auth-create-member', async (_, { email, name, fatherName, phone, address, dob, joinDate }) => {
-  const client = await pool.connect();
+ipcMain.handle('open-external', async (_, { url }) => {
   try {
-    const existing = await client.query('SELECT id FROM public.users WHERE email = $1', [email]);
-    if (existing.rows.length > 0) return { error: 'Email already registered' };
-
-    const generatedPassword = generateRandomPassword();
-    const password_hash = await bcrypt.hash(generatedPassword, 10);
-
-    await client.query('BEGIN');
-
-    const userResult = await client.query(
-      'INSERT INTO public.users (email, password_hash, full_name) VALUES ($1, $2, $3) RETURNING id',
-      [email, password_hash, name]
-    );
-    const userId = userResult.rows[0].id;
-
-    await client.query(
-      'INSERT INTO public.user_roles (user_id, role) VALUES ($1, $2)',
-      [userId, 'member']
-    );
-
-    await client.query(
-      'INSERT INTO public.members (user_id, name, father_name, email, phone, address, dob, join_date, is_approved, login_password) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, $9)',
-      [userId, name, fatherName || '', email, phone || null, address || null, dob || null, joinDate, generatedPassword]
-    );
-
-    await client.query(
-      'INSERT INTO public.profiles (user_id, email, full_name) VALUES ($1, $2, $3)',
-      [userId, email, name]
-    );
-
-    await client.query('COMMIT');
-    return { success: true, generatedPassword };
+    await shell.openExternal(url);
+    return { success: true };
   } catch (err) {
-    await client.query('ROLLBACK');
     return { error: err.message };
-  } finally {
-    client.release();
   }
 });
 

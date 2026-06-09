@@ -27,22 +27,20 @@ ipcMain.handle('db-query', async (_, { sql, params }) => {
   }
 });
 
-// Auth: Login
+// Auth: Login (Admin only)
 ipcMain.handle('auth-login', async (_, { email, password }) => {
   const client = await pool.connect();
   try {
     const result = await client.query(
-      'SELECT u.id, u.email, u.password_hash, u.full_name, m.is_approved, r.role FROM public.users u LEFT JOIN public.members m ON m.user_id = u.id LEFT JOIN public.user_roles r ON r.user_id = u.id WHERE u.email = $1',
-      [email]
+      'SELECT u.id, u.email, u.password_hash, u.full_name, r.role FROM public.users u LEFT JOIN public.user_roles r ON r.user_id = u.id WHERE u.email = $1 AND r.role = $2',
+      [email, 'admin']
     );
 
     const user = result.rows[0];
-    if (!user) return { error: 'Invalid email or password' };
+    if (!user) return { error: 'Invalid admin credentials' };
 
     const valid = await bcrypt.compare(password, user.password_hash);
-    if (!valid) return { error: 'Invalid email or password' };
-
-    if (!user.is_approved && user.role !== 'admin') return { error: 'Your account is pending approval. Please wait for an admin to approve your account.' };
+    if (!valid) return { error: 'Invalid admin credentials' };
 
     const token = jwt.sign(
       { id: user.id, email: user.email, role: user.role, fullName: user.full_name },
@@ -58,47 +56,6 @@ ipcMain.handle('auth-login', async (_, { email, password }) => {
   }
 });
 
-// Auth: Signup
-ipcMain.handle('auth-signup', async (_, { email, password, fullName }) => {
-  const client = await pool.connect();
-  try {
-    const existing = await client.query('SELECT id FROM public.users WHERE email = $1', [email]);
-    if (existing.rows.length > 0) return { error: 'Email already registered' };
-
-    const password_hash = await bcrypt.hash(password, 10);
-
-    await client.query('BEGIN');
-
-    const userResult = await client.query(
-      'INSERT INTO public.users (email, password_hash, full_name) VALUES ($1, $2, $3) RETURNING id',
-      [email, password_hash, fullName]
-    );
-    const userId = userResult.rows[0].id;
-
-    await client.query(
-      'INSERT INTO public.user_roles (user_id, role) VALUES ($1, $2)',
-      [userId, 'member']
-    );
-
-    await client.query(
-      'INSERT INTO public.members (user_id, name, father_name, email, join_date, is_approved) VALUES ($1, $2, $3, $4, CURRENT_DATE, false)',
-      [userId, fullName || 'New Member', '', email]
-    );
-
-    await client.query(
-      'INSERT INTO public.profiles (user_id, email, full_name) VALUES ($1, $2, $3)',
-      [userId, email, fullName]
-    );
-
-    await client.query('COMMIT');
-    return { success: true };
-  } catch (err) {
-    await client.query('ROLLBACK');
-    return { error: err.message };
-  } finally {
-    client.release();
-  }
-});
 
 // Auth: Verify token
 ipcMain.handle('auth-verify', async (_, { token }) => {

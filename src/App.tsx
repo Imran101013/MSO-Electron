@@ -8,8 +8,6 @@ import { SettingsProvider } from "./contexts/SettingsContext";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import Layout from "./components/Layout";
 import Login from "./pages/Login";
-import Signup from "./pages/Signup";
-import ForgetPassword from "./pages/ForgetPassword";
 import ChangePassword from "./pages/ChangePassword";
 import Dashboard from "./pages/Dashboard";
 import Members from "./pages/Members";
@@ -27,9 +25,8 @@ const queryClient = new QueryClient();
 
 const ProtectedRoute: React.FC<{
   children: React.ReactNode;
-  adminOnly?: boolean;
-}> = ({ children, adminOnly = false }) => {
-  const { isAuthenticated, isAdmin, isLoading } = useAuth();
+}> = ({ children }) => {
+  const { isAuthenticated, isLoading } = useAuth();
 
   if (isLoading) {
     return (
@@ -41,10 +38,6 @@ const ProtectedRoute: React.FC<{
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
-  }
-
-  if (adminOnly && !isAdmin) {
-    return <Navigate to="/" replace />;
   }
 
   return <>{children}</>;
@@ -85,7 +78,7 @@ const AppRoutes = () => {
             <Route
               path="/budget"
               element={
-                <ProtectedRoute adminOnly>
+                <ProtectedRoute>
                   <Budget />
                 </ProtectedRoute>
               }
@@ -93,7 +86,7 @@ const AppRoutes = () => {
             <Route
               path="/loans"
               element={
-                <ProtectedRoute adminOnly>
+                <ProtectedRoute>
                   <Loans />
                 </ProtectedRoute>
               }
@@ -101,7 +94,7 @@ const AppRoutes = () => {
             <Route
               path="/reserve"
               element={
-                <ProtectedRoute adminOnly>
+                <ProtectedRoute>
                   <Reserve />
                 </ProtectedRoute>
               }
@@ -109,7 +102,7 @@ const AppRoutes = () => {
             <Route
               path="/meetings"
               element={
-                <ProtectedRoute adminOnly>
+                <ProtectedRoute>
                   <Meetings />
                 </ProtectedRoute>
               }
@@ -125,7 +118,7 @@ const AppRoutes = () => {
             <Route
               path="/settings"
               element={
-                <ProtectedRoute adminOnly>
+                <ProtectedRoute>
                   <Settings />
                 </ProtectedRoute>
               }
@@ -141,16 +134,14 @@ const AppRoutes = () => {
             <Route
               path="/profit-distribution"
               element={
-                <ProtectedRoute adminOnly>
+                <ProtectedRoute>
                   <ProfitDistribution />
                 </ProtectedRoute>
               }
             />
             <Route path="/login" element={<Navigate to="/" replace />} />
-            <Route
-              path="/forgot-password"
-              element={<Navigate to="/" replace />}
-            />
+            <Route path="/signup" element={<Navigate to="/" replace />} />
+            <Route path="/forgot-password" element={<Navigate to="/" replace />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
@@ -158,8 +149,8 @@ const AppRoutes = () => {
       ) : (
         <Routes>
           <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<Signup />} />
-          <Route path="/forgot-password" element={<ForgetPassword />} />
+          <Route path="/signup" element={<Navigate to="/login" replace />} />
+          <Route path="/forgot-password" element={<Navigate to="/login" replace />} />
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       )}

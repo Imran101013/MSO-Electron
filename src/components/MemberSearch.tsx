@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Search, Mail, Phone, Upload, Eye } from "lucide-react";
+import { Search, Mail, Phone, Upload, Eye, MessageCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -34,7 +34,7 @@ export default function MemberSearch() {
   const { members, setMembers } = useOrganization();
   const { settings } = useSettings();
   const { toast } = useToast();
-  const { user, isMember } = useAuth();
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
@@ -44,17 +44,15 @@ export default function MemberSearch() {
     ? members.find((m) => m.id === selectedMemberId) || null
     : null;
 
-  // Filter suggestions based on user role - members can only search their own details
+  // Filter suggestions based on search query
   const suggestions =
     searchQuery.length > 0
       ? members
-          .filter((member) => {
-            const matchesSearch = member.name
+          .filter((member) =>
+            member.name
               .toLowerCase()
-              .includes(searchQuery.toLowerCase());
-            // Members can view all members in search (details access is restricted elsewhere)
-            return matchesSearch;
-          })
+              .includes(searchQuery.toLowerCase())
+          )
           .slice(0, 5)
       : [];
 
@@ -71,11 +69,6 @@ export default function MemberSearch() {
   };
 
   const handleViewDetails = (member: Member) => {
-    // Members can only view their own details (checked via member.user_id matching auth user id)
-    if (isMember && user) {
-      // For now, allow viewing - proper restriction should be done in the database
-      // when we link members to auth users
-    }
     setSelectedMemberId(member.id);
     setDetailsDialogOpen(true);
   };
@@ -84,6 +77,37 @@ export default function MemberSearch() {
     setDetailsDialogOpen(open);
     if (!open) {
       setSelectedMemberId(null);
+    }
+  };
+
+  const sendMemberDetailsViaWhatsApp = (member: Member) => {
+    if (!member.phone) {
+      toast({
+        title: "No phone number",
+        description: "Cannot WhatsApp member details without a phone number.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const phone = member.phone.replace(/\D/g, "");
+    if (!phone) {
+      toast({
+        title: "Invalid phone",
+        description: "Please enter a valid phone number.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const message = `Hello ${member.name}, your membership details have been recorded.\n\nName: ${member.name}\nFather: ${member.fatherName}\nEmail: ${member.email || "N/A"}\nPhone: ${member.phone}\nAddress: ${member.address || "N/A"}\nJoin Date: ${format(new Date(member.joinDate), settings.dateFormat)}`;
+    const encoded = encodeURIComponent(message);
+    const url = `https://api.whatsapp.com/send?phone=${phone}&text=${encoded}`;
+    const api = (window as any).electronAPI;
+    if (api?.openExternal) {
+      api.openExternal(url);
+      toast({
+        title: "WhatsApp opened",
+        description: `Member details opened in WhatsApp for ${member.name}.`,
+      });
     }
   };
 
@@ -163,40 +187,50 @@ export default function MemberSearch() {
                     Father's Name: {selectedMember.fatherName}
                   </p>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    const input = document.createElement("input");
-                    input.type = "file";
-                    input.accept = "image/*";
-                    input.onchange = (e) => {
-                      const file = (e.target as HTMLInputElement).files?.[0];
-                      if (file && selectedMember) {
-                        const reader = new FileReader();
-                        reader.onloadend = () => {
-                          const base64String = reader.result as string;
-                          const updatedMembers = members.map((m) =>
-                            m.id === selectedMember.id
-                              ? { ...m, profilePicture: base64String }
-                              : m
-                          );
-                          setMembers(updatedMembers);
-                          toast({
-                            title: "Profile Picture Updated",
-                            description:
-                              "The member's profile picture has been updated.",
-                          });
-                        };
-                        reader.readAsDataURL(file);
-                      }
-                    };
-                    input.click();
-                  }}
-                  className="gap-2">
-                  <Upload className="w-4 h-4" />
-                  Update Photo
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const input = document.createElement("input");
+                      input.type = "file";
+                      input.accept = "image/*";
+                      input.onchange = (e) => {
+                        const file = (e.target as HTMLInputElement).files?.[0];
+                        if (file && selectedMember) {
+                          const reader = new FileReader();
+                          reader.onloadend = () => {
+                            const base64String = reader.result as string;
+                            const updatedMembers = members.map((m) =>
+                              m.id === selectedMember.id
+                                ? { ...m, profilePicture: base64String }
+                                : m
+                            );
+                            setMembers(updatedMembers);
+                            toast({
+                              title: "Profile Picture Updated",
+                              description:
+                                "The member's profile picture has been updated.",
+                            });
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      };
+                      input.click();
+                    }}
+                    className="gap-2">
+                    <Upload className="w-4 h-4" />
+                    Update Photo
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => sendMemberDetailsViaWhatsApp(selectedMember)}
+                    className="gap-2">
+                    <MessageCircle className="w-4 h-4" />
+                    Share via WhatsApp
+                  </Button>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -207,14 +241,6 @@ export default function MemberSearch() {
                 <div>
                   <p className="text-sm text-muted-foreground">Phone</p>
                   <p className="font-medium">{selectedMember.phone}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Password</p>
-                  <p className="font-medium">{selectedMember.password || "N/A"}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Password</p>
-                  <p className="font-medium">{selectedMember.password || "N/A"}</p>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Date of Birth</p>

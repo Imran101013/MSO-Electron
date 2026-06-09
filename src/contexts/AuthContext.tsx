@@ -3,19 +3,17 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 interface AuthUser {
   id: string;
   email: string | null;
-  role: "admin" | "member" | null;
+  role: "admin";
   fullName: string | null;
 }
 
 interface AuthContextType {
   user: AuthUser | null;
   session: null;
-  login: (identifier: string, password: string) => Promise<{ error: string | null }>;
-  signup: (email: string, password: string, fullName: string) => Promise<{ error: string | null }>;
+  login: (email: string, password: string) => Promise<{ error: string | null }>;
   logout: () => Promise<void>;
   isAuthenticated: boolean;
   isAdmin: boolean;
-  isMember: boolean;
   isLoading: boolean;
 }
 
@@ -45,21 +43,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, []);
 
-  const login = async (identifier: string, password: string): Promise<{ error: string | null }> => {
+  const login = async (email: string, password: string): Promise<{ error: string | null }> => {
     const api = (window as any).electronAPI;
     if (!api) return { error: 'Not running as desktop app. Please launch via Electron.' };
-    const res = await api.login(identifier, password);
+    const res = await api.login(email, password);
     if (res.error) return { error: res.error };
+    if (res.user.role !== 'admin') return { error: 'Only admin access is allowed.' };
     localStorage.setItem(TOKEN_KEY, res.token);
     setUser(res.user);
-    return { error: null };
-  };
-
-  const signup = async (email: string, password: string, fullName: string): Promise<{ error: string | null }> => {
-    const api = (window as any).electronAPI;
-    if (!api) return { error: 'Not running as desktop app. Please launch via Electron.' };
-    const res = await api.signup(email, password, fullName);
-    if (res.error) return { error: res.error };
     return { error: null };
   };
 
@@ -70,10 +61,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   return (
     <AuthContext.Provider value={{
-      user, session: null, login, signup, logout,
+      user, session: null, login, logout,
       isAuthenticated: !!user,
       isAdmin: user?.role === "admin",
-      isMember: user?.role === "member",
       isLoading,
     }}>
       {children}

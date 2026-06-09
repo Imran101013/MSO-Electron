@@ -59,10 +59,6 @@ export default function Members() {
   const [memberContributions, setMemberContributions] = useState<DbContribution[]>([]);
   const [memberLoans, setMemberLoans] = useState<DbLoan[]>([]);
   const [isLoadingMemberData, setIsLoadingMemberData] = useState(false);
-  const [generatedPassword, setGeneratedPassword] = useState<string | null>(null);
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [newMemberName, setNewMemberName] = useState<string>("");
-  const [newMemberEmail, setNewMemberEmail] = useState<string>("");
   const { toast } = useToast();
   const MEMBERS_PER_PAGE = 5;
   const { settings } = useSettings();
@@ -80,6 +76,26 @@ export default function Members() {
     defaultValues: { name: "", fatherName: "", dob: undefined, email: "", phone: "", address: "", joinDate: undefined, profilePicture: "" },
   });
 
+  const sendMemberDetailsViaWhatsApp = async (member: DbMember) => {
+    if (!member.phone) {
+      toast({ title: "No phone number", description: "Cannot WhatsApp member details without a phone number.", variant: "destructive" });
+      return;
+    }
+    const phone = member.phone.replace(/\D/g, "");
+    if (!phone) {
+      toast({ title: "Invalid phone", description: "Please enter a valid phone number.", variant: "destructive" });
+      return;
+    }
+    const message = `Hello ${member.name}, your membership details have been recorded.\n\nName: ${member.name}\nFather: ${member.father_name}\nEmail: ${member.email || "N/A"}\nPhone: ${member.phone}\nAddress: ${member.address || "N/A"}\nJoin Date: ${member.join_date}`;
+    const encoded = encodeURIComponent(message);
+    const url = `https://api.whatsapp.com/send?phone=${phone}&text=${encoded}`;
+    const api = (window as any).electronAPI;
+    if (api?.openExternal) {
+      await api.openExternal(url);
+      toast({ title: "WhatsApp opened", description: `Member details opened in WhatsApp for ${member.name}.` });
+    }
+  };
+
   const onSubmit = async (data: MemberFormValues) => {
     setIsSubmitting(true);
     const formData = {
@@ -90,12 +106,9 @@ export default function Members() {
     if (editingMember) {
       await updateMember(editingMember.id, formData);
     } else {
-      const result = await addMember(formData);
-      if (result && result.generatedPassword) {
-        setGeneratedPassword(result.generatedPassword);
-        setNewMemberName(data.name);
-        setNewMemberEmail(data.email);
-        setShowPasswordModal(true);
+      const createdMember = await addMember(formData);
+      if (createdMember) {
+        await sendMemberDetailsViaWhatsApp(createdMember);
       }
     }
     setIsSubmitting(false);
@@ -164,13 +177,6 @@ export default function Members() {
       toast({ title: "Photo Updated" });
     };
     input.click();
-  };
-
-  const handleCopyPassword = () => {
-    if (generatedPassword) {
-      navigator.clipboard.writeText(generatedPassword);
-      toast({ title: "Copied", description: "Password copied to clipboard" });
-    }
   };
 
   if (isLoading) return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
@@ -414,7 +420,6 @@ export default function Members() {
                 {[
                   { label: "Email", value: selectedMember.email || "N/A" },
                   { label: "Phone", value: selectedMember.phone || "N/A" },
-                  { label: "Password", value: selectedMember.login_password || "N/A" },
                   { label: "Date of Birth", value: selectedMember.dob ? format(new Date(selectedMember.dob), settings.dateFormat) : "N/A" },
                   { label: "Join Date", value: format(new Date(selectedMember.join_date), settings.dateFormat) },
                   { label: "Address", value: selectedMember.address || "N/A" },
@@ -467,37 +472,6 @@ export default function Members() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={showPasswordModal} onOpenChange={setShowPasswordModal}>
-        <DialogContent className="sm:max-w-[420px]">
-          <DialogHeader>
-            <DialogTitle>Member Account Created</DialogTitle>
-            <DialogDescription>
-              Login credentials for {newMemberName}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold uppercase text-muted-foreground">Email</Label>
-              <div className="p-3 bg-muted rounded-lg font-mono text-sm">{newMemberEmail}</div>
-            </div>
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold uppercase text-muted-foreground">Password</Label>
-              <div className="flex gap-2">
-                <div className="flex-1 p-3 bg-muted rounded-lg font-mono text-sm break-all">{generatedPassword}</div>
-                <Button size="sm" variant="outline" onClick={handleCopyPassword} className="flex-shrink-0">
-                  Copy
-                </Button>
-              </div>
-            </div>
-            <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg text-xs text-amber-900 dark:text-amber-200">
-              ⚠️ Share these credentials with the member securely. This password will not be shown again.
-            </div>
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button onClick={() => setShowPasswordModal(false)}>Done</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
