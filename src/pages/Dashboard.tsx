@@ -34,6 +34,7 @@ import { useMeetings } from "@/hooks/useMeetings";
 import { useLoans } from "@/hooks/useLoans";
 import { useContributions } from "@/hooks/useContributions";
 import { useReserveTransactions } from "@/hooks/useReserveTransactions";
+import { Link } from "react-router-dom";
 
 export default function Dashboard() {
   const { settings } = useSettings();
@@ -201,7 +202,7 @@ export default function Dashboard() {
         <Card className="shadow-md border-0">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base">
-              <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center">
+              <div className="w-7 h-7 rounded-xl bg-primary/10 flex items-center justify-center">
                 <Calendar className="w-4 h-4 text-primary" />
               </div>
               Upcoming Meetings
@@ -211,8 +212,8 @@ export default function Dashboard() {
             {allUpcomingMeetings.length > 0 ? (
               <div className="space-y-3">
                 {allUpcomingMeetings.map((meeting) => (
-                  <div key={meeting.id} className="flex items-start gap-3 p-3 rounded-lg bg-muted/50 border border-border/50">
-                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <div key={meeting.id} className="flex items-start gap-3 p-3 rounded-xl bg-muted/50 border border-border/50">
+                    <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
                       <Clock className="w-4 h-4 text-primary" />
                     </div>
                     <div className="flex-1 min-w-0">
@@ -231,7 +232,11 @@ export default function Dashboard() {
                   <Calendar className="w-6 h-6 text-muted-foreground" />
                 </div>
                 <p className="text-sm font-medium text-muted-foreground">No upcoming meetings</p>
-                <p className="text-xs text-muted-foreground mt-1">Schedule one from the Meetings page</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  <Link to="/meetings" className="text-primary underline underline-offset-4 hover:text-primary/80 transition-colors">
+                    Schedule one from the Meetings page
+                  </Link>
+                </p>
               </div>
             )}
           </CardContent>
@@ -240,7 +245,7 @@ export default function Dashboard() {
         <Card className="shadow-md border-0">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base">
-              <div className="w-7 h-7 rounded-lg bg-secondary/10 flex items-center justify-center">
+              <div className="w-7 h-7 rounded-xl bg-secondary/10 flex items-center justify-center">
                 <TrendingUp className="w-4 h-4 text-secondary" />
               </div>
               Quick Stats
@@ -269,7 +274,7 @@ export default function Dashboard() {
         <Card className="shadow-md border-0">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base">
-              <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center">
+              <div className="w-7 h-7 rounded-xl bg-primary/10 flex items-center justify-center">
                 <Wallet className="w-4 h-4 text-primary" />
               </div>
               Monthly Budget Trend
@@ -291,6 +296,11 @@ export default function Dashboard() {
             ) : (
               <div className="text-center py-12">
                 <p className="text-sm text-muted-foreground">No data available yet</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  <Link to="/meetings" className="text-primary underline underline-offset-4 hover:text-primary/80 transition-colors">
+                    Record a meeting to see this chart populate
+                  </Link>
+                </p>
               </div>
             )}
           </CardContent>
@@ -299,7 +309,7 @@ export default function Dashboard() {
         <Card className="shadow-md border-0">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base">
-              <div className="w-7 h-7 rounded-lg bg-secondary/10 flex items-center justify-center">
+              <div className="w-7 h-7 rounded-xl bg-secondary/10 flex items-center justify-center">
                 <HandCoins className="w-4 h-4 text-secondary" />
               </div>
               Monthly Loans Trend
@@ -315,13 +325,18 @@ export default function Dashboard() {
                   <YAxis tick={{ fontSize: 11 }} />
                   <Tooltip formatter={(value) => `PKR ${Number(value).toLocaleString()}`} />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Bar dataKey="issued" fill="#ef4444" name="Loans Issued" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="recovered" fill="#22c55e" name="Loans Recovered" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="issued" fill="hsl(var(--destructive))" name="Loans Issued" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="recovered" fill="hsl(var(--secondary))" name="Loans Recovered" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
               <div className="text-center py-12">
                 <p className="text-sm text-muted-foreground">No data available yet</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  <Link to="/loans" className="text-primary underline underline-offset-4 hover:text-primary/80 transition-colors">
+                    Issue or record a loan to see this chart populate
+                  </Link>
+                </p>
               </div>
             )}
           </CardContent>

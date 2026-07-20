@@ -60,13 +60,13 @@ export default function Members() {
   const [memberLoans, setMemberLoans] = useState<DbLoan[]>([]);
   const [isLoadingMemberData, setIsLoadingMemberData] = useState(false);
   const { toast } = useToast();
-  const MEMBERS_PER_PAGE = 5;
   const { settings } = useSettings();
+  const membersPerPage = settings.membersPerPage || ORGANIZATION_CONFIG.MEMBERS_PER_PAGE;
 
   const selectedMember = selectedMemberId ? members.find((m) => m.id === selectedMemberId) || null : null;
   const filteredMembers = members.filter((m) => m.name.toLowerCase().includes(searchQuery.toLowerCase()));
-  const totalPages = Math.ceil(filteredMembers.length / MEMBERS_PER_PAGE);
-  const currentMembers = filteredMembers.slice((currentPage - 1) * MEMBERS_PER_PAGE, currentPage * MEMBERS_PER_PAGE);
+  const totalPages = Math.ceil(filteredMembers.length / membersPerPage);
+  const currentMembers = filteredMembers.slice((currentPage - 1) * membersPerPage, currentPage * membersPerPage);
   const suggestions = searchQuery.length > 0 ? members.filter((m) => m.name.toLowerCase().includes(searchQuery.toLowerCase())).slice(0, 5) : [];
   const approvedCount = members.filter((m) => m.is_approved).length;
   const pendingCount = members.filter((m) => !m.is_approved).length;
@@ -152,9 +152,25 @@ export default function Members() {
     if (!isOpen) { setEditingMember(null); setProfilePicturePreview(""); form.reset(); }
   };
 
+  const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif"];
+  const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
+  const validateProfileImage = (file: File): boolean => {
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      toast({ title: "Invalid File", description: "Please upload a JPG, PNG or GIF image.", variant: "destructive" });
+      return false;
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      toast({ title: "File Too Large", description: "Profile pictures must be 5MB or smaller.", variant: "destructive" });
+      return false;
+    }
+    return true;
+  };
+
   const handleProfilePictureChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!validateProfileImage(file)) return;
     const filePath = `members/${Date.now()}.${file.name.split(".").pop()}`;
     const { error } = await supabase.storage.from("profile-pictures").upload(filePath, file);
     if (error) { toast({ title: "Upload Error", description: "Failed to upload profile picture", variant: "destructive" }); return; }
@@ -169,6 +185,7 @@ export default function Members() {
     input.onchange = async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (!file) return;
+      if (!validateProfileImage(file)) return;
       const filePath = `members/${Date.now()}.${file.name.split(".").pop()}`;
       const { error } = await supabase.storage.from("profile-pictures").upload(filePath, file);
       if (error) { toast({ title: "Upload Error", description: "Failed to upload", variant: "destructive" }); return; }
@@ -256,7 +273,7 @@ export default function Members() {
                     {/* Profile Picture */}
                     <div className="space-y-3">
                       <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Profile Picture</p>
-                      <div className="flex items-center gap-4 p-3 rounded-lg bg-muted/40 border border-border/60">
+                      <div className="flex items-center gap-4 p-3 rounded-xl bg-muted/40 border border-border/60">
                         <Avatar className="h-14 w-14 flex-shrink-0">
                           <AvatarImage src={profilePicturePreview || editingMember?.profile_picture || undefined} />
                           <AvatarFallback className="bg-gradient-primary"><Upload className="w-5 h-5 text-primary-foreground" /></AvatarFallback>
@@ -313,7 +330,7 @@ export default function Members() {
               onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
             />
             {showSuggestions && suggestions.length > 0 && (
-              <div className="absolute top-full left-0 right-0 mt-1 bg-background border border-border rounded-lg shadow-lg z-50 overflow-hidden" onMouseDown={(e) => e.preventDefault()}>
+              <div className="absolute top-full left-0 right-0 mt-1 bg-background border border-border rounded-xl shadow-lg z-50 overflow-hidden" onMouseDown={(e) => e.preventDefault()}>
                 {suggestions.map((m) => (
                   <button key={m.id} type="button" onClick={() => { setSearchQuery(m.name); setShowSuggestions(false); setTimeout(() => handleViewDetails(m), 100); }}
                     className="w-full text-left px-4 py-2.5 hover:bg-muted transition-colors flex items-center gap-3 border-b border-border/50 last:border-0">
@@ -356,7 +373,7 @@ export default function Members() {
                     {isAdmin && (
                       <>
                         {!member.is_approved && (
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50" onClick={() => approveMember(member.id, member.name)} title="Approve">
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/30" onClick={() => approveMember(member.id, member.name)} title="Approve">
                             <UserCheck className="w-4 h-4" />
                           </Button>
                         )}
@@ -425,7 +442,7 @@ export default function Members() {
                   { label: "Address", value: selectedMember.address || "N/A" },
                   { label: "Total Budget", value: `PKR ${(selectedMember.total_budget || 0).toLocaleString()}` },
                 ].map(({ label, value }) => (
-                  <div key={label} className="p-3 rounded-lg bg-muted/40">
+                  <div key={label} className="p-3 rounded-xl bg-muted/40">
                     <p className="text-xs text-muted-foreground mb-0.5">{label}</p>
                     <p className="text-sm font-semibold text-foreground">{value}</p>
                   </div>

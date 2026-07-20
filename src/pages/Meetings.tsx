@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, Calendar, Eye, FileText, Clock, Loader2, Trash2, CalendarDays } from "lucide-react";
+import { Plus, Calendar, Eye, FileText, Clock, Loader2, Trash2, CalendarDays, Users } from "lucide-react";
 import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -18,7 +18,7 @@ import { formatTimeTo12Hour } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { DatePicker } from "@/components/ui/date-picker";
-import { useMeetings, DbMeeting } from "@/hooks/useMeetings";
+import { useMeetings, DbMeeting, DbUpcomingMeeting } from "@/hooks/useMeetings";
 import { useMembers } from "@/hooks/useMembers";
 import { useAttendance } from "@/hooks/useAttendance";
 import { useContributions } from "@/hooks/useContributions";
@@ -44,6 +44,7 @@ export default function Meetings() {
   const [viewMeetingId, setViewMeetingId] = useState<string | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [meetingToDelete, setMeetingToDelete] = useState<DbMeeting | null>(null);
+  const [upcomingToDelete, setUpcomingToDelete] = useState<DbUpcomingMeeting | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [memberContributions, setMemberContributions] = useState<MemberContribution[]>([]);
   const [viewMeetingData, setViewMeetingData] = useState<{ attendance: any[]; contributions: any[] }>({ attendance: [], contributions: [] });
@@ -89,19 +90,19 @@ export default function Meetings() {
 
   const shareLatestMeetingViaWhatsApp = async () => {
     if (meetings.length === 0) {
-      toast({ title: "No meetings", description: "There is no meeting to share.", variant: "destructive" });
+      toast.error("No meetings", { description: "There is no meeting to share." });
       return;
     }
     const latestMeeting = meetings.reduce((latest, current) => new Date(current.meeting_date) > new Date(latest.meeting_date) ? current : latest, meetings[0]);
     const message = `Latest meeting details:\n\nDate: ${format(new Date(latestMeeting.meeting_date), settings.dateFormat)}\nAgenda: ${latestMeeting.agenda}${latestMeeting.decisions ? `\nDecisions: ${latestMeeting.decisions}` : ""}`;
     const api = (window as any).electronAPI;
     if (!api?.openExternal) {
-      toast({ title: "Unable to open WhatsApp", description: "Desktop API not available.", variant: "destructive" });
+      toast.error("Unable to open WhatsApp", { description: "Desktop API not available." });
       return;
     }
     const membersToMessage = members.filter((member) => member.phone).map((member) => ({ id: member.id, name: member.name, phone: member.phone as string }));
     if (membersToMessage.length === 0) {
-      toast({ title: "No phone numbers", description: "No members have a phone number to send WhatsApp messages.", variant: "destructive" });
+      toast.error("No phone numbers", { description: "No members have a phone number to send WhatsApp messages." });
       return;
     }
     for (const member of membersToMessage) {
@@ -112,7 +113,7 @@ export default function Meetings() {
       await api.openExternal(url);
       await delay(300);
     }
-    toast({ title: "WhatsApp opened", description: `WhatsApp share opened for ${membersToMessage.length} members.` });
+    toast.success("WhatsApp opened", { description: `WhatsApp share opened for ${membersToMessage.length} members.` });
   };
 
   const viewedMeeting = meetings.find(m => m.id === viewMeetingId);
@@ -274,7 +275,7 @@ export default function Meetings() {
                     </div>
                   </div>
                   {isAdmin && (
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => deleteUpcomingMeeting(meeting.id)}>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl text-destructive hover:text-destructive" onClick={() => setUpcomingToDelete(meeting)}>
                       <Trash2 className="w-4 h-4" />
                     </Button>
                   )}
@@ -412,6 +413,16 @@ export default function Meetings() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={async () => { if (meetingToDelete) { await deleteMeeting(meetingToDelete.id); setMeetingToDelete(null); } setDeleteDialogOpen(false); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!upcomingToDelete} onOpenChange={(o) => { if (!o) setUpcomingToDelete(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader><AlertDialogTitle>Cancel Scheduled Meeting</AlertDialogTitle><AlertDialogDescription>Are you sure you want to remove this scheduled meeting? This action cannot be undone.</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={async () => { if (upcomingToDelete) { await deleteUpcomingMeeting(upcomingToDelete.id); setUpcomingToDelete(null); } }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

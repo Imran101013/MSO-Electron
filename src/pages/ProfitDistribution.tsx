@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 export default function ProfitDistribution() {
   const [profitAmount, setProfitAmount] = useState<string>("");
   const [isDistributing, setIsDistributing] = useState(false);
-  const [expandedHistory, setExpandedHistory] = useState<number | null>(null);
+  const [expandedHistory, setExpandedHistory] = useState<string | null>(null);
   const { calculateBudgetRatios, distributeProfit, profitDistributions } = useOrganization();
   const { settings } = useSettings();
 
@@ -32,9 +32,14 @@ export default function ProfitDistribution() {
     if (budgetRatios.length === 0) { toast.error("No meeting data available for distribution calculation"); return; }
     setIsDistributing(true);
     try {
-      distributeProfit(totalProfit, format(new Date(), settings.dateFormat));
-      toast.success("Profit distributed successfully!");
-      setProfitAmount("");
+      // Persist with an ISO date (Postgres DATE column) — display formatting (settings.dateFormat)
+      // is only applied when rendering dates back, not when writing them.
+      const isoDate = new Date().toISOString().split("T")[0];
+      const success = await distributeProfit(totalProfit, isoDate);
+      if (success) {
+        toast.success("Profit distributed successfully!");
+        setProfitAmount("");
+      }
     } catch {
       toast.error("Failed to distribute profit");
     } finally {

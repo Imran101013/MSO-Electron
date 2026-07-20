@@ -25,6 +25,7 @@ export default function Reserve() {
   } = useOrganization();
 
   const [open, setOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     type: "donation",
     amount: "",
@@ -33,19 +34,25 @@ export default function Reserve() {
     notes: "",
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    addReserveTransaction({
+    const amount = Number(formData.amount);
+    if (!formData.amount || !Number.isFinite(amount) || amount <= 0) return;
+    setIsSubmitting(true);
+    const success = await addReserveTransaction({
       type: formData.type as "donation" | "expense",
-      amount: Number(formData.amount || 0),
+      amount,
       date: formData.date
         ? formData.date.toISOString().split("T")[0]
         : new Date().toISOString().split("T")[0],
       donorName: formData.donorName || undefined,
       notes: formData.notes || undefined,
     });
-    setOpen(false);
-    setFormData({ type: "donation", amount: "", date: undefined, donorName: "", notes: "" });
+    setIsSubmitting(false);
+    if (success) {
+      setOpen(false);
+      setFormData({ type: "donation", amount: "", date: undefined, donorName: "", notes: "" });
+    }
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -101,7 +108,7 @@ export default function Reserve() {
 
                 <div className="space-y-1.5">
                   <Label htmlFor="amount" className="text-xs font-medium">Amount (PKR)</Label>
-                  <Input id="amount" name="amount" type="text" placeholder="Enter amount" className="h-9"
+                  <Input id="amount" name="amount" type="number" min="0" step="0.01" placeholder="Enter amount" className="h-9"
                     value={formData.amount} onChange={handleInputChange} required />
                 </div>
 
@@ -132,7 +139,7 @@ export default function Reserve() {
 
               <div className="flex-shrink-0 flex justify-end gap-3 px-6 py-4 border-t bg-muted/20">
                 <Button type="button" variant="outline" size="sm" onClick={() => setOpen(false)}>Cancel</Button>
-                <Button type="submit" size="sm">Add Transaction</Button>
+                <Button type="submit" size="sm" disabled={isSubmitting}>{isSubmitting ? "Adding…" : "Add Transaction"}</Button>
               </div>
             </form>
           </DialogContent>
@@ -213,7 +220,10 @@ export default function Reserve() {
               </div>
 
               {/* Rows */}
-              {[...reserveTransactions].reverse().map((tx, idx) => (
+              {[...reserveTransactions].reverse().map((tx, idx) => {
+                const isInflow = tx.type !== "expense";
+                const label = tx.type === "expense" ? "Expense" : tx.type === "profit_allocation" ? "Profit Share" : "Deposit";
+                return (
                 <div
                   key={tx.id}
                   className="grid grid-cols-12 px-5 py-3.5 items-center hover:bg-muted/30 transition-colors"
@@ -225,14 +235,14 @@ export default function Reserve() {
                   <div className="col-span-2">
                     <span className={cn(
                       "inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full",
-                      tx.type === "donation"
+                      isInflow
                         ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
                         : "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400"
                     )}>
-                      {tx.type === "donation"
+                      {isInflow
                         ? <TrendingUp className="w-3 h-3" />
                         : <TrendingDown className="w-3 h-3" />}
-                      {tx.type === "donation" ? "Deposit" : "Expense"}
+                      {label}
                     </span>
                   </div>
 
@@ -248,14 +258,15 @@ export default function Reserve() {
 
                   <span className={cn(
                     "col-span-1 text-sm font-bold text-right",
-                    tx.type === "donation"
+                    isInflow
                       ? "text-emerald-600 dark:text-emerald-400"
                       : "text-rose-600 dark:text-rose-400"
                   )}>
-                    {tx.type === "donation" ? "+" : "-"}PKR {tx.amount.toLocaleString()}
+                    {isInflow ? "+" : "-"}PKR {tx.amount.toLocaleString()}
                   </span>
                 </div>
-              ))}
+                );
+              })}
 
               {/* Footer totals */}
               <div className="grid grid-cols-12 px-5 py-3 bg-muted/40 border-t border-border/60">

@@ -47,9 +47,9 @@ export default function ChangePassword() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md">
+      <Card className="w-full max-w-md rounded-2xl border-0 shadow-lg">
         <CardHeader className="text-center">
-          <div className="w-12 h-12 rounded-lg bg-gradient-primary flex items-center justify-center mx-auto mb-4">
+          <div className="w-14 h-14 rounded-2xl bg-gradient-primary flex items-center justify-center mx-auto mb-4 shadow-md">
             <Lock className="w-6 h-6 text-primary-foreground" />
           </div>
           <CardTitle className="text-2xl">Change Password</CardTitle>
@@ -100,7 +100,7 @@ export default function ChangePassword() {
                 <AlertDescription>{message}</AlertDescription>
               </Alert>
             )}
-            <Button type="submit" className="w-full" disabled={isLoading}>
+            <Button type="submit" className="w-full h-11 rounded-xl shadow-md" disabled={isLoading}>
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

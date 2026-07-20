@@ -538,7 +538,7 @@ export class PDFReports {
 
   generateReserveTransactionsLedger(
     transactions: Array<{
-      id: number;
+      id: number | string;
       type: string;
       amount: number;
       date: string | Date;
@@ -580,14 +580,14 @@ export class PDFReports {
 
   generateLoanLedgerForLoan(
     members: Member[],
-    memberId: number,
-    loanId: number,
+    memberId: string,
+    loanId: string,
     settings?: Settings,
   ) {
     this.doc = new jsPDF();
     this.currentY = this.margin;
 
-    const member = members.find((m) => m.id === memberId);
+    const member = members.find((m) => m.dbId === memberId);
     this.addHeader(
       `Loan Ledger - ${member ? member.name : `Member ${memberId}`}`,
       settings?.organizationName || "MSO",
@@ -599,7 +599,7 @@ export class PDFReports {
       return this.doc;
     }
 
-    const loan = member.loans.find((l) => l.id === loanId);
+    const loan = member.loans.find((l) => l.dbId === loanId);
     if (!loan) {
       this.doc.setFontSize(12);
       this.doc.text(
@@ -678,14 +678,14 @@ export const generateReport = async (
     organizationName?: string;
     meetings?: Meeting[];
     transactions?: Array<{
-      id: number;
+      id: number | string;
       type: string;
       amount: number;
       date: string | Date;
       donorName?: string;
       notes?: string;
     }>;
-    loanId?: number;
+    loanId?: string;
   },
   settings?: Settings,
 ) => {
@@ -758,7 +758,7 @@ export const generateReport = async (
         throw new Error("Member and loanId required for loan ledger");
       doc = reports.generateLoanLedgerForLoan(
         data.members || [],
-        member.id,
+        member.dbId,
         loanId,
         settings,
       );

@@ -70,9 +70,10 @@ export default {
         'lg': 'var(--shadow-lg)',
       },
       borderRadius: {
+        xl: "calc(var(--radius) + 0.5rem)",
         lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
+        md: "calc(var(--radius) * 0.75)",
+        sm: "calc(var(--radius) * 0.5)",
       },
       keyframes: {
         "accordion-down": {

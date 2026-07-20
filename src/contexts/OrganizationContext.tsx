@@ -7,6 +7,7 @@ import { useContributions, DbContribution } from "@/hooks/useContributions";
 import { useAttendance, DbAttendance } from "@/hooks/useAttendance";
 import { useMeetings, DbMeeting, DbUpcomingMeeting } from "@/hooks/useMeetings";
 import { useReserveTransactions } from "@/hooks/useReserveTransactions";
+import { useProfitDistributions } from "@/hooks/useProfitDistributions";
 
 export interface MonthlyContribution {
   month: string;
@@ -26,6 +27,7 @@ export interface LoanInstallment {
 
 export interface Loan {
   id: number;
+  dbId: string;
   amount: number;
   date: string;
   status: LoanStatus;
@@ -58,8 +60,8 @@ export interface MeetingReserveFund {
 }
 
 export interface ReserveTransaction {
-  id: number;
-  type: "donation" | "expense";
+  id: string;
+  type: "donation" | "expense" | "profit_allocation";
   amount: number;
   date: string;
   donorName?: string;
@@ -67,14 +69,14 @@ export interface ReserveTransaction {
 }
 
 export interface ProfitAllocation {
-  memberId: number;
+  memberId: string;
   memberName: string;
   amount: number;
   ratio: number;
 }
 
 export interface ProfitDistribution {
-  id: number;
+  id: string;
   date: string;
   totalProfit: number;
   reserveAllocation: number;
@@ -101,6 +103,7 @@ export interface UpcomingMeeting {
 
 export interface Member {
   id: number;
+  dbId: string;
   name: string;
   fatherName: string;
   dob: Date;
@@ -128,7 +131,7 @@ interface OrganizationContextType {
   activeLoans: number;
   reserveFund: number;
   reserveTransactions: ReserveTransaction[];
-  addReserveTransaction: (t: Omit<ReserveTransaction, "id">) => void;
+  addReserveTransaction: (t: Omit<ReserveTransaction, "id">) => Promise<boolean>;
   addLoanIssue: (memberId: number, amount: number, date: string) => void;
   addLoanCollection: (
     memberId: number,
@@ -155,7 +158,7 @@ interface OrganizationContextType {
   reserveTrend: { amount: number; percentage: number } | null;
   profitDistributions: ProfitDistribution[];
   calculateBudgetRatios: () => ProfitAllocation[];
-  distributeProfit: (totalProfit: number, date: string) => void;
+  distributeProfit: (totalProfit: number, date: string) => Promise<boolean>;
 }
 
 const OrganizationContext = createContext<OrganizationContextType | undefined>(
@@ -165,6 +168,7 @@ const OrganizationContext = createContext<OrganizationContextType | undefined>(
 const initialMembers: Member[] = [
   {
     id: 1,
+    dbId: "sample-1",
     name: "John Doe",
     fatherName: "Father Doe",
     dob: new Date("1990-01-01"),
@@ -183,6 +187,7 @@ const initialMembers: Member[] = [
     loans: [
       {
         id: 1,
+        dbId: "sample-loan-1",
         amount: 5000,
         date: "2024-01-15",
         status: "Active",
@@ -197,6 +202,7 @@ const initialMembers: Member[] = [
   },
   {
     id: 2,
+    dbId: "sample-2",
     name: "Jane Smith",
     fatherName: "Father Smith",
     dob: new Date("1992-05-15"),
@@ -243,16 +249,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   );
   const [reserveTransactions, setReserveTransactions] = useState<
     ReserveTransaction[]
-  >([
-    {
-      id: 1,
-      type: "donation",
-      amount: 2000,
-      date: "2024-01-01",
-      donorName: "Anonymous",
-      notes: "General donation"
-    }
-  ]);
+  >([]);
   const [profitDistributions, setProfitDistributions] = useState<
     ProfitDistribution[]
   >([]);
@@ -263,13 +260,14 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     ? settings.loanInterestRate
     : 0;
 
-  // Load data from Supabase
-  const { members: dbMembers } = useMembers();
+  // Load data from Postgres via the Electron IPC bridge
+  const { members: dbMembers, fetchMembers: refetchMembers } = useMembers();
   const { loans: dbLoans, installments: dbInstallments } = useLoans();
   const { contributions: dbContributions } = useContributions();
   const { attendance: dbAttendance } = useAttendance();
   const { meetings: dbMeetings, upcomingMeetings: dbUpcomingMeetings } = useMeetings();
-  const { transactions: dbReserveTransactions } = useReserveTransactions();
+  const { transactions: dbReserveTransactions, addTransaction: dbAddReserveTransaction } = useReserveTransactions();
+  const { distributions: dbDistributions, allocations: dbAllocations, recordDistribution } = useProfitDistributions();
 
   // Transform database data to context format
   useEffect(() => {
@@ -288,6 +286,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
 
             return {
               id: parseInt(loan.id),
+              dbId: loan.id,
               amount: loan.amount,
               date: loan.loan_date,
               status: loan.status as LoanStatus,
@@ -315,6 +314,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
 
         return {
           id: parseInt(dbMember.id),
+          dbId: dbMember.id,
           name: dbMember.name,
           fatherName: dbMember.father_name,
           dob: dbMember.dob ? new Date(dbMember.dob) : new Date(),
@@ -371,19 +371,40 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
 
   // Transform reserve transactions data
   useEffect(() => {
-    if (dbReserveTransactions.length > 0) {
-      const transformedTransactions: ReserveTransaction[] = dbReserveTransactions.map((transaction) => ({
-        id: parseInt(transaction.id),
-        type: transaction.transaction_type as "donation" | "expense",
-        amount: transaction.amount,
-        date: transaction.transaction_date,
-        donorName: transaction.donor_name || undefined,
-        notes: transaction.notes || undefined,
-      }));
+    const transformedTransactions: ReserveTransaction[] = dbReserveTransactions.map((transaction) => ({
+      id: transaction.id,
+      type: transaction.transaction_type as "donation" | "expense" | "profit_allocation",
+      amount: transaction.amount,
+      date: transaction.transaction_date,
+      donorName: transaction.donor_name || undefined,
+      notes: transaction.notes || undefined,
+    }));
 
-      setReserveTransactions(transformedTransactions);
-    }
+    setReserveTransactions(transformedTransactions);
   }, [dbReserveTransactions]);
+
+  // Transform profit distributions + their per-member allocations
+  useEffect(() => {
+    const transformed: ProfitDistribution[] = dbDistributions.map((dist) => ({
+      id: dist.id,
+      date: dist.distribution_date,
+      totalProfit: dist.total_profit,
+      reserveAllocation: dist.reserve_allocation,
+      memberAllocations: dbAllocations
+        .filter((a) => a.distribution_id === dist.id)
+        .map((a) => {
+          const member = dbMembers.find((m) => m.id === a.member_id);
+          return {
+            memberId: a.member_id,
+            memberName: member?.name || "Unknown Member",
+            amount: a.amount,
+            ratio: a.ratio,
+          };
+        }),
+    }));
+
+    setProfitDistributions(transformed);
+  }, [dbDistributions, dbAllocations, dbMembers]);
 
   // Calculate total members
   const totalMembers = members.length;
@@ -421,9 +442,11 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     return sum + paidWithInterest;
   }, 0);
 
-  // Reserve transactions (donations/expenses) - computed before totals so budget includes them
+  // Reserve transactions (donations/expenses) - computed before totals so budget includes them.
+  // "profit_allocation" rows (the reserve's 10% cut from a profit distribution) count as
+  // money coming into the reserve, same as a donation.
   const transactionDonations = reserveTransactions
-    .filter((t) => t.type === "donation")
+    .filter((t) => t.type === "donation" || t.type === "profit_allocation")
     .reduce((s, t) => s + t.amount, 0);
 
   const transactionExpenses = reserveTransactions
@@ -617,6 +640,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
 
     const newLoan: Loan = {
       id: member.loans.length + 1,
+      dbId: `local-${member.dbId}-${Date.now()}`,
       amount,
       date,
       status: ORGANIZATION_CONFIG.LOAN_STATUS.ACTIVE,
@@ -692,6 +716,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
 
     const newLoan: Loan = {
       id: member.loans.length + 1,
+      dbId: `local-${member.dbId}-${Date.now()}`,
       amount,
       date,
       status,
@@ -706,31 +731,37 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     setMembers(updatedMembers);
   };
 
-  // Function to add reserve transaction
-  const addReserveTransaction = (t: Omit<ReserveTransaction, "id">) => {
-    const newTx: ReserveTransaction = {
-      id: Date.now(),
-      ...t,
-    };
-    setReserveTransactions((prev) => [newTx, ...prev]);
+  // Function to add a reserve transaction — persists to Postgres via useReserveTransactions;
+  // the dbReserveTransactions -> reserveTransactions transform effect above picks up the result.
+  const addReserveTransaction = async (t: Omit<ReserveTransaction, "id">): Promise<boolean> => {
+    const result = await dbAddReserveTransaction({
+      transaction_type: t.type,
+      amount: t.amount,
+      donor_name: t.donorName,
+      notes: t.notes,
+      transaction_date: t.date,
+    });
+    return result !== null;
   };
 
-  // Function to calculate budget ratios from total contributions across all meetings
-  const calculateBudgetRatios = () => {
-    if (members.length === 0) return [];
+  // Function to calculate budget ratios from total contributions across all time,
+  // computed directly against the DB-backed member/contribution rows (real UUID ids).
+  const calculateBudgetRatios = (): ProfitAllocation[] => {
+    if (dbMembers.length === 0) return [];
 
-    // Sum total contributions per member across all time
-    const memberTotals: Record<number, { memberId: number; memberName: string; total: number }> = {};
+    const memberTotals: Record<string, { memberId: string; memberName: string; total: number }> = {};
 
-    members.forEach((member) => {
-      const total = member.monthlyContributions.reduce((s, c) => s + c.amount, 0);
-      if (total > 0) {
-        memberTotals[member.id] = {
-          memberId: member.id,
+    dbContributions.forEach((contrib: DbContribution) => {
+      const member = dbMembers.find((m: DbMember) => m.id === contrib.member_id);
+      if (!member) return;
+      if (!memberTotals[contrib.member_id]) {
+        memberTotals[contrib.member_id] = {
+          memberId: contrib.member_id,
           memberName: member.name,
-          total,
+          total: 0,
         };
       }
+      memberTotals[contrib.member_id].total += contrib.amount;
     });
 
     const grandTotal = Object.values(memberTotals).reduce((s, m) => s + m.total, 0);
@@ -744,59 +775,29 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     }));
   };
 
-  // Function to distribute profit
-  const distributeProfit = (totalProfit: number, date: string) => {
+  // Function to distribute profit: persists the distribution header, per-member allocations,
+  // the reserve's cut (as a reserve_transactions row), and each member's budget bump.
+  const distributeProfit = async (totalProfit: number, date: string): Promise<boolean> => {
     const budgetRatios = calculateBudgetRatios();
-
-    if (budgetRatios.length === 0) return;
+    if (budgetRatios.length === 0) return false;
 
     // Calculate reserve allocation (10%)
     const reserveAllocation = totalProfit * 0.1;
 
     // Calculate member allocations (90% distributed by budget ratio)
     const distributableAmount = totalProfit * 0.9;
-    const memberAllocations: ProfitAllocation[] = budgetRatios.map((ratio) => ({
+    const memberAllocations = budgetRatios.map((ratio) => ({
       memberId: ratio.memberId,
-      memberName: ratio.memberName,
       amount: Math.round(distributableAmount * ratio.ratio * 100) / 100, // Round to 2 decimal places
       ratio: ratio.ratio,
     }));
 
-    // Add reserve transaction
-    addReserveTransaction({
-      type: "donation",
-      amount: reserveAllocation,
-      date,
-      donorName: "Yearly Profit Distribution",
-      notes: `10% allocation from yearly profit of PKR ${totalProfit.toLocaleString()}`,
-    });
+    const result = await recordDistribution(totalProfit, reserveAllocation, date, memberAllocations);
+    if (!result) return false;
 
-    // Update member budgets (add profit allocation to their totalBudget)
-    const updatedMembers = members.map((member) => {
-      const allocation = memberAllocations.find(
-        (a) => a.memberId === member.id
-      );
-      if (allocation) {
-        return {
-          ...member,
-          totalBudget: member.totalBudget + allocation.amount,
-        };
-      }
-      return member;
-    });
-
-    setMembers(updatedMembers);
-
-    // Record the profit distribution
-    const newDistribution: ProfitDistribution = {
-      id: Date.now(),
-      date,
-      totalProfit,
-      reserveAllocation,
-      memberAllocations,
-    };
-
-    setProfitDistributions((prev) => [newDistribution, ...prev]);
+    // Refresh member budgets (recordDistribution updated total_budget in the DB)
+    await refetchMembers();
+    return true;
   };
 
   return (

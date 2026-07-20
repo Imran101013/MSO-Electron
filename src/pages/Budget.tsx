@@ -23,7 +23,7 @@ export default function Budget() {
   const location = useLocation();
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedMember, setSelectedMember] = useState<string | null>(null);
-  const itemsPerPage = 5;
+  const itemsPerPage = settings.itemsPerPage;
   const isLoading = membersLoading || contributionsLoading || loansLoading || meetingsLoading;
 
   // Refetch every time user navigates to this page (works in Electron's single window)
@@ -85,7 +85,7 @@ export default function Budget() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <div className="w-11 h-11 rounded-xl bg-gradient-primary flex items-center justify-center shadow-md">
+        <div className="w-11 h-11 rounded-2xl bg-gradient-primary flex items-center justify-center shadow-md">
           <Wallet className="w-5 h-5 text-white" />
         </div>
         <div>
@@ -110,11 +110,11 @@ export default function Budget() {
 
       {/* Latest Meeting Breakdown */}
       {latestMeeting && (
-        <Card className="shadow-md border-0">
+        <Card className="shadow-md border-0 card-hover">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center justify-between text-base">
               <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center">
                   <DollarSign className="w-4 h-4 text-primary" />
                 </div>
                 Latest Meeting Contributions
@@ -153,10 +153,10 @@ export default function Budget() {
       )}
 
       {/* Top 5 */}
-      <Card className="shadow-md border-0">
+      <Card className="shadow-md border-0 card-hover">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
-            <div className="w-7 h-7 rounded-lg bg-amber-500/10 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-xl bg-amber-500/10 flex items-center justify-center">
               <TrendingUp className="w-4 h-4 text-amber-600" />
             </div>
             Top 5 Highest Contributors
@@ -184,11 +184,11 @@ export default function Budget() {
       </Card>
 
       {/* All Members */}
-      <Card className="shadow-md border-0">
+      <Card className="shadow-md border-0 card-hover">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center justify-between text-base">
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center">
                 <Building2 className="w-4 h-4 text-primary" />
               </div>
               All Members Contributions

@@ -5,16 +5,37 @@ import { useMemo, useState } from "react";
 import { useSettings } from "@/contexts/SettingsContext";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { toast } from "sonner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { format } from "date-fns";
 import { DatePicker } from "@/components/ui/date-picker";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useLoans } from "@/hooks/useLoans";
 import { useMembers } from "@/hooks/useMembers";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
+
+const issueSchema = z.object({
+  memberId: z.string().min(1, "Please select a member"),
+  amount: z.coerce.number({ invalid_type_error: "Enter a valid amount" }).positive("Amount must be greater than 0"),
+  date: z.date({ required_error: "Please pick a date" }),
+});
+type IssueFormValues = z.infer<typeof issueSchema>;
+
+const buildPaymentSchema = (maxAmount: number) =>
+  z.object({
+    memberId: z.string().min(1, "Please select a member"),
+    loanId: z.string().min(1, "Please select a loan"),
+    amount: z.coerce
+      .number({ invalid_type_error: "Enter a valid amount" })
+      .positive("Amount must be greater than 0")
+      .max(maxAmount, `Cannot exceed remaining balance of PKR ${maxAmount.toLocaleString()}`),
+    date: z.date({ required_error: "Please pick a date" }),
+  });
+type PaymentFormValues = z.infer<ReturnType<typeof buildPaymentSchema>>;
 
 export default function Loans() {
   const { loans, isLoading, issueLoan, recordPayment, getActiveLoans, getLoanStats } = useLoans();
@@ -23,32 +44,42 @@ export default function Loans() {
   const { settings } = useSettings();
   const [openIssue, setOpenIssue] = useState(false);
   const [openCollection, setOpenCollection] = useState(false);
-  const [issueFormData, setIssueFormData] = useState({ memberId: "", amount: "", date: new Date() });
-  const [collectionFormData, setCollectionFormData] = useState({ memberId: "", loanId: "", amount: "", date: new Date() });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const memberLoansForCollection = useMemo(() =>
-    collectionFormData.memberId ? loans.filter(l => l.member_id === collectionFormData.memberId && l.status === "active") : [],
-    [collectionFormData.memberId, loans]);
+  const issueForm = useForm<IssueFormValues>({
+    resolver: zodResolver(issueSchema),
+    defaultValues: { memberId: "", amount: 0, date: new Date() },
+  });
 
-  const handleIssueSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!issueFormData.memberId || !issueFormData.amount) { toast.error("Please fill all fields"); return; }
+  const paymentForm = useForm<PaymentFormValues>({
+    resolver: (values, context, options) => {
+      const selectedLoan = loans.find((l) => l.id === (values as PaymentFormValues).loanId);
+      const schema = buildPaymentSchema(selectedLoan?.remaining_amount ?? Number.MAX_SAFE_INTEGER);
+      return zodResolver(schema)(values, context, options);
+    },
+    defaultValues: { memberId: "", loanId: "", amount: 0, date: new Date() },
+  });
+
+  const watchedMemberId = paymentForm.watch("memberId");
+  const memberLoansForCollection = useMemo(
+    () => (watchedMemberId ? loans.filter((l) => l.member_id === watchedMemberId && l.status === "active") : []),
+    [watchedMemberId, loans]
+  );
+
+  const handleIssueSubmit = async (values: IssueFormValues) => {
     setIsSubmitting(true);
-    await issueLoan({ member_id: issueFormData.memberId, amount: Number(issueFormData.amount), loan_date: format(issueFormData.date, "yyyy-MM-dd") });
+    await issueLoan({ member_id: values.memberId, amount: values.amount, loan_date: format(values.date, "yyyy-MM-dd") });
     setIsSubmitting(false);
     setOpenIssue(false);
-    setIssueFormData({ memberId: "", amount: "", date: new Date() });
+    issueForm.reset({ memberId: "", amount: 0, date: new Date() });
   };
 
-  const handleCollectionSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!collectionFormData.memberId || !collectionFormData.loanId || !collectionFormData.amount) { toast.error("Please fill all fields"); return; }
+  const handleCollectionSubmit = async (values: PaymentFormValues) => {
     setIsSubmitting(true);
-    await recordPayment({ loan_id: collectionFormData.loanId, amount: Number(collectionFormData.amount), payment_date: format(collectionFormData.date, "yyyy-MM-dd") });
+    await recordPayment({ loan_id: values.loanId, amount: values.amount, payment_date: format(values.date, "yyyy-MM-dd") });
     setIsSubmitting(false);
     setOpenCollection(false);
-    setCollectionFormData({ memberId: "", loanId: "", amount: "", date: new Date() });
+    paymentForm.reset({ memberId: "", loanId: "", amount: 0, date: new Date() });
   };
 
   const activeLoans = getActiveLoans();
@@ -61,7 +92,7 @@ export default function Loans() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <div className="w-11 h-11 rounded-xl bg-gradient-primary flex items-center justify-center shadow-md">
+          <div className="w-11 h-11 rounded-2xl bg-gradient-primary flex items-center justify-center shadow-md">
             <HandCoins className="w-5 h-5 text-white" />
           </div>
           <div>
@@ -72,14 +103,14 @@ export default function Loans() {
         {isAdmin && (
           <div className="flex gap-2">
             {/* Issue Loan Dialog */}
-            <Dialog open={openIssue} onOpenChange={setOpenIssue}>
+            <Dialog open={openIssue} onOpenChange={(o) => { setOpenIssue(o); if (!o) issueForm.reset({ memberId: "", amount: 0, date: new Date() }); }}>
               <DialogTrigger asChild>
-                <Button className="gap-2 shadow-sm"><Plus className="w-4 h-4" /> Issue Loan</Button>
+                <Button className="gap-2 shadow-sm rounded-xl"><Plus className="w-4 h-4" /> Issue Loan</Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-[460px] flex flex-col max-h-[90vh] p-0 gap-0 overflow-hidden">
+              <DialogContent className="sm:max-w-[460px] flex flex-col max-h-[90vh] p-0 gap-0 overflow-hidden rounded-2xl">
                 {/* Header */}
                 <div className="flex items-center gap-4 px-6 py-5 border-b bg-muted/30 flex-shrink-0">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center shadow-md flex-shrink-0">
+                  <div className="w-10 h-10 rounded-2xl bg-gradient-primary flex items-center justify-center shadow-md flex-shrink-0">
                     <Plus className="w-5 h-5 text-white" />
                   </div>
                   <div>
@@ -87,41 +118,58 @@ export default function Loans() {
                     <p className="text-xs text-muted-foreground">Assign a loan to a member</p>
                   </div>
                 </div>
-                <form onSubmit={handleIssueSubmit} className="flex flex-col min-h-0 flex-1">
-                  <div className="overflow-y-auto flex-1 px-6 py-5 space-y-4">
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-medium">Select Member</Label>
-                      <Select value={issueFormData.memberId} onValueChange={(v) => setIssueFormData(p => ({ ...p, memberId: v }))}>
-                        <SelectTrigger className="h-9"><SelectValue placeholder="Select a member" /></SelectTrigger>
-                        <SelectContent>{members.filter(m => m.is_approved).map(m => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}</SelectContent>
-                      </Select>
+                <Form {...issueForm}>
+                  <form onSubmit={issueForm.handleSubmit(handleIssueSubmit)} className="flex flex-col min-h-0 flex-1">
+                    <div className="overflow-y-auto flex-1 px-6 py-5 space-y-4">
+                      <FormField control={issueForm.control} name="memberId" render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs font-medium">Select Member</FormLabel>
+                          <Select value={field.value} onValueChange={field.onChange}>
+                            <FormControl>
+                              <SelectTrigger className="h-9 rounded-xl"><SelectValue placeholder="Select a member" /></SelectTrigger>
+                            </FormControl>
+                            <SelectContent>{members.filter((m) => m.is_approved).map((m) => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}</SelectContent>
+                          </Select>
+                          <FormMessage className="text-xs" />
+                        </FormItem>
+                      )} />
+                      <FormField control={issueForm.control} name="amount" render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs font-medium">Amount (PKR)</FormLabel>
+                          <FormControl>
+                            <Input type="number" placeholder="Enter amount" className="h-9 rounded-xl" {...field} />
+                          </FormControl>
+                          <FormMessage className="text-xs" />
+                        </FormItem>
+                      )} />
+                      <FormField control={issueForm.control} name="date" render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs font-medium">Issue Date</FormLabel>
+                          <FormControl>
+                            <DatePicker date={field.value} onDateChange={field.onChange} placeholder="Pick a date" />
+                          </FormControl>
+                          <FormMessage className="text-xs" />
+                        </FormItem>
+                      )} />
                     </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-medium">Amount (PKR)</Label>
-                      <Input type="number" placeholder="Enter amount" value={issueFormData.amount} className="h-9" onChange={(e) => setIssueFormData(p => ({ ...p, amount: e.target.value }))} required />
+                    <div className="flex-shrink-0 flex justify-end gap-3 px-6 py-4 border-t bg-muted/20">
+                      <Button type="button" variant="outline" size="sm" className="rounded-xl" onClick={() => setOpenIssue(false)}>Cancel</Button>
+                      <Button type="submit" size="sm" className="rounded-xl" disabled={isSubmitting}>{isSubmitting ? <><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />Issuing…</> : "Issue Loan"}</Button>
                     </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-medium">Issue Date</Label>
-                      <DatePicker date={issueFormData.date} onDateChange={(d) => setIssueFormData(p => ({ ...p, date: d || new Date() }))} placeholder="Pick a date" />
-                    </div>
-                  </div>
-                  <div className="flex-shrink-0 flex justify-end gap-3 px-6 py-4 border-t bg-muted/20">
-                    <Button type="button" variant="outline" size="sm" onClick={() => setOpenIssue(false)}>Cancel</Button>
-                    <Button type="submit" size="sm" disabled={isSubmitting}>{isSubmitting ? <><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />Issuing…</> : "Issue Loan"}</Button>
-                  </div>
-                </form>
+                  </form>
+                </Form>
               </DialogContent>
             </Dialog>
 
             {/* Record Payment Dialog */}
-            <Dialog open={openCollection} onOpenChange={setOpenCollection}>
+            <Dialog open={openCollection} onOpenChange={(o) => { setOpenCollection(o); if (!o) paymentForm.reset({ memberId: "", loanId: "", amount: 0, date: new Date() }); }}>
               <DialogTrigger asChild>
-                <Button variant="outline" className="gap-2"><CheckCircle2 className="w-4 h-4" /> Record Payment</Button>
+                <Button variant="outline" className="gap-2 rounded-xl"><CheckCircle2 className="w-4 h-4" /> Record Payment</Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-[460px] flex flex-col max-h-[90vh] p-0 gap-0 overflow-hidden">
+              <DialogContent className="sm:max-w-[460px] flex flex-col max-h-[90vh] p-0 gap-0 overflow-hidden rounded-2xl">
                 {/* Header */}
                 <div className="flex items-center gap-4 px-6 py-5 border-b bg-muted/30 flex-shrink-0">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-500 flex items-center justify-center shadow-md flex-shrink-0">
+                  <div className="w-10 h-10 rounded-2xl bg-emerald-500 flex items-center justify-center shadow-md flex-shrink-0">
                     <CheckCircle2 className="w-5 h-5 text-white" />
                   </div>
                   <div>
@@ -129,38 +177,60 @@ export default function Loans() {
                     <p className="text-xs text-muted-foreground">Log a repayment against an active loan</p>
                   </div>
                 </div>
-                <form onSubmit={handleCollectionSubmit} className="flex flex-col min-h-0 flex-1">
-                  <div className="overflow-y-auto flex-1 px-6 py-5 space-y-4">
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-medium">Select Member</Label>
-                      <Select value={collectionFormData.memberId} onValueChange={(v) => setCollectionFormData(p => ({ ...p, memberId: v, loanId: "" }))}>
-                        <SelectTrigger className="h-9"><SelectValue placeholder="Select a member" /></SelectTrigger>
-                        <SelectContent>{members.filter(m => m.is_approved).map(m => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}</SelectContent>
-                      </Select>
+                <Form {...paymentForm}>
+                  <form onSubmit={paymentForm.handleSubmit(handleCollectionSubmit)} className="flex flex-col min-h-0 flex-1">
+                    <div className="overflow-y-auto flex-1 px-6 py-5 space-y-4">
+                      <FormField control={paymentForm.control} name="memberId" render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs font-medium">Select Member</FormLabel>
+                          <Select value={field.value} onValueChange={(v) => { field.onChange(v); paymentForm.setValue("loanId", ""); }}>
+                            <FormControl>
+                              <SelectTrigger className="h-9 rounded-xl"><SelectValue placeholder="Select a member" /></SelectTrigger>
+                            </FormControl>
+                            <SelectContent>{members.filter((m) => m.is_approved).map((m) => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}</SelectContent>
+                          </Select>
+                          <FormMessage className="text-xs" />
+                        </FormItem>
+                      )} />
+                      {watchedMemberId && (
+                        <FormField control={paymentForm.control} name="loanId" render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs font-medium">Select Loan</FormLabel>
+                            <Select value={field.value} onValueChange={field.onChange}>
+                              <FormControl>
+                                <SelectTrigger className="h-9 rounded-xl"><SelectValue placeholder="Select a loan" /></SelectTrigger>
+                              </FormControl>
+                              <SelectContent>{memberLoansForCollection.map((l) => <SelectItem key={l.id} value={l.id}>Remaining: PKR {l.remaining_amount.toLocaleString()}</SelectItem>)}</SelectContent>
+                            </Select>
+                            <FormMessage className="text-xs" />
+                          </FormItem>
+                        )} />
+                      )}
+                      <FormField control={paymentForm.control} name="amount" render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs font-medium">Payment Amount (PKR)</FormLabel>
+                          <FormControl>
+                            <Input type="number" placeholder="Enter payment amount" className="h-9 rounded-xl" {...field} />
+                          </FormControl>
+                          <FormMessage className="text-xs" />
+                        </FormItem>
+                      )} />
+                      <FormField control={paymentForm.control} name="date" render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs font-medium">Payment Date</FormLabel>
+                          <FormControl>
+                            <DatePicker date={field.value} onDateChange={field.onChange} placeholder="Pick a date" />
+                          </FormControl>
+                          <FormMessage className="text-xs" />
+                        </FormItem>
+                      )} />
                     </div>
-                    {collectionFormData.memberId && (
-                      <div className="space-y-1.5">
-                        <Label className="text-xs font-medium">Select Loan</Label>
-                        <Select value={collectionFormData.loanId} onValueChange={(v) => setCollectionFormData(p => ({ ...p, loanId: v }))}>
-                          <SelectTrigger className="h-9"><SelectValue placeholder="Select a loan" /></SelectTrigger>
-                          <SelectContent>{memberLoansForCollection.map(l => <SelectItem key={l.id} value={l.id}>Remaining: PKR {l.remaining_amount.toLocaleString()}</SelectItem>)}</SelectContent>
-                        </Select>
-                      </div>
-                    )}
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-medium">Payment Amount (PKR)</Label>
-                      <Input type="number" placeholder="Enter payment amount" value={collectionFormData.amount} className="h-9" onChange={(e) => setCollectionFormData(p => ({ ...p, amount: e.target.value }))} required />
+                    <div className="flex-shrink-0 flex justify-end gap-3 px-6 py-4 border-t bg-muted/20">
+                      <Button type="button" variant="outline" size="sm" className="rounded-xl" onClick={() => setOpenCollection(false)}>Cancel</Button>
+                      <Button type="submit" size="sm" className="rounded-xl" disabled={isSubmitting}>{isSubmitting ? <><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />Recording…</> : "Record Payment"}</Button>
                     </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-medium">Payment Date</Label>
-                      <DatePicker date={collectionFormData.date} onDateChange={(d) => setCollectionFormData(p => ({ ...p, date: d || new Date() }))} placeholder="Pick a date" />
-                    </div>
-                  </div>
-                  <div className="flex-shrink-0 flex justify-end gap-3 px-6 py-4 border-t bg-muted/20">
-                    <Button type="button" variant="outline" size="sm" onClick={() => setOpenCollection(false)}>Cancel</Button>
-                    <Button type="submit" size="sm" disabled={isSubmitting}>{isSubmitting ? <><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />Recording…</> : "Record Payment"}</Button>
-                  </div>
-                </form>
+                  </form>
+                </Form>
               </DialogContent>
             </Dialog>
           </div>
@@ -174,13 +244,13 @@ export default function Loans() {
           { label: "Active Loans", value: `${loanStats.activeLoansCount} loans · ${loanStats.membersWithLoans} members`, icon: HandCoins, color: "bg-gradient-primary" },
           { label: "Total Recovered", value: `PKR ${loanStats.totalRecovered.toLocaleString()}`, icon: CheckCircle2, color: "bg-emerald-500" },
         ].map(({ label, value, icon: Icon, color }) => (
-          <Card key={label} className="card-hover border-0 shadow-md">
+          <Card key={label} className="card-hover border-0 shadow-md rounded-2xl">
             <CardContent className="p-5 flex items-start justify-between">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
                 <p className="text-lg font-bold text-foreground mt-2">{value}</p>
               </div>
-              <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shadow-sm flex-shrink-0", color)}>
+              <div className={cn("w-10 h-10 rounded-2xl flex items-center justify-center shadow-sm flex-shrink-0", color)}>
                 <Icon className="w-5 h-5 text-white" />
               </div>
             </CardContent>
@@ -189,11 +259,11 @@ export default function Loans() {
       </div>
 
       {/* Active Loans Table */}
-      <Card className="shadow-md border-0">
+      <Card className="shadow-md border-0 rounded-2xl">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center justify-between text-base">
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center">
+              <div className="w-7 h-7 rounded-xl bg-primary/10 flex items-center justify-center">
                 <HandCoins className="w-4 h-4 text-primary" />
               </div>
               Active Loans

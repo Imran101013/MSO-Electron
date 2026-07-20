@@ -26,7 +26,7 @@ export default function StatCard({ title, value, icon: Icon, trend, trendUp, bgC
               </p>
             )}
           </div>
-          <div className={cn("w-11 h-11 rounded-xl flex items-center justify-center shadow-md flex-shrink-0 ml-3", iconColor || "bg-gradient-primary")}>
+          <div className={cn("w-11 h-11 rounded-2xl flex items-center justify-center shadow-md flex-shrink-0 ml-3", iconColor || "bg-gradient-primary")}>
             <Icon className="w-5 h-5 text-white" />
           </div>
         </div>

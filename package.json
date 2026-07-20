@@ -1,5 +1,5 @@
 {
-  "name": "hilal-connect",
+  "name": "Mso-connect",
   "private": true,
   "version": "1.0.0",
   "type": "module",
@@ -14,8 +14,8 @@
     "preview": "vite preview"
   },
   "build": {
-    "appId": "com.mso.hilalconnect",
-    "productName": "Hilal Connect",
+    "appId": "com.mso.Msoconnect",
+    "productName": "Mso Connect",
     "files": [
       "dist/**/*",
       "electron/**/*"
@@ -23,11 +23,11 @@
     "directories": {
       "output": "release"
     },
-    "icon": "release/.icon-ico/icon.ico",
+    "icon": "public/favicon.ico",
     "forceCodeSigning": false,
     "win": {
       "target": "nsis",
-      "icon": "release/.icon-ico/icon.ico",
+      "icon": "public/favicon.ico",
       "verifyUpdateCodeSignature": false
     },
     "nsis": {

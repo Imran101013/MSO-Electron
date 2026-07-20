@@ -1,10 +1,18 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
-const { Pool } = require('pg');
+const { Pool, types } = require('pg');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = 'hilal-connect-secret-key-change-in-production';
+const JWT_SECRET = 'Mso-connect-secret-key-change-in-production';
+
+// Return DATE/TIMESTAMP columns as the raw string Postgres sends instead of a JS Date.
+// pg's default parsing converts them to local-time Date objects, which both breaks any
+// code expecting a string (e.g. `.split('T')`) and silently shifts calendar dates by a
+// day when reformatted through UTC (Date object at local midnight -> toISOString()).
+types.setTypeParser(1082, (val) => val); // date
+types.setTypeParser(1114, (val) => val); // timestamp without time zone
+types.setTypeParser(1184, (val) => val); // timestamp with time zone
 
 const pool = new Pool({
   host: 'localhost',

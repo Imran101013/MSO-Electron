@@ -96,7 +96,7 @@ export default function SettingsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <div className="w-11 h-11 rounded-xl bg-gradient-primary flex items-center justify-center shadow-md">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-primary flex items-center justify-center shadow-md">
             <Settings className="w-5 h-5 text-white" />
           </div>
           <div>
@@ -105,29 +105,29 @@ export default function SettingsPage() {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={onResetDefaults} disabled={saving} className="gap-2">
+          <Button variant="outline" onClick={onResetDefaults} disabled={saving} className="gap-2 rounded-xl">
             <RotateCcw className="w-4 h-4" /> Reset Defaults
           </Button>
-          <Button onClick={handleSubmit(onSubmit)} disabled={saving || !isDirty} className="gap-2 shadow-sm">
+          <Button onClick={handleSubmit(onSubmit)} disabled={saving || !isDirty} className="gap-2 shadow-sm rounded-xl">
             <Save className="w-4 h-4" /> {saving ? "Saving…" : "Save Settings"}
           </Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Loan Settings */}
-        <Card className="shadow-md border-0">
+        <Card className="shadow-md border-0 rounded-2xl card-hover">
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center">
+            <CardTitle className="flex items-center gap-2.5 text-base">
+              <div className="w-9 h-9 rounded-2xl bg-primary/10 flex items-center justify-center">
                 <Settings className="w-4 h-4 text-primary" />
               </div>
               Loan Settings
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-5">
             <SettingRow label="Loan Interest Rate (%)" error={errors.loanInterestRate?.message}>
-              <Input type="text" {...register("loanInterestRate", { valueAsNumber: true })} onChange={(e) => syncNumber("loanInterestRate", e.target.value)} className="h-9" />
+              <Input type="text" {...register("loanInterestRate", { valueAsNumber: true })} onChange={(e) => syncNumber("loanInterestRate", e.target.value)} className="h-10 rounded-xl" />
             </SettingRow>
             <SettingRow label="Apply Loan Interest" inline>
               <Switch checked={watch("applyLoanInterest")} onCheckedChange={(v) => setValue("applyLoanInterest", v, { shouldDirty: true })} />
@@ -136,26 +136,26 @@ export default function SettingsPage() {
         </Card>
 
         {/* Display Settings */}
-        <Card className="shadow-md border-0">
+        <Card className="shadow-md border-0 rounded-2xl card-hover">
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <div className="w-7 h-7 rounded-lg bg-secondary/10 flex items-center justify-center">
+            <CardTitle className="flex items-center gap-2.5 text-base">
+              <div className="w-9 h-9 rounded-2xl bg-secondary/10 flex items-center justify-center">
                 <Settings className="w-4 h-4 text-secondary" />
               </div>
               Display Settings
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-5">
             <SettingRow label="Date Format" error={errors.dateFormat?.message}>
-              <select className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring" {...register("dateFormat")}>
+              <select className="w-full h-10 rounded-xl border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring" {...register("dateFormat")}>
                 <option value="dd/MM/yyyy">dd/MM/yyyy</option>
                 <option value="MM/dd/yyyy">MM/dd/yyyy</option>
                 <option value="yyyy-MM-dd">yyyy-MM-dd</option>
               </select>
-              <p className="text-xs text-muted-foreground mt-1">Preview: {format(new Date(), watchedDateFormat ?? "dd/MM/yyyy")}</p>
+              <p className="text-xs text-muted-foreground mt-1.5">Preview: {format(new Date(), watchedDateFormat ?? "dd/MM/yyyy")}</p>
             </SettingRow>
             <SettingRow label="Currency" error={errors.currency?.message}>
-              <Input {...register("currency")} className="h-9" />
+              <Input {...register("currency")} className="h-10 rounded-xl" />
             </SettingRow>
             <SettingRow label="Enable Animations" inline>
               <Switch checked={watch("enableAnimations")} onCheckedChange={(v) => setValue("enableAnimations", v, { shouldDirty: true })} />
@@ -164,44 +164,44 @@ export default function SettingsPage() {
         </Card>
 
         {/* Pagination Settings */}
-        <Card className="shadow-md border-0">
+        <Card className="shadow-md border-0 rounded-2xl card-hover">
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <div className="w-7 h-7 rounded-lg bg-amber-500/10 flex items-center justify-center">
+            <CardTitle className="flex items-center gap-2.5 text-base">
+              <div className="w-9 h-9 rounded-2xl bg-amber-500/10 flex items-center justify-center">
                 <Settings className="w-4 h-4 text-amber-600" />
               </div>
               Pagination
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-5">
             <SettingRow label="Members Per Page" error={errors.membersPerPage?.message}>
-              <Input type="text" {...register("membersPerPage", { valueAsNumber: true })} onChange={(e) => syncNumber("membersPerPage", e.target.value)} className="h-9" />
+              <Input type="text" {...register("membersPerPage", { valueAsNumber: true })} onChange={(e) => syncNumber("membersPerPage", e.target.value)} className="h-10 rounded-xl" />
             </SettingRow>
             <SettingRow label="Items Per Page" error={errors.itemsPerPage?.message}>
-              <Input type="text" {...register("itemsPerPage", { valueAsNumber: true })} onChange={(e) => syncNumber("itemsPerPage", e.target.value)} className="h-9" />
+              <Input type="text" {...register("itemsPerPage", { valueAsNumber: true })} onChange={(e) => syncNumber("itemsPerPage", e.target.value)} className="h-10 rounded-xl" />
             </SettingRow>
           </CardContent>
         </Card>
 
         {/* Validation Settings */}
-        <Card className="shadow-md border-0">
+        <Card className="shadow-md border-0 rounded-2xl card-hover">
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <div className="w-7 h-7 rounded-lg bg-rose-500/10 flex items-center justify-center">
+            <CardTitle className="flex items-center gap-2.5 text-base">
+              <div className="w-9 h-9 rounded-2xl bg-rose-500/10 flex items-center justify-center">
                 <Settings className="w-4 h-4 text-rose-600" />
               </div>
               Validation Rules
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-5">
             <SettingRow label="Min. Name Length" error={errors.minimumNameLength?.message}>
-              <Input type="text" {...register("minimumNameLength", { valueAsNumber: true })} onChange={(e) => syncNumber("minimumNameLength", e.target.value)} className="h-9" />
+              <Input type="text" {...register("minimumNameLength", { valueAsNumber: true })} onChange={(e) => syncNumber("minimumNameLength", e.target.value)} className="h-10 rounded-xl" />
             </SettingRow>
             <SettingRow label="Min. Phone Length" error={errors.minimumPhoneLength?.message}>
-              <Input type="text" {...register("minimumPhoneLength", { valueAsNumber: true })} onChange={(e) => syncNumber("minimumPhoneLength", e.target.value)} className="h-9" />
+              <Input type="text" {...register("minimumPhoneLength", { valueAsNumber: true })} onChange={(e) => syncNumber("minimumPhoneLength", e.target.value)} className="h-10 rounded-xl" />
             </SettingRow>
             <SettingRow label="Min. Address Length" error={errors.minimumAddressLength?.message}>
-              <Input type="text" {...register("minimumAddressLength", { valueAsNumber: true })} onChange={(e) => syncNumber("minimumAddressLength", e.target.value)} className="h-9" />
+              <Input type="text" {...register("minimumAddressLength", { valueAsNumber: true })} onChange={(e) => syncNumber("minimumAddressLength", e.target.value)} className="h-10 rounded-xl" />
             </SettingRow>
           </CardContent>
         </Card>

@@ -47,7 +47,7 @@ export default function PDFsPage() {
   } = useOrganization();
   const { settings } = useSettings();
 
-  const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
+  const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
   const [selectedLoanKey, setSelectedLoanKey] = useState<string | null>(null);
   const [loading, setLoading] = useState<ReportKey | null>(null);
 
@@ -67,7 +67,7 @@ export default function PDFsPage() {
   members.forEach((m) =>
     m.loans.forEach((l) =>
       loanOptions.push({
-        key: `${m.id}|${l.id}`,
+        key: `${m.dbId}|${l.dbId}`,
         label: `${m.name} — PKR ${l.amount.toLocaleString()}`,
       })
     )
@@ -98,15 +98,15 @@ export default function PDFsPage() {
           action={
             <div className="flex flex-col sm:flex-row gap-3 mt-4">
               <Select
-                value={selectedMemberId ? String(selectedMemberId) : undefined}
-                onValueChange={(v) => setSelectedMemberId(v ? Number(v) : null)}
+                value={selectedMemberId ?? undefined}
+                onValueChange={(v) => setSelectedMemberId(v || null)}
               >
                 <SelectTrigger className="w-full sm:w-64 h-9 text-sm ml-12">
                   <SelectValue placeholder="Select a member…" />
                 </SelectTrigger>
                 <SelectContent>
                   {members.map((m) => (
-                    <SelectItem key={m.id} value={String(m.id)}>
+                    <SelectItem key={m.dbId} value={m.dbId}>
                       {m.name}
                     </SelectItem>
                   ))}
@@ -117,7 +117,7 @@ export default function PDFsPage() {
                 onClick={() =>
                   run("member-ledger", async () => {
                     if (!selectedMemberId) throw new Error("Please select a member");
-                    const member = members.find((m) => m.id === selectedMemberId);
+                    const member = members.find((m) => m.dbId === selectedMemberId);
                     if (!member) throw new Error("Member not found");
                     await generateReport("member-ledger", { member, members }, settings);
                   })
@@ -230,10 +230,10 @@ export default function PDFsPage() {
                 onClick={() =>
                   run("loan-ledger", async () => {
                     if (!selectedLoanKey) throw new Error("Please select a loan");
-                    const [memberIdStr, loanIdStr] = selectedLoanKey.split("|");
-                    const member = members.find((m) => m.id === Number(memberIdStr));
+                    const [memberDbId, loanDbId] = selectedLoanKey.split("|");
+                    const member = members.find((m) => m.dbId === memberDbId);
                     if (!member) throw new Error("Member not found");
-                    await generateReport("loan-ledger", { member, members, loanId: Number(loanIdStr) }, settings);
+                    await generateReport("loan-ledger", { member, members, loanId: loanDbId }, settings);
                   })
                 }
               />
@@ -328,7 +328,7 @@ function Section({
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
-        <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center", color.split(" ")[0])}>
+        <div className={cn("w-8 h-8 rounded-xl flex items-center justify-center", color.split(" ")[0])}>
           <Icon className={cn("w-4 h-4", color.split(" ")[1])} />
         </div>
         <h3 className="text-base font-semibold text-foreground">{title}</h3>

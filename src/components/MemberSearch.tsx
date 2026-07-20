@@ -28,10 +28,13 @@ import { useOrganization, Member } from "@/contexts/OrganizationContext";
 import { useSettings } from "@/contexts/SettingsContext";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { useMembers } from "@/hooks/useMembers";
+import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 
 export default function MemberSearch() {
-  const { members, setMembers } = useOrganization();
+  const { members } = useOrganization();
+  const { updateMember } = useMembers();
   const { settings } = useSettings();
   const { toast } = useToast();
   const { user } = useAuth();
@@ -192,29 +195,26 @@ export default function MemberSearch() {
                     variant="outline"
                     size="sm"
                     onClick={() => {
+                      if (!selectedMember) return;
                       const input = document.createElement("input");
                       input.type = "file";
                       input.accept = "image/*";
-                      input.onchange = (e) => {
+                      input.onchange = async (e) => {
                         const file = (e.target as HTMLInputElement).files?.[0];
-                        if (file && selectedMember) {
-                          const reader = new FileReader();
-                          reader.onloadend = () => {
-                            const base64String = reader.result as string;
-                            const updatedMembers = members.map((m) =>
-                              m.id === selectedMember.id
-                                ? { ...m, profilePicture: base64String }
-                                : m
-                            );
-                            setMembers(updatedMembers);
-                            toast({
-                              title: "Profile Picture Updated",
-                              description:
-                                "The member's profile picture has been updated.",
-                            });
-                          };
-                          reader.readAsDataURL(file);
+                        if (!file) return;
+                        const filePath = `members/${Date.now()}.${file.name.split(".").pop()}`;
+                        const { error } = await supabase.storage.from("profile-pictures").upload(filePath, file);
+                        if (error) {
+                          toast({ title: "Upload Error", description: "Failed to upload profile picture", variant: "destructive" });
+                          return;
                         }
+                        const { data } = supabase.storage.from("profile-pictures").getPublicUrl(filePath);
+                        await updateMember(selectedMember.dbId, { profile_picture: data.publicUrl });
+                        toast({
+                          title: "Profile Picture Updated",
+                          description:
+                            "The member's profile picture has been updated.",
+                        });
                       };
                       input.click();
                     }}
@@ -314,8 +314,8 @@ export default function MemberSearch() {
                                       <span
                                         className={`px-2 py-1 rounded-full text-xs ${
                                           attendanceRecord?.present
-                                            ? "bg-green-100 text-green-700"
-                                            : "bg-red-100 text-red-700"
+                                            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+                                            : "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400"
                                         }`}>
                                         {attendanceRecord?.present
                                           ? "Present"
@@ -379,8 +379,8 @@ export default function MemberSearch() {
                                     <span
                                       className={`px-2 py-1 rounded-full text-xs ${
                                         loan.status === "Paid"
-                                          ? "bg-green-100 text-green-700"
-                                          : "bg-orange-100 text-orange-700"
+                                          ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+                                          : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
                                       }`}>
                                       {loan.status}
                                     </span>
