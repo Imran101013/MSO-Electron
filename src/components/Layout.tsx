@@ -103,7 +103,7 @@ export default function Layout({ children }: LayoutProps) {
         {/* Footer */}
         <SidebarFooter className="px-3 py-3">
           <div className="h-px bg-white/8 mb-3" />
-          <div className="flex items-center gap-3 px-3 py-2.5 rounded-2xl bg-white/6 border border-white/8 mb-2">
+          <div className="flex items-center gap-3 px-3 py-2.5 rounded-2xl bg-white/6 border border-white/8">
             <Avatar className="w-8 h-8">
               <AvatarFallback className="bg-gradient-primary text-white text-xs font-bold shadow-sm">
                 {initials}
@@ -113,14 +113,6 @@ export default function Layout({ children }: LayoutProps) {
               <p className="text-xs font-semibold text-white/90 truncate">{displayName}</p>
               <p className="text-[10px] text-white/40 capitalize tracking-wide">{user?.role}</p>
             </div>
-          </div>
-          <div className="flex gap-1">
-            <Button variant="ghost" size="sm" onClick={handleLogout} className="flex-1 justify-start text-xs h-8 rounded-xl text-white/50 hover:text-white hover:bg-white/8">
-              <LogOut className="w-3.5 h-3.5 mr-2" /> Logout
-            </Button>
-            <Button variant="ghost" size="sm" onClick={() => navigate("/change-password")} className="flex-1 justify-start text-xs h-8 rounded-xl text-white/50 hover:text-white hover:bg-white/8">
-              <Lock className="w-3.5 h-3.5 mr-2" /> Password
-            </Button>
           </div>
         </SidebarFooter>
       </Sidebar>
@@ -153,6 +145,26 @@ export default function Layout({ children }: LayoutProps) {
                 <p className="text-xs font-semibold text-foreground leading-tight">{displayName}</p>
                 <p className="text-[10px] text-muted-foreground capitalize">{user?.role}</p>
               </div>
+            </div>
+            <div className="flex items-center gap-1 pl-2 border-l border-border/60">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="w-9 h-9 rounded-xl"
+                onClick={() => navigate("/change-password")}
+                title="Change Password"
+              >
+                <Lock className="w-4 h-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="w-9 h-9 rounded-xl text-destructive hover:text-destructive"
+                onClick={handleLogout}
+                title="Logout"
+              >
+                <LogOut className="w-4 h-4" />
+              </Button>
             </div>
           </div>
         </header>

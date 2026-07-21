@@ -48,5 +48,17 @@ export function useAuditLog() {
 
   const changeTableFilter = (filter: string) => { setTableFilter(filter); setPage(0); };
 
-  return { entries, tableFilter, setTableFilter: changeTableFilter, page, setPage, hasMore, isLoading };
+  const deleteEntry = async (id: string) => {
+    try {
+      await dbQuery('DELETE FROM public.audit_log WHERE id=$1', [id]);
+      toast({ title: "Entry Deleted", description: "The audit log entry has been removed." });
+      await fetchAuditLog(tableFilter, page);
+      return true;
+    } catch (err: any) {
+      toast({ title: "Error", description: "Failed to delete audit log entry", variant: "destructive" });
+      return false;
+    }
+  };
+
+  return { entries, tableFilter, setTableFilter: changeTableFilter, page, setPage, hasMore, isLoading, deleteEntry };
 }

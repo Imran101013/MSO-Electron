@@ -5,9 +5,20 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { History, Loader2, Eye, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { History, Loader2, Eye, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { useSettings } from "@/contexts/SettingsContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { useAuditLog, AuditLogEntry } from "@/hooks/useAuditLog";
 import { cn } from "@/lib/utils";
 
@@ -30,8 +41,19 @@ const ACTION_STYLES: Record<AuditLogEntry["action"], string> = {
 
 export default function AuditLog() {
   const { settings } = useSettings();
-  const { entries, tableFilter, setTableFilter, page, setPage, hasMore, isLoading } = useAuditLog();
+  const { isAdmin } = useAuth();
+  const { entries, tableFilter, setTableFilter, page, setPage, hasMore, isLoading, deleteEntry } = useAuditLog();
   const [selectedEntry, setSelectedEntry] = useState<AuditLogEntry | null>(null);
+  const [entryToDelete, setEntryToDelete] = useState<AuditLogEntry | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDeleteConfirm = async () => {
+    if (!entryToDelete) return;
+    setIsDeleting(true);
+    await deleteEntry(entryToDelete.id);
+    setIsDeleting(false);
+    setEntryToDelete(null);
+  };
 
   return (
     <div className="space-y-6">
@@ -96,9 +118,21 @@ export default function AuditLog() {
                       </TableCell>
                       <TableCell className="text-sm">{entry.changed_by || "unknown"}</TableCell>
                       <TableCell className="text-right">
-                        <Button variant="ghost" size="sm" className="gap-1.5 rounded-xl" onClick={() => setSelectedEntry(entry)}>
-                          <Eye className="w-3.5 h-3.5" /> View
-                        </Button>
+                        <div className="flex justify-end gap-1">
+                          <Button variant="ghost" size="sm" className="gap-1.5 rounded-xl" onClick={() => setSelectedEntry(entry)}>
+                            <Eye className="w-3.5 h-3.5" /> View
+                          </Button>
+                          {isAdmin && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="gap-1.5 rounded-xl text-destructive hover:text-destructive"
+                              onClick={() => setEntryToDelete(entry)}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" /> Delete
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -148,6 +182,24 @@ export default function AuditLog() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!entryToDelete} onOpenChange={(o) => { if (!o) setEntryToDelete(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this audit log entry?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently removes the {entryToDelete?.action} record for {entryToDelete?.table_name} from the audit trail. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteConfirm} disabled={isDeleting} className="bg-destructive hover:bg-destructive/90">
+              {isDeleting ? "Deleting…" : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
