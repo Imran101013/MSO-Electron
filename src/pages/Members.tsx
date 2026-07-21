@@ -4,7 +4,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Search, Pencil, Trash2, Eye, Upload, Loader2, UserCheck, Clock, Users } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -14,6 +13,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useState } from "react";
 import { ORGANIZATION_CONFIG } from "@/config/organization";
+
+const DEFAULT_MEMBER_ADDRESS = "Village Mogh Tehsil & District Chitral";
 import { useSettings } from "@/contexts/SettingsContext";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Label } from "@/components/ui/label";
@@ -73,7 +74,7 @@ export default function Members() {
 
   const form = useForm<MemberFormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: { name: "", fatherName: "", dob: undefined, email: "", phone: "", address: "", joinDate: undefined, profilePicture: "" },
+    defaultValues: { name: "", fatherName: "", dob: undefined, email: "", phone: "", address: DEFAULT_MEMBER_ADDRESS, joinDate: undefined, profilePicture: "" },
   });
 
   const sendMemberDetailsViaWhatsApp = async (member: DbMember) => {
@@ -122,7 +123,7 @@ export default function Members() {
     setEditingMember(member);
     form.reset({
       name: member.name, fatherName: member.father_name, dob: member.dob ? new Date(member.dob) : undefined,
-      email: member.email || "", phone: member.phone || "", address: member.address || "",
+      email: member.email || "", phone: member.phone || "", address: member.address || DEFAULT_MEMBER_ADDRESS,
       joinDate: new Date(member.join_date), profilePicture: member.profile_picture || "",
     });
     setProfilePicturePreview(member.profile_picture || "");
@@ -261,14 +262,6 @@ export default function Members() {
                           <FormItem><FormLabel className="text-xs font-medium">Phone</FormLabel><FormControl><Input placeholder="0300 1234567" {...field} className="h-9" /></FormControl><FormMessage className="text-xs" /></FormItem>
                         )} />
                       </div>
-                      <FormField control={form.control} name="address" render={({ field }) => (
-                        <FormItem><FormLabel className="text-xs font-medium">Address</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl><SelectTrigger className="h-9"><SelectValue placeholder="Select address" /></SelectTrigger></FormControl>
-                            <SelectContent>{["Mogh", "Mixigram", "Uchu", "Uchugol"].map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}</SelectContent>
-                          </Select><FormMessage className="text-xs" />
-                        </FormItem>
-                      )} />
                     </div>
                     {/* Profile Picture */}
                     <div className="space-y-3">

@@ -37,7 +37,11 @@ export const ORGANIZATION_CONFIG = {
   LOAN_STATUS: {
     ACTIVE: "Active",
     PAID: "Paid",
+    DEFAULTED: "Defaulted",
   } as const,
+
+  // Loan repayment schedule
+  DEFAULT_LOAN_TERM_MONTHS: 1,
 } as const;
 
 export type LoanStatus =

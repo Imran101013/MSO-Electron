@@ -11,8 +11,19 @@ import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
 import { format } from "date-fns";
 import { ORGANIZATION_CONFIG } from "@/config/organization";
-import { Settings, RotateCcw, Save } from "lucide-react";
+import { Settings, RotateCcw, Save, DatabaseBackup, Upload, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 const settingsSchema = z.object({
   loanInterestRate: z.number({ invalid_type_error: "Required" }).min(0).max(100),
@@ -35,6 +46,39 @@ type SettingsForm = z.infer<typeof settingsSchema>;
 export default function SettingsPage() {
   const { settings, updateSettings } = useSettings();
   const [saving, setSaving] = useState(false);
+  const [backingUp, setBackingUp] = useState(false);
+  const [restoring, setRestoring] = useState(false);
+
+  const handleBackup = async () => {
+    setBackingUp(true);
+    try {
+      const res = await (window as any).electronAPI?.backupDatabase();
+      if (res?.canceled) { /* user dismissed the save dialog */ }
+      else if (res?.error) toast.error(res.error);
+      else toast.success(`Backup saved to ${res.path}`);
+    } catch {
+      toast.error("Failed to back up database");
+    } finally {
+      setBackingUp(false);
+    }
+  };
+
+  const handleRestore = async () => {
+    setRestoring(true);
+    try {
+      const res = await (window as any).electronAPI?.restoreDatabase();
+      if (res?.canceled) { /* user dismissed the file picker */ }
+      else if (res?.error) toast.error(res.error);
+      else {
+        toast.success("Database restored. Reloading…");
+        setTimeout(() => window.location.reload(), 1200);
+      }
+    } catch {
+      toast.error("Failed to restore database");
+    } finally {
+      setRestoring(false);
+    }
+  };
 
   const form = useForm<SettingsForm>({
     resolver: zodResolver(settingsSchema),
@@ -203,6 +247,51 @@ export default function SettingsPage() {
             <SettingRow label="Min. Address Length" error={errors.minimumAddressLength?.message}>
               <Input type="text" {...register("minimumAddressLength", { valueAsNumber: true })} onChange={(e) => syncNumber("minimumAddressLength", e.target.value)} className="h-10 rounded-xl" />
             </SettingRow>
+          </CardContent>
+        </Card>
+
+        {/* Data Management */}
+        <Card className="shadow-md border-0 rounded-2xl card-hover">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2.5 text-base">
+              <div className="w-9 h-9 rounded-2xl bg-emerald-500/10 flex items-center justify-center">
+                <DatabaseBackup className="w-4 h-4 text-emerald-600" />
+              </div>
+              Data Management
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Since this app runs fully offline against your local database, back up regularly — there is no cloud copy of your data.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={handleBackup} disabled={backingUp} className="gap-2 rounded-xl">
+                {backingUp ? <Loader2 className="w-4 h-4 animate-spin" /> : <DatabaseBackup className="w-4 h-4" />}
+                {backingUp ? "Backing up…" : "Backup Data Now"}
+              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" disabled={restoring} className="gap-2 rounded-xl text-destructive hover:text-destructive">
+                    {restoring ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                    {restoring ? "Restoring…" : "Restore from Backup"}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Restore database from backup?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will permanently overwrite all current members, loans, contributions, meetings, and every other record with the contents of the backup file you select. This cannot be undone. Make sure you have a current backup of today's data before proceeding.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleRestore} className="bg-destructive hover:bg-destructive/90">
+                      Overwrite and Restore
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
           </CardContent>
         </Card>
       </div>

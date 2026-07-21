@@ -5,7 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useSettings } from "@/contexts/SettingsContext";
 import {
   LayoutDashboard, Users, Wallet, HandCoins, PiggyBank,
-  FileText, Settings, LogOut, Lock, Sun, Moon, DollarSign, CalendarDays,
+  FileText, Settings, LogOut, Lock, Sun, Moon, DollarSign, CalendarDays, History,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup,
@@ -28,6 +28,7 @@ const adminNavigation = [
   { name: "Meetings", href: "/meetings", icon: CalendarDays },
   { name: "PDFs", href: "/pdfs", icon: FileText },
   { name: "Profit Distribution", href: "/profit-distribution", icon: DollarSign },
+  { name: "Audit Log", href: "/audit-log", icon: History },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
 

@@ -14,6 +14,7 @@ import {
   Calendar,
   TrendingUp,
   Clock,
+  AlertTriangle,
 } from "lucide-react";
 import { useSettings } from "@/contexts/SettingsContext";
 import { format, parseISO, isFuture, isToday } from "date-fns";
@@ -40,7 +41,7 @@ export default function Dashboard() {
   const { settings } = useSettings();
   const { members, isLoading: membersLoading } = useMembers();
   const { meetings, upcomingMeetings, isLoading: meetingsLoading } = useMeetings();
-  const { loans, installments, isLoading: loansLoading } = useLoans();
+  const { loans, installments, getLoanStats, isLoading: loansLoading } = useLoans();
   const { contributions, isLoading: contributionsLoading } = useContributions();
   const { getReserveFundTotal, isLoading: reserveLoading } = useReserveTransactions();
 
@@ -99,6 +100,8 @@ export default function Dashboard() {
   const reserveFund = useMemo(() => {
     return getReserveFundTotal();
   }, [getReserveFundTotal]);
+
+  const loanStats = useMemo(() => getLoanStats(), [getLoanStats, loans]);
 
   // Aggregate budget contributions by month-year
   const budgetData = useMemo(() => {
@@ -170,7 +173,7 @@ export default function Dashboard() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <StatCard
           title="Total Members"
           value={isLoading ? "—" : totalMembers.toString()}
@@ -194,6 +197,12 @@ export default function Dashboard() {
           value={isLoading ? "—" : `PKR ${reserveFund.toLocaleString()}`}
           icon={PiggyBank}
           iconColor="bg-gradient-accent"
+        />
+        <StatCard
+          title="Overdue Loans"
+          value={isLoading ? "—" : `${loanStats.overdueCount} · PKR ${loanStats.overdueAmount.toLocaleString()}`}
+          icon={AlertTriangle}
+          iconColor="bg-amber-500"
         />
       </div>
 

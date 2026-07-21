@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { setDbActor } from "@/lib/db";
 
 interface AuthUser {
   id: string;
@@ -33,6 +34,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       api.verifyToken(token).then((res: any) => {
         if (res.user) {
           setUser({ id: res.user.id, email: res.user.email, role: res.user.role, fullName: res.user.fullName });
+          setDbActor(res.user.email ?? res.user.id);
         } else {
           localStorage.removeItem(TOKEN_KEY);
         }
@@ -51,12 +53,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (res.user.role !== 'admin') return { error: 'Only admin access is allowed.' };
     localStorage.setItem(TOKEN_KEY, res.token);
     setUser(res.user);
+    setDbActor(res.user.email ?? res.user.id);
     return { error: null };
   };
 
   const logout = async () => {
     localStorage.removeItem(TOKEN_KEY);
     setUser(null);
+    setDbActor(null);
   };
 
   return (

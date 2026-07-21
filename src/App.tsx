@@ -19,6 +19,7 @@ import PDFsPage from "./pages/PDFs";
 import NotFound from "./pages/NotFound";
 import Settings from "./pages/Settings";
 import ProfitDistribution from "./pages/ProfitDistribution";
+import AuditLog from "./pages/AuditLog";
 import ThemeApplier from "./components/ThemeApplier";
 
 const queryClient = new QueryClient();
@@ -136,6 +137,14 @@ const AppRoutes = () => {
               element={
                 <ProtectedRoute>
                   <ProfitDistribution />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/audit-log"
+              element={
+                <ProtectedRoute>
+                  <AuditLog />
                 </ProtectedRoute>
               }
             />
