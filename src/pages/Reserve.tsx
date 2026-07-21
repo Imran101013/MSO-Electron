@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useState } from "react";
 import { DatePicker } from "@/components/ui/date-picker";
 import { cn } from "@/lib/utils";
+import StatCard from "@/components/StatCard";
 
 export default function Reserve() {
   const {
@@ -150,24 +151,21 @@ export default function Reserve() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <StatCard
           icon={Wallet}
-          label="Current Balance"
+          title="Current Balance"
           value={`PKR ${reserveFund.toLocaleString()}`}
-          iconClass="bg-gradient-primary"
-          valueClass="text-foreground"
+          iconColor="bg-gradient-primary"
         />
         <StatCard
           icon={TrendingUp}
-          label="Total Deposits"
+          title="Total Deposits"
           value={`PKR ${totalDonations.toLocaleString()}`}
-          iconClass="bg-emerald-500"
-          valueClass="text-emerald-600 dark:text-emerald-400"
+          iconColor="bg-emerald-500"
         />
         <StatCard
           icon={ArrowDownCircle}
-          label="Total Expenses"
+          title="Total Expenses"
           value={`PKR ${totalExpenses.toLocaleString()}`}
-          iconClass="bg-rose-500"
-          valueClass="text-rose-600 dark:text-rose-400"
+          iconColor="bg-rose-500"
         />
       </div>
 
@@ -280,31 +278,5 @@ export default function Reserve() {
         </CardContent>
       </Card>
     </div>
-  );
-}
-
-function StatCard({
-  icon: Icon, label, value, iconClass, valueClass,
-}: {
-  icon: React.ElementType;
-  label: string;
-  value: string;
-  iconClass: string;
-  valueClass: string;
-}) {
-  return (
-    <Card className="card-hover border-0 shadow-md">
-      <CardContent className="p-5">
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
-            <p className={cn("text-xl font-bold mt-2", valueClass)}>{value}</p>
-          </div>
-          <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shadow-sm", iconClass)}>
-            <Icon className="w-5 h-5 text-white" />
-          </div>
-        </div>
-      </CardContent>
-    </Card>
   );
 }

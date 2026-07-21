@@ -8,7 +8,7 @@ import { useSettings } from "@/contexts/SettingsContext";
 import { format } from "date-fns";
 import { DollarSign, PieChart, Users, PiggyBank, Loader2, AlertTriangle, History, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import StatCard from "@/components/StatCard";
 
 export default function ProfitDistribution() {
   const [profitAmount, setProfitAmount] = useState<string>("");
@@ -65,16 +65,16 @@ export default function ProfitDistribution() {
         {/* Input card */}
         <Card className="shadow-md border-0 lg:col-span-1">
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
+            {/* <CardTitle className="flex items-center gap-2 text-base">
               <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center">
                 <DollarSign className="w-4 h-4 text-primary" />
               </div>
               Total Profit
-            </CardTitle>
-            <CardDescription className="text-xs">Enter the amount to distribute</CardDescription>
+            </CardTitle> */}
+            {/* <CardDescription className="text-xs">Enter the amount to distribute</CardDescription> */}
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
+            <div className="space-y-2 gap-3">
               <Label htmlFor="profitAmount" className="text-sm">Amount (PKR)</Label>
               <Input
                 id="profitAmount"
@@ -84,7 +84,7 @@ export default function ProfitDistribution() {
                 onChange={(e) => setProfitAmount(e.target.value)}
                 min="0"
                 step="0.01"
-                className="h-11 text-lg font-semibold"
+                className="h-8 w-32 mb-4 text-lg font-semibold"
               />
             </div>
             {totalProfit > 0 && (
@@ -103,26 +103,23 @@ export default function ProfitDistribution() {
 
         {/* Summary stat cards */}
         <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <SummaryCard
+          <StatCard
             icon={DollarSign}
-            label="Total Profit"
+            title="Total Profit"
             value={`PKR ${totalProfit > 0 ? totalProfit.toLocaleString() : "—"}`}
-            iconClass="bg-gradient-primary"
-            valueClass="text-foreground"
+            iconColor="bg-gradient-primary"
           />
-          <SummaryCard
+          <StatCard
             icon={PiggyBank}
-            label="Reserve Fund (10%)"
+            title="Reserve Fund (10%)"
             value={totalProfit > 0 ? `PKR ${reserveAllocation.toLocaleString()}` : "—"}
-            iconClass="bg-amber-500"
-            valueClass="text-amber-600 dark:text-amber-400"
+            iconColor="bg-amber-500"
           />
-          <SummaryCard
+          <StatCard
             icon={Users}
-            label="Members Share (90%)"
+            title="Members Share (90%)"
             value={totalProfit > 0 ? `PKR ${distributableAmount.toLocaleString()}` : "—"}
-            iconClass="bg-gradient-secondary"
-            valueClass="text-secondary"
+            iconColor="bg-gradient-secondary"
           />
         </div>
       </div>
@@ -291,31 +288,5 @@ export default function ProfitDistribution() {
         </Card>
       )}
     </div>
-  );
-}
-
-function SummaryCard({
-  icon: Icon, label, value, iconClass, valueClass,
-}: {
-  icon: React.ElementType;
-  label: string;
-  value: string;
-  iconClass: string;
-  valueClass: string;
-}) {
-  return (
-    <Card className="card-hover border-0 shadow-md">
-      <CardContent className="p-5">
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
-            <p className={cn("text-xl font-bold mt-2", valueClass)}>{value}</p>
-          </div>
-          <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shadow-sm", iconClass)}>
-            <Icon className="w-5 h-5 text-white" />
-          </div>
-        </div>
-      </CardContent>
-    </Card>
   );
 }

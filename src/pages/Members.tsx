@@ -13,6 +13,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useState } from "react";
 import { ORGANIZATION_CONFIG } from "@/config/organization";
+import StatCard from "@/components/StatCard";
 
 const DEFAULT_MEMBER_ADDRESS = "Village Mogh Tehsil & District Chitral";
 import { useSettings } from "@/contexts/SettingsContext";
@@ -298,17 +299,7 @@ export default function Members() {
           { label: "Approved", value: approvedCount, color: "bg-emerald-500" },
           { label: "Pending Approval", value: pendingCount, color: "bg-amber-500" },
         ].map(({ label, value, color }) => (
-          <Card key={label} className="card-hover border-0 shadow-md">
-            <CardContent className="p-5 flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
-                <p className="text-2xl font-bold text-foreground mt-1">{value}</p>
-              </div>
-              <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shadow-sm", color)}>
-                <Users className="w-5 h-5 text-white" />
-              </div>
-            </CardContent>
-          </Card>
+          <StatCard key={label} title={label} value={value} icon={Users} iconColor={color} />
         ))}
       </div>
 

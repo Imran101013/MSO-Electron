@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Plus, TrendingDown, CheckCircle2, Loader2, HandCoins, AlertTriangle, CalendarClock, Ban } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ORGANIZATION_CONFIG } from "@/config/organization";
+import StatCard from "@/components/StatCard";
 import { useMemo, useState } from "react";
 import { useSettings } from "@/contexts/SettingsContext";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -283,18 +284,8 @@ export default function Loans() {
           { label: "Active Loans", value: `${loanStats.activeLoansCount} loans · ${loanStats.membersWithLoans} members`, icon: HandCoins, color: "bg-gradient-primary" },
           { label: "Total Recovered", value: `PKR ${loanStats.totalRecovered.toLocaleString()}`, icon: CheckCircle2, color: "bg-emerald-500" },
           { label: "Overdue", value: `${loanStats.overdueCount} loans · PKR ${loanStats.overdueAmount.toLocaleString()}`, icon: AlertTriangle, color: "bg-amber-500" },
-        ].map(({ label, value, icon: Icon, color }) => (
-          <Card key={label} className="card-hover border-0 shadow-md rounded-2xl">
-            <CardContent className="p-5 flex items-start justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
-                <p className="text-lg font-bold text-foreground mt-2">{value}</p>
-              </div>
-              <div className={cn("w-10 h-10 rounded-2xl flex items-center justify-center shadow-sm flex-shrink-0", color)}>
-                <Icon className="w-5 h-5 text-white" />
-              </div>
-            </CardContent>
-          </Card>
+        ].map(({ label, value, icon, color }) => (
+          <StatCard key={label} title={label} value={value} icon={icon} iconColor={color} />
         ))}
       </div>
 
