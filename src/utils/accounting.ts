@@ -342,13 +342,21 @@ export interface DistributionBasis {
 
 const pad = (n: number, width: number) => String(n).padStart(width, "0");
 
+type RegisterKey = { join: string; name: string; id: string };
+
+/** Register order behind member numbers (M-001…): date of admission, then name, then id. */
+export const registerOrder = (a: RegisterKey, b: RegisterKey) =>
+  a.join.localeCompare(b.join) || a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
+
+export const memberNumber = (index: number) => `M-${pad(index + 1, 3)}`;
+
 export function buildBooks(input: AccountingInput): Books {
   // ── Members, numbered by date of admission so register numbers stay stable as members are added.
   const members: MemberRecord[] = [...input.members]
     .map((m) => ({ m, join: dayKey(m.joinDate) }))
-    .sort((a, b) => a.join.localeCompare(b.join) || a.m.name.localeCompare(b.m.name) || a.m.dbId.localeCompare(b.m.dbId))
+    .sort((a, b) => registerOrder({ join: a.join, name: a.m.name, id: a.m.dbId }, { join: b.join, name: b.m.name, id: b.m.dbId }))
     .map(({ m, join }, i) => ({
-      memberNo: `M-${pad(i + 1, 3)}`,
+      memberNo: memberNumber(i),
       dbId: m.dbId,
       name: m.name,
       fatherName: m.fatherName || "",

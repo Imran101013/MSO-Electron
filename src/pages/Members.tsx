@@ -1,11 +1,9 @@
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus, Search, Pencil, Trash2, Eye, Upload, Loader2, Users, Wallet, UserPlus } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useForm } from "react-hook-form";
@@ -23,12 +21,9 @@ import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
 import { DatePicker } from "@/components/ui/date-picker";
 import { useMembers, DbMember } from "@/hooks/useMembers";
-import { useContributions, DbContribution } from "@/hooks/useContributions";
-import { useLoans, DbLoan } from "@/hooks/useLoans";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { cn } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
+import MemberDetailsDialog from "@/components/MemberDetailsDialog";
 
 const formSchema = z.object({
   name: z.string().min(ORGANIZATION_CONFIG.MINIMUM_NAME_LENGTH, `Name must be at least ${ORGANIZATION_CONFIG.MINIMUM_NAME_LENGTH} characters`),
@@ -44,10 +39,8 @@ const formSchema = z.object({
 type MemberFormValues = z.infer<typeof formSchema>;
 
 export default function Members() {
-  const { members, isLoading, addMember, updateMember, deleteMember } = useMembers();
-  const { getMemberContributions } = useContributions();
-  const { getLoansByMember } = useLoans();
-  const { isMember, isAdmin } = useAuth();
+  const { members, isLoading, fetchMembers, addMember, updateMember, deleteMember } = useMembers();
+  const { isAdmin } = useAuth();
   const [open, setOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<DbMember | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -59,14 +52,10 @@ export default function Members() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [profilePicturePreview, setProfilePicturePreview] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [memberContributions, setMemberContributions] = useState<DbContribution[]>([]);
-  const [memberLoans, setMemberLoans] = useState<DbLoan[]>([]);
-  const [isLoadingMemberData, setIsLoadingMemberData] = useState(false);
   const { toast } = useToast();
   const { settings } = useSettings();
   const membersPerPage = settings.membersPerPage || ORGANIZATION_CONFIG.MEMBERS_PER_PAGE;
 
-  const selectedMember = selectedMemberId ? members.find((m) => m.id === selectedMemberId) || null : null;
   const filteredMembers = members.filter((m) => m.name.toLowerCase().includes(searchQuery.toLowerCase()));
   const totalPages = Math.ceil(filteredMembers.length / membersPerPage);
   const currentMembers = filteredMembers.slice((currentPage - 1) * membersPerPage, currentPage * membersPerPage);
@@ -142,16 +131,9 @@ export default function Members() {
     setDeleteDialogOpen(false);
   };
 
-  const handleViewDetails = async (member: DbMember) => {
+  const handleViewDetails = (member: DbMember) => {
     setSelectedMemberId(member.id);
     setDetailsDialogOpen(true);
-    setIsLoadingMemberData(true);
-    try {
-      const [contributions, loans] = await Promise.all([getMemberContributions(member.id), getLoansByMember(member.id)]);
-      setMemberContributions(contributions);
-      setMemberLoans(loans);
-    } catch { toast({ title: "Error", description: "Failed to load member details", variant: "destructive" }); }
-    finally { setIsLoadingMemberData(false); }
   };
 
   const handleDialogClose = (isOpen: boolean) => {
@@ -184,23 +166,6 @@ export default function Members() {
     const { data } = supabase.storage.from("profile-pictures").getPublicUrl(filePath);
     setProfilePicturePreview(data.publicUrl);
     form.setValue("profilePicture", data.publicUrl);
-  };
-
-  const handleUpdatePhoto = async (memberId: string) => {
-    const input = document.createElement("input");
-    input.type = "file"; input.accept = "image/*";
-    input.onchange = async (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (!file) return;
-      if (!validateProfileImage(file)) return;
-      const filePath = `members/${Date.now()}.${file.name.split(".").pop()}`;
-      const { error } = await supabase.storage.from("profile-pictures").upload(filePath, file);
-      if (error) { toast({ title: "Upload Error", description: "Failed to upload", variant: "destructive" }); return; }
-      const { data } = supabase.storage.from("profile-pictures").getPublicUrl(filePath);
-      await updateMember(memberId, { profile_picture: data.publicUrl });
-      toast({ title: "Photo Updated" });
-    };
-    input.click();
   };
 
   if (isLoading) return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
@@ -379,86 +344,12 @@ export default function Members() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <Dialog open={detailsDialogOpen} onOpenChange={(o) => { setDetailsDialogOpen(o); if (!o) { setSelectedMemberId(null); setMemberContributions([]); setMemberLoans([]); } }}>
-        <DialogContent className="sm:max-w-[680px] flex flex-col max-h-[90vh] p-0 gap-0 overflow-hidden">
-          {/* Header */}
-          <div className="flex items-center gap-4 px-6 py-5 border-b bg-muted/30 flex-shrink-0">
-            <div className="w-10 h-10 rounded-sm border-2 border-primary/40 bg-primary/10 flex items-center justify-center flex-shrink-0">
-              <Eye className="w-5 h-5 text-primary" />
-            </div>
-            <div>
-              <h2 className="text-base font-bold text-foreground">Member Details</h2>
-              <p className="text-xs text-muted-foreground">{selectedMember?.name}</p>
-            </div>
-          </div>
-          {selectedMember && (
-            <div className="overflow-y-auto flex-1 px-6 py-5 space-y-5">
-              <div className="flex items-center gap-4 pb-4 border-b">
-                <Avatar className="h-16 w-16 rounded-sm">
-                  <AvatarImage src={selectedMember.profile_picture || undefined} />
-                  <AvatarFallback className="rounded-sm bg-primary/10 border-2 border-primary/40 text-primary text-xl font-bold">{selectedMember.name.split(" ").map((n) => n[0]).join("")}</AvatarFallback>
-                </Avatar>
-                <div className="flex-1">
-                  <h3 className="text-xl font-bold text-foreground">{selectedMember.name}</h3>
-                  <p className="text-sm text-muted-foreground">Father: {selectedMember.father_name}</p>
-                </div>
-                {isAdmin && <Button variant="outline" size="sm" onClick={() => handleUpdatePhoto(selectedMember.id)} className="gap-2"><Upload className="w-4 h-4" />Update Photo</Button>}
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                {[
-                  { label: "Email", value: selectedMember.email || "N/A", figure: false },
-                  { label: "Phone", value: selectedMember.phone || "N/A", figure: true },
-                  { label: "Date of Birth", value: selectedMember.dob ? format(new Date(selectedMember.dob), settings.dateFormat) : "N/A", figure: true },
-                  { label: "Join Date", value: format(new Date(selectedMember.join_date), settings.dateFormat), figure: true },
-                  { label: "Address", value: selectedMember.address || "N/A", figure: false },
-                  { label: "Total Budget", value: `${settings.currency} ${memberContributions.reduce((s, c) => s + c.amount, 0).toLocaleString()}`, figure: true },
-                ].map(({ label, value, figure }) => (
-                  <div key={label} className="p-3 rounded-sm bg-muted/40">
-                    <p className="text-xs text-muted-foreground mb-0.5">{label}</p>
-                    <p className={cn("text-sm font-semibold text-foreground", figure && "figure")}>{value}</p>
-                  </div>
-                ))}
-              </div>
-              <Tabs defaultValue="contributions">
-                <TabsList className="grid w-full grid-cols-2"><TabsTrigger value="contributions">Contributions</TabsTrigger><TabsTrigger value="loans">Loans</TabsTrigger></TabsList>
-                <TabsContent value="contributions" className="mt-3">
-                  <Table>
-                    <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Amount</TableHead><TableHead>Type</TableHead></TableRow></TableHeader>
-                    <TableBody>
-                      {isLoadingMemberData ? <TableRow><TableCell colSpan={3} className="text-center"><Loader2 className="w-4 h-4 animate-spin mx-auto" /></TableCell></TableRow>
-                        : memberContributions.length === 0 ? <TableRow><TableCell colSpan={3} className="text-center text-muted-foreground text-sm">No contributions recorded yet</TableCell></TableRow>
-                        : memberContributions.map((c) => (
-                          <TableRow key={c.id}>
-                            <TableCell className="figure">{format(new Date(c.contribution_date), settings.dateFormat)}</TableCell>
-                            <TableCell className="figure">{settings.currency} {c.amount.toLocaleString()}</TableCell>
-                            <TableCell>{c.notes ? <Badge variant="outline">{c.notes}</Badge> : <Badge variant="secondary">Monthly</Badge>}</TableCell>
-                          </TableRow>
-                        ))}
-                    </TableBody>
-                  </Table>
-                </TabsContent>
-                <TabsContent value="loans" className="mt-3">
-                  <Table>
-                    <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Amount</TableHead><TableHead>Remaining</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
-                    <TableBody>
-                      {isLoadingMemberData ? <TableRow><TableCell colSpan={4} className="text-center"><Loader2 className="w-4 h-4 animate-spin mx-auto" /></TableCell></TableRow>
-                        : memberLoans.length === 0 ? <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground text-sm">No loans recorded yet</TableCell></TableRow>
-                        : memberLoans.map((loan) => (
-                          <TableRow key={loan.id}>
-                            <TableCell className="figure">{format(new Date(loan.loan_date), settings.dateFormat)}</TableCell>
-                            <TableCell className="figure">PKR {loan.amount.toLocaleString()}</TableCell>
-                            <TableCell className="figure">PKR {loan.remaining_amount.toLocaleString()}</TableCell>
-                            <TableCell><Badge variant={loan.status === "paid" ? "secondary" : "default"}>{loan.status === "paid" ? "Paid" : "Active"}</Badge></TableCell>
-                          </TableRow>
-                        ))}
-                    </TableBody>
-                  </Table>
-                </TabsContent>
-              </Tabs>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      <MemberDetailsDialog
+        memberId={selectedMemberId}
+        open={detailsDialogOpen}
+        onOpenChange={(o) => { setDetailsDialogOpen(o); if (!o) setSelectedMemberId(null); }}
+        onChanged={fetchMembers}
+      />
 
     </div>
   );

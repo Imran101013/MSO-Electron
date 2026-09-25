@@ -135,17 +135,25 @@ ipcMain.handle('db-restore', async () => {
 });
 
 // Share text through WhatsApp: the desktop app if one is registered for whatsapp:// links,
-// otherwise WhatsApp Web. The user picks the recipient there. The renderer supplies only the
-// message; the URL is built here so this can't be used to open arbitrary links.
-ipcMain.handle('share-whatsapp', async (_, { text }) => {
+// otherwise WhatsApp Web. With a phone number the chat with that number opens; without one
+// the user picks the recipient. The renderer supplies only the message and number; the URL
+// is built here so this can't be used to open arbitrary links.
+ipcMain.handle('share-whatsapp', async (_, { text, phone }) => {
   if (typeof text !== 'string' || !text.trim()) return { error: 'There is nothing to share.' };
-  const encoded = encodeURIComponent(text);
+  let number = '';
+  if (phone) {
+    // Accept 03001234567, +92 300 1234567 or 923001234567; WhatsApp wants 923001234567.
+    const digits = String(phone).replace(/\D/g, '');
+    number = digits.startsWith('0') && digits.length === 11 ? `92${digits.slice(1)}` : digits;
+    if (number.length < 10 || number.length > 15) return { error: 'The phone number is not valid for WhatsApp.' };
+  }
+  const query = `${number ? `phone=${number}&` : ''}text=${encodeURIComponent(text)}`;
   try {
     if (app.getApplicationNameForProtocol('whatsapp://')) {
-      await shell.openExternal(`whatsapp://send?text=${encoded}`);
+      await shell.openExternal(`whatsapp://send?${query}`);
       return { opened: 'app' };
     }
-    await shell.openExternal(`https://web.whatsapp.com/send?text=${encoded}`);
+    await shell.openExternal(`https://web.whatsapp.com/send?${query}`);
     return { opened: 'web' };
   } catch (err) {
     return { error: err.message };

@@ -1,0 +1,387 @@
+import { useEffect, useState, type ElementType, type ReactNode } from "react";
+import { format } from "date-fns";
+import { toast } from "sonner";
+import { Cake, CalendarDays, Hash, Loader2, Mail, MapPin, MessageCircle, Phone, Upload, User } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAuth } from "@/contexts/AuthContext";
+import { useSettings } from "@/contexts/SettingsContext";
+import { dbQuery } from "@/lib/db";
+import { cn } from "@/lib/utils";
+import { parseLocalDate } from "@/hooks/useLoans";
+import { supabase } from "@/integrations/supabase/client";
+import { ageFrom, durationSince, formatMemberSummary, getMemberRecord, type LoanState, type MemberRecord } from "@/utils/memberRecord";
+
+type ShareResult = { opened?: "app" | "web"; error?: string };
+type Bridge = { shareWhatsApp?: (text: string, phone?: string) => Promise<ShareResult> };
+
+const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif"];
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
+interface MemberDetailsDialogProps {
+  memberId: string | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** Called after the member record changes (e.g. a new photo) so the caller can refresh its list. */
+  onChanged?: () => void;
+}
+
+/** Member Details: profile, account summary, savings account, loans and attendance. */
+export default function MemberDetailsDialog({ memberId, open, onOpenChange, onChanged }: MemberDetailsDialogProps) {
+  const { isAdmin } = useAuth();
+  const { settings } = useSettings();
+  const [record, setRecord] = useState<MemberRecord | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [sharing, setSharing] = useState(false);
+
+  const load = async (id: string) => {
+    setLoadError(null);
+    try {
+      setRecord(await getMemberRecord(id));
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  useEffect(() => {
+    if (open && memberId) {
+      setRecord(null);
+      load(memberId);
+    }
+  }, [open, memberId]);
+
+  const cur = settings.currency || "PKR";
+  const amount = (v: number) => Number(v).toLocaleString("en-US", { maximumFractionDigits: 2 });
+  const money = (v: number) => `${cur} ${amount(v)}`;
+  const day = (key: string | null) => (key ? format(parseLocalDate(key.slice(0, 10)), settings.dateFormat || "dd/MM/yyyy") : "-");
+  const ready = record && record.member.id === memberId;
+
+  const updatePhoto = () => {
+    if (!record) return;
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/jpeg,image/png,image/gif";
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      if (!ALLOWED_IMAGE_TYPES.includes(file.type)) return toast.error("Invalid file", { description: "Please choose a JPG, PNG or GIF image." });
+      if (file.size > MAX_IMAGE_BYTES) return toast.error("File too large", { description: "Profile pictures must be 5 MB or smaller." });
+      setUploading(true);
+      try {
+        const filePath = `members/${Date.now()}.${file.name.split(".").pop()}`;
+        const { error } = await supabase.storage.from("profile-pictures").upload(filePath, file);
+        if (error) throw new Error("The photo could not be uploaded. Check the internet connection and try again.");
+        const { data } = supabase.storage.from("profile-pictures").getPublicUrl(filePath);
+        // Only the photo changes; the other member fields are left as they are.
+        await dbQuery("UPDATE public.members SET profile_picture = $1 WHERE id = $2", [data.publicUrl, record.member.id]);
+        toast.success("Photo updated");
+        await load(record.member.id);
+        onChanged?.();
+      } catch (err) {
+        toast.error("Unable to update photo", { description: err instanceof Error ? err.message : String(err) });
+      } finally {
+        setUploading(false);
+      }
+    };
+    input.click();
+  };
+
+  const sendSummary = async () => {
+    if (!record) return;
+    if (!record.member.phone) return toast.error("No phone number", { description: "Add a phone number to this member to send a WhatsApp summary." });
+    const api = (window as unknown as { electronAPI?: Bridge }).electronAPI;
+    if (!api?.shareWhatsApp) return toast.error("Unable to open WhatsApp", { description: "Sharing is available in the desktop app." });
+    setSharing(true);
+    try {
+      const res = await api.shareWhatsApp(formatMemberSummary(record, settings), record.member.phone);
+      if (res.error) toast.error("Unable to open WhatsApp", { description: res.error });
+      else toast.success(res.opened === "app" ? "WhatsApp opened" : "WhatsApp Web opened", { description: `Summary ready to send to ${record.member.name}.` });
+    } finally {
+      setSharing(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[780px] flex flex-col max-h-[90vh] p-0 gap-0 overflow-hidden rounded-sm border-t-2 border-t-primary/70">
+        {!ready ? (
+          <>
+            <DialogTitle className="sr-only">Member Details</DialogTitle>
+            <DialogDescription className="sr-only">Loading member details</DialogDescription>
+            <div className="flex items-center justify-center py-20 text-sm text-muted-foreground">
+              {loadError ? <span className="text-destructive">{loadError}</span> : <Loader2 className="w-6 h-6 animate-spin text-primary" />}
+            </div>
+          </>
+        ) : (
+          <>
+            {/* Header */}
+            <div className="flex-shrink-0 px-6 pt-5 pb-4 pr-12 border-b bg-muted/30">
+              <div className="flex items-start gap-4">
+                <Avatar className="h-16 w-16 rounded-sm border-2 border-primary/50 flex-shrink-0">
+                  <AvatarImage src={record.member.profile_picture || undefined} className="object-cover" />
+                  <AvatarFallback className="rounded-sm bg-primary/10 text-primary text-xl font-bold">
+                    {record.member.name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0 flex-1">
+                  <p className="tracked-label text-[10px] font-semibold text-primary uppercase">Member · {record.memberNo}</p>
+                  <DialogTitle className="text-xl font-bold text-foreground leading-tight mt-1 truncate">{record.member.name}</DialogTitle>
+                  <DialogDescription className="text-sm text-muted-foreground mt-0.5">
+                    {record.member.father_name ? `Father: ${record.member.father_name} · ` : ""}Member since {day(record.member.join_date)}
+                  </DialogDescription>
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    <LoanStatusBadge record={record} />
+                  </div>
+                </div>
+                {isAdmin && (
+                  <div className="flex flex-col gap-2 flex-shrink-0">
+                    <Button variant="outline" size="sm" className="gap-2 h-8 rounded-sm justify-start" onClick={sendSummary} disabled={sharing}>
+                      {sharing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <MessageCircle className="w-3.5 h-3.5" />} WhatsApp summary
+                    </Button>
+                    <Button variant="outline" size="sm" className="gap-2 h-8 rounded-sm justify-start" onClick={updatePhoto} disabled={uploading}>
+                      {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />} Update photo
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="overflow-y-auto flex-1 px-6 py-5 space-y-5">
+              {/* Account summary */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <SummaryTile
+                  label="Savings balance"
+                  unit={cur}
+                  value={amount(record.savingsBalance)}
+                  sub={record.profitTotal > 0 ? `Contributions ${amount(record.contributionsTotal)} + profit ${amount(record.profitTotal)}` : "Total contributions"}
+                  tone="good"
+                />
+                <SummaryTile
+                  label="Loan outstanding"
+                  unit={cur}
+                  value={amount(record.loanOutstanding)}
+                  sub={record.openLoans ? `${record.openLoans} open loan${record.openLoans === 1 ? "" : "s"}` : "No outstanding loans"}
+                  tone={record.loans.some((l) => l.state === "Overdue" || l.state === "Defaulted") ? "bad" : undefined}
+                />
+                <SummaryTile
+                  label="Attendance"
+                  value={record.recordedMeetings ? `${Math.round((record.attended / record.recordedMeetings) * 100)}%` : "-"}
+                  sub={record.recordedMeetings ? `${record.attended} of ${record.recordedMeetings} meetings` : "No attendance recorded"}
+                />
+                <SummaryTile
+                  label="Profit-sharing ratio"
+                  value={record.profitShareRatio === null ? "-" : `${(record.profitShareRatio * 100).toFixed(2)}%`}
+                  sub="Share of all contributions"
+                />
+              </div>
+
+              {/* Personal details */}
+              <div>
+                <SectionLabel>Personal details</SectionLabel>
+                <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 rounded-sm border border-border/60 p-4">
+                  <Detail icon={Hash} label="Member no." value={record.memberNo} mono />
+                  <Detail icon={User} label="Father's name" value={record.member.father_name || "-"} />
+                  <Detail
+                    icon={Cake}
+                    label="Date of birth"
+                    value={record.member.dob ? `${day(record.member.dob)} (${ageFrom(record.member.dob)} yrs)` : "-"}
+                    mono
+                  />
+                  <Detail icon={CalendarDays} label="Member since" value={`${day(record.member.join_date)} · ${durationSince(record.member.join_date)}`} mono />
+                  <Detail icon={Phone} label="Phone" value={record.member.phone || "-"} mono />
+                  <Detail icon={Mail} label="Email" value={record.member.email || "-"} />
+                  <Detail icon={MapPin} label="Address" value={record.member.address || "-"} wide />
+                </dl>
+              </div>
+
+              {/* Records */}
+              <Tabs defaultValue="savings">
+                <TabsList className="grid w-full grid-cols-3 rounded-sm">
+                  <TabsTrigger value="savings" className="rounded-sm">Savings account ({record.savings.length})</TabsTrigger>
+                  <TabsTrigger value="loans" className="rounded-sm">Loans ({record.loans.length})</TabsTrigger>
+                  <TabsTrigger value="attendance" className="rounded-sm">Attendance ({record.attendance.length})</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="savings" className="mt-3">
+                  {record.savings.length === 0 ? (
+                    <Empty>No contributions recorded yet.</Empty>
+                  ) : (
+                    <div className="rounded-sm border border-border/60 overflow-hidden">
+                      <div className="grid grid-cols-12 px-4 py-2 bg-muted/50 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        <span className="col-span-3">Date</span>
+                        <span className="col-span-3">Particulars</span>
+                        <span className="col-span-2">Attendance</span>
+                        <span className="col-span-2 text-right">Amount</span>
+                        <span className="col-span-2 text-right">Balance</span>
+                      </div>
+                      <div className="divide-y divide-border/60">
+                        {record.savings.map((s, i) => (
+                          <div key={i} className="grid grid-cols-12 items-center px-4 py-2.5 text-sm hover:bg-muted/30 transition-colors">
+                            <span className="col-span-3 figure">{day(s.date)}</span>
+                            <span className={cn("col-span-3", s.kind === "profit" && "text-primary font-medium")}>{s.kind === "profit" ? "Profit share" : "Contribution"}</span>
+                            <span className="col-span-2">
+                              {s.present === null ? <span className="text-xs text-muted-foreground">-</span> : <PresenceBadge present={s.present} />}
+                            </span>
+                            <span className="col-span-2 figure text-right font-semibold">{amount(s.amount)}</span>
+                            <span className="col-span-2 figure text-right text-muted-foreground">{amount(s.balance)}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="grid grid-cols-12 px-4 py-2.5 bg-muted/40 border-t border-border/60">
+                        <span className="col-span-8 text-xs font-semibold text-muted-foreground">Savings balance</span>
+                        <span className="col-span-4 figure text-sm font-bold text-right">{money(record.savings[0].balance)}</span>
+                      </div>
+                    </div>
+                  )}
+                </TabsContent>
+
+                <TabsContent value="loans" className="mt-3 space-y-3">
+                  {record.loans.length === 0 ? (
+                    <Empty>No loans taken.</Empty>
+                  ) : (
+                    record.loans.map((l) => {
+                      const progress = l.totalPayable > 0 ? Math.min(100, (l.repaid / l.totalPayable) * 100) : 0;
+                      return (
+                        <div key={l.id} className="rounded-sm border border-border/60 overflow-hidden">
+                          <div className="flex items-center justify-between gap-3 px-4 py-3 bg-muted/40">
+                            <div>
+                              <p className="text-sm font-semibold text-foreground">Loan of {money(l.principal)}</p>
+                              <p className="figure text-xs text-muted-foreground">
+                                Issued {day(l.date)} · {l.termMonths} month{l.termMonths === 1 ? "" : "s"} · {l.interestRate}% interest
+                              </p>
+                            </div>
+                            <StateBadge state={l.state} />
+                          </div>
+                          <div className="px-4 py-3 space-y-3">
+                            <div className="grid grid-cols-3 gap-3">
+                              <Figure label="Total payable" value={money(l.totalPayable)} />
+                              <Figure label="Repaid" value={money(l.repaid)} tone="good" />
+                              <Figure label="Remaining" value={money(l.remaining)} tone={l.remaining > 0 ? "bad" : undefined} />
+                            </div>
+                            <div>
+                              <div className="h-1.5 w-full rounded-sm bg-muted overflow-hidden">
+                                <div className="h-full bg-secondary" style={{ width: `${progress}%` }} />
+                              </div>
+                              <p className="figure text-[11px] text-muted-foreground mt-1">{progress.toFixed(0)}% repaid</p>
+                            </div>
+                            {l.state === "Overdue" && (
+                              <p className="text-xs font-semibold text-destructive">
+                                Overdue: {money(l.arrears)} · {l.daysOverdue} day{l.daysOverdue === 1 ? "" : "s"} past due
+                              </p>
+                            )}
+                            {l.nextDue && (
+                              <p className="figure text-xs text-foreground">Next instalment: {day(l.nextDue.date)} · {money(l.nextDue.amount)}</p>
+                            )}
+                            <div>
+                              <p className="text-xs font-semibold text-muted-foreground mb-1.5">Repayments</p>
+                              {l.repayments.length === 0 ? (
+                                <p className="text-xs text-muted-foreground">No repayments yet.</p>
+                              ) : (
+                                <div className="flex flex-wrap gap-1.5">
+                                  {l.repayments.map((p, i) => (
+                                    <span key={i} className="figure text-xs px-2 py-1 rounded-sm border border-border/60 bg-muted/40">
+                                      {day(p.date)} · {amount(p.amount)}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </TabsContent>
+
+                <TabsContent value="attendance" className="mt-3">
+                  {record.attendance.length === 0 ? (
+                    <Empty>No meetings held since this member joined.</Empty>
+                  ) : (
+                    <div className="rounded-sm border border-border/60 overflow-hidden">
+                      <div className="px-4 py-2.5 bg-muted/40 text-xs text-muted-foreground">
+                        {record.recordedMeetings
+                          ? `Present at ${record.attended} of ${record.recordedMeetings} recorded meetings (${Math.round((record.attended / record.recordedMeetings) * 100)}%)`
+                          : "Attendance has not been recorded for these meetings."}
+                      </div>
+                      <div className="divide-y divide-border/60">
+                        {record.attendance.map((a) => (
+                          <div key={a.meetingId} className="flex items-center gap-4 px-4 py-2.5 hover:bg-muted/30 transition-colors">
+                            <span className="figure text-sm w-24 flex-shrink-0">{day(a.date)}</span>
+                            <span className="text-sm text-muted-foreground truncate flex-1">{a.agenda}</span>
+                            {a.present === null ? <span className="text-xs text-muted-foreground">Not recorded</span> : <PresenceBadge present={a.present} />}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </TabsContent>
+              </Tabs>
+            </div>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function SectionLabel({ children }: { children: ReactNode }) {
+  return <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">{children}</p>;
+}
+
+function Empty({ children }: { children: ReactNode }) {
+  return <p className="text-sm text-muted-foreground text-center py-6 rounded-sm border border-dashed border-border/60">{children}</p>;
+}
+
+function SummaryTile({ label, value, unit, sub, tone }: { label: string; value: string; unit?: string; sub: string; tone?: "good" | "bad" }) {
+  return (
+    <div className="rounded-sm border border-border/60 border-t-2 border-t-primary/70 bg-card px-3 py-3 min-w-0">
+      <p className="tracked-label text-[10px] font-semibold uppercase text-muted-foreground">{label}</p>
+      <p className={cn("figure text-lg font-bold mt-1 leading-tight break-all", tone === "good" ? "text-secondary" : tone === "bad" ? "text-destructive" : "text-foreground")}>
+        {unit && <span className="text-[11px] font-semibold text-muted-foreground mr-1">{unit}</span>}
+        {value}
+      </p>
+      <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">{sub}</p>
+    </div>
+  );
+}
+
+function Detail({ icon: Icon, label, value, mono, wide }: { icon: ElementType; label: string; value: string; mono?: boolean; wide?: boolean }) {
+  return (
+    <div className={cn("flex items-start gap-3 min-w-0", wide && "sm:col-span-2")}>
+      <Icon className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+      <div className="min-w-0">
+        <dt className="text-xs text-muted-foreground">{label}</dt>
+        <dd className={cn("text-sm font-medium text-foreground break-words", mono && "figure")}>{value}</dd>
+      </div>
+    </div>
+  );
+}
+
+function Figure({ label, value, tone }: { label: string; value: string; tone?: "good" | "bad" }) {
+  return (
+    <div>
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className={cn("figure text-sm font-bold", tone === "good" ? "text-secondary" : tone === "bad" ? "text-destructive" : "text-foreground")}>{value}</p>
+    </div>
+  );
+}
+
+function PresenceBadge({ present }: { present: boolean }) {
+  return <Badge variant={present ? "secondary" : "destructive"} className="text-[10px]">{present ? "Present" : "Absent"}</Badge>;
+}
+
+function StateBadge({ state }: { state: LoanState }) {
+  const variant = state === "Paid" ? "secondary" : state === "Active" ? "outline" : "destructive";
+  return <Badge variant={variant} className="text-[10px] flex-shrink-0">{state}</Badge>;
+}
+
+function LoanStatusBadge({ record }: { record: MemberRecord }) {
+  const worst = record.loans.find((l) => l.state === "Defaulted") ?? record.loans.find((l) => l.state === "Overdue");
+  if (worst) return <Badge variant="destructive" className="text-[10px]">Loan {worst.state.toLowerCase()}</Badge>;
+  if (record.openLoans) return <Badge variant="outline" className="text-[10px]">Loan active</Badge>;
+  return <Badge variant="secondary" className="text-[10px]">No outstanding loans</Badge>;
+}
