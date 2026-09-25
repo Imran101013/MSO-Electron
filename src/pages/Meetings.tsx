@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, Calendar, Eye, FileText, Clock, Loader2, Trash2, CalendarDays, Users } from "lucide-react";
-import { useState } from "react";
+import { Plus, Calendar, Eye, FileText, Clock, Loader2, Trash2, CalendarDays, Share2, MapPin } from "lucide-react";
+import { useState, type ReactNode } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -22,6 +22,7 @@ import { useMeetings, DbMeeting, DbUpcomingMeeting } from "@/hooks/useMeetings";
 import { useMembers } from "@/hooks/useMembers";
 import { useAttendance } from "@/hooks/useAttendance";
 import { useContributions } from "@/hooks/useContributions";
+import { buildMeetingShareMessage, getMeetingRecord, formatAmount, formatDay, formatTime, reserveLabel, type AmountRow, type MeetingRecord } from "@/utils/meetingShare";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { emitMeetingSaved } from "@/lib/events";
@@ -31,12 +32,14 @@ const upcomingMeetingSchema = z.object({ date: z.date(), time: z.string().min(1,
 type MeetingFormValues = z.infer<typeof meetingSchema>;
 type UpcomingMeetingFormValues = z.infer<typeof upcomingMeetingSchema>;
 interface MemberContribution { memberId: string; memberName: string; amount: number; present: boolean; }
+type ShareResult = { opened?: "app" | "web"; error?: string };
+type WhatsAppBridge = { shareWhatsApp?: (text: string) => Promise<ShareResult> };
 
 export default function Meetings() {
   const { meetings, upcomingMeetings, isLoading, addMeeting, deleteMeeting, addUpcomingMeeting, deleteUpcomingMeeting } = useMeetings();
   const { members, isLoading: membersLoading } = useMembers();
-  const { bulkRecordAttendance, getAttendanceForMeeting } = useAttendance();
-  const { bulkAddContributions, getContributionsByMeeting } = useContributions();
+  const { bulkRecordAttendance } = useAttendance();
+  const { bulkAddContributions } = useContributions();
   const { settings } = useSettings();
   const { isAdmin } = useAuth();
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -46,8 +49,9 @@ export default function Meetings() {
   const [meetingToDelete, setMeetingToDelete] = useState<DbMeeting | null>(null);
   const [upcomingToDelete, setUpcomingToDelete] = useState<DbUpcomingMeeting | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
   const [memberContributions, setMemberContributions] = useState<MemberContribution[]>([]);
-  const [viewMeetingData, setViewMeetingData] = useState<{ attendance: any[]; contributions: any[] }>({ attendance: [], contributions: [] });
+  const [viewRecord, setViewRecord] = useState<MeetingRecord | null>(null);
 
   const form = useForm<MeetingFormValues>({ resolver: zodResolver(meetingSchema), defaultValues: { date: undefined, agenda: "", decisions: "" } });
   const scheduleForm = useForm<UpcomingMeetingFormValues>({ resolver: zodResolver(upcomingMeetingSchema), defaultValues: { date: undefined, time: "", venue: "" } });
@@ -80,40 +84,39 @@ export default function Meetings() {
     setIsSubmitting(false); setIsScheduleOpen(false); scheduleForm.reset();
   };
 
+  // Same record the WhatsApp message is built from, so the dialog and the message always agree.
   const handleViewMeeting = async (meeting: DbMeeting) => {
     setViewMeetingId(meeting.id);
-    const [attendance, contributions] = await Promise.all([getAttendanceForMeeting(meeting.id), getContributionsByMeeting(meeting.id)]);
-    setViewMeetingData({ attendance, contributions });
+    setViewRecord(null);
+    try {
+      setViewRecord(await getMeetingRecord(meeting));
+    } catch (err) {
+      toast.error("Unable to load meeting details", { description: err instanceof Error ? err.message : String(err) });
+    }
   };
 
-  const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-  const shareLatestMeetingViaWhatsApp = async () => {
+  // Opens WhatsApp with the latest meeting's record typed in; the admin chooses who to send it to.
+  const shareLatestMeeting = async () => {
     if (meetings.length === 0) {
-      toast.error("No meetings", { description: "There is no meeting to share." });
+      toast.error("No meetings", { description: "There is no meeting to share yet." });
       return;
     }
-    const latestMeeting = meetings.reduce((latest, current) => new Date(current.meeting_date) > new Date(latest.meeting_date) ? current : latest, meetings[0]);
-    const message = `Latest meeting details:\n\nDate: ${format(new Date(latestMeeting.meeting_date), settings.dateFormat)}\nAgenda: ${latestMeeting.agenda}${latestMeeting.decisions ? `\nDecisions: ${latestMeeting.decisions}` : ""}`;
-    const api = (window as any).electronAPI;
-    if (!api?.openExternal) {
-      toast.error("Unable to open WhatsApp", { description: "Desktop API not available." });
+    const api = (window as unknown as { electronAPI?: WhatsAppBridge }).electronAPI;
+    if (!api?.shareWhatsApp) {
+      toast.error("Unable to open WhatsApp", { description: "Sharing is available in the desktop app." });
       return;
     }
-    const membersToMessage = members.filter((member) => member.phone).map((member) => ({ id: member.id, name: member.name, phone: member.phone as string }));
-    if (membersToMessage.length === 0) {
-      toast.error("No phone numbers", { description: "No members have a phone number to send WhatsApp messages." });
-      return;
+    const latest = meetings.reduce((a, b) => (b.meeting_date > a.meeting_date ? b : a), meetings[0]);
+    setIsSharing(true);
+    try {
+      const res = await api.shareWhatsApp(await buildMeetingShareMessage(latest, settings));
+      if (res.error) toast.error("Unable to open WhatsApp", { description: res.error });
+      else toast.success(res.opened === "app" ? "WhatsApp opened" : "WhatsApp Web opened", { description: "Choose who to send the meeting record to." });
+    } catch (err) {
+      toast.error("Unable to prepare the meeting record", { description: err instanceof Error ? err.message : String(err) });
+    } finally {
+      setIsSharing(false);
     }
-    for (const member of membersToMessage) {
-      const phone = member.phone.replace(/\D/g, "");
-      if (!phone) continue;
-      const encoded = encodeURIComponent(`Hello ${member.name}, ${message}`);
-      const url = `https://api.whatsapp.com/send?phone=${phone}&text=${encoded}`;
-      await api.openExternal(url);
-      await delay(300);
-    }
-    toast.success("WhatsApp opened", { description: `WhatsApp share opened for ${membersToMessage.length} members.` });
   };
 
   const viewedMeeting = meetings.find(m => m.id === viewMeetingId);
@@ -136,7 +139,9 @@ export default function Meetings() {
         </div>
         {isAdmin && (
           <div className="flex gap-2">
-            <Button variant="secondary" className="gap-2" onClick={shareLatestMeetingViaWhatsApp}><Users className="w-4 h-4" /> Share Latest Meeting</Button>
+            <Button variant="secondary" className="gap-2" onClick={shareLatestMeeting} disabled={isSharing}>
+              {isSharing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Share2 className="w-4 h-4" />} Share Latest Meeting
+            </Button>
             {/* Schedule Dialog */}
             <Dialog open={isScheduleOpen} onOpenChange={setIsScheduleOpen}>
               <DialogTrigger asChild>
@@ -333,11 +338,19 @@ export default function Meetings() {
                             <Eye className="w-5 h-5 text-primary" />
                           </div>
                           <div>
-                            <h2 className="text-base font-bold text-foreground">Meeting Details</h2>
-                            <p className="figure text-xs text-muted-foreground">{format(new Date(meeting.meeting_date), settings.dateFormat)}</p>
+                            <DialogTitle className="text-base font-bold text-foreground">Meeting Details</DialogTitle>
+                            <p className="figure text-xs text-muted-foreground">
+                              {formatDay(meeting.meeting_date, settings)}
+                              {viewRecord?.meeting.id === meeting.id && viewRecord.venue && (
+                                <span className="inline-flex items-center gap-1 ml-2 font-sans"><MapPin className="w-3 h-3" />{viewRecord.venue}</span>
+                              )}
+                            </p>
                           </div>
                         </div>
-                        {viewedMeeting && (
+                        {viewedMeeting && viewRecord?.meeting.id !== meeting.id && (
+                          <div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+                        )}
+                        {viewedMeeting && viewRecord?.meeting.id === meeting.id && (
                           <div className="overflow-y-auto flex-1 px-6 py-5 space-y-5">
                             <div className="p-4 rounded-sm bg-muted/40 border border-border/60 space-y-3">
                               <div>
@@ -346,51 +359,105 @@ export default function Meetings() {
                               </div>
                               {viewedMeeting.decisions && (
                                 <div className="pt-3 border-t border-border/60">
-                                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">Decisions Made</p>
+                                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">Decisions</p>
                                   <p className="text-sm text-foreground">{viewedMeeting.decisions}</p>
                                 </div>
                               )}
                             </div>
-                            <div className="grid grid-cols-2 gap-3">
-                              <div className="p-4 rounded-sm border-2 border-secondary/40 bg-secondary/10 text-center">
-                                <p className="text-xs font-semibold text-secondary mb-1">Present</p>
-                                <p className="figure text-3xl font-bold text-secondary">{viewMeetingData.attendance.filter((a: any) => a.present).length}</p>
-                              </div>
-                              <div className="p-4 rounded-sm border-2 border-destructive/40 bg-destructive/10 text-center">
-                                <p className="text-xs font-semibold text-destructive mb-1">Absent</p>
-                                <p className="figure text-3xl font-bold text-destructive">{viewMeetingData.attendance.filter((a: any) => !a.present).length}</p>
-                              </div>
-                            </div>
+                            {/* Attendance */}
                             <div>
-                              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Attendance & Contributions</p>
-                              {viewMeetingData.contributions.length === 0 ? (
-                                <p className="text-sm text-muted-foreground text-center py-4">No contributions recorded for this meeting.</p>
+                              <SectionLabel>
+                                Attendance{viewRecord.attendance.length ? `: ${viewRecord.attendance.length - viewRecord.absent.length} of ${viewRecord.attendance.length} present` : ""}
+                              </SectionLabel>
+                              {viewRecord.attendance.length === 0 ? (
+                                <p className="text-sm text-muted-foreground">Attendance was not recorded for this meeting.</p>
                               ) : (
-                                <div className="divide-y divide-border/60 rounded-sm border border-border/60 overflow-hidden">
-                                  <div className="grid grid-cols-12 px-4 py-2 bg-muted/50">
-                                    <span className="col-span-7 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Member</span>
-                                    <span className="col-span-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Status</span>
-                                    <span className="col-span-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground text-right">Amount</span>
+                                <div className="space-y-3">
+                                  <div className="grid grid-cols-2 gap-3">
+                                    <div className="p-4 rounded-sm border-2 border-secondary/40 bg-secondary/10 text-center">
+                                      <p className="text-xs font-semibold text-secondary mb-1">Present</p>
+                                      <p className="figure text-3xl font-bold text-secondary">{viewRecord.attendance.length - viewRecord.absent.length}</p>
+                                    </div>
+                                    <div className="p-4 rounded-sm border-2 border-destructive/40 bg-destructive/10 text-center">
+                                      <p className="text-xs font-semibold text-destructive mb-1">Absent</p>
+                                      <p className="figure text-3xl font-bold text-destructive">{viewRecord.absent.length}</p>
+                                    </div>
                                   </div>
-                                  {viewMeetingData.contributions.map((contrib: any) => {
-                                    const att = viewMeetingData.attendance.find((a: any) => a.member_id === contrib.member_id);
-                                    return (
-                                      <div key={contrib.id} className="grid grid-cols-12 items-center px-4 py-3 hover:bg-muted/30 transition-colors">
-                                        <span className="col-span-7 text-sm font-medium">{contrib.name || "Unknown"}</span>
-                                        <div className="col-span-2">
-                                          <Badge variant={att?.present ? "secondary" : "destructive"} className="text-xs">{att?.present ? "Present" : "Absent"}</Badge>
-                                        </div>
-                                        <span className="figure col-span-3 text-sm font-bold text-foreground text-right">PKR {contrib.amount.toLocaleString()}</span>
-                                      </div>
-                                    );
-                                  })}
-                                  <div className="grid grid-cols-12 px-4 py-2.5 bg-muted/40 border-t border-border/60">
-                                    <span className="col-span-9 text-xs font-semibold text-muted-foreground">Total Contributions</span>
-                                    <span className="figure col-span-3 text-sm font-bold text-foreground text-right">PKR {viewMeetingData.contributions.reduce((s: number, c: any) => s + c.amount, 0).toLocaleString()}</span>
+                                  <div>
+                                    <p className="text-xs font-semibold text-muted-foreground mb-2">Absent members ({viewRecord.absent.length})</p>
+                                    {viewRecord.absent.length === 0 ? (
+                                      <p className="text-sm text-muted-foreground">None - all members were present.</p>
+                                    ) : (
+                                      <ol className="divide-y divide-border/60 rounded-sm border border-border/60 overflow-hidden">
+                                        {viewRecord.absent.map((name, i) => (
+                                          <li key={`${name}-${i}`} className="flex items-center gap-3 px-4 py-2 text-sm">
+                                            <span className="figure w-5 text-muted-foreground">{i + 1}.</span>{name}
+                                          </li>
+                                        ))}
+                                      </ol>
+                                    )}
                                   </div>
                                 </div>
                               )}
                             </div>
+
+                            {/* Savings */}
+                            <div>
+                              <SectionLabel>Savings</SectionLabel>
+                              <AmountTable
+                                rows={viewRecord.savings}
+                                totalLabel="Total savings"
+                                currency={settings.currency}
+                                empty="No members recorded."
+                                status={(memberId) => viewRecord.attendance.find((a) => a.memberId === memberId)?.present}
+                              />
+                            </div>
+
+                            {/* Loans collected */}
+                            <div>
+                              <SectionLabel>Loans collected</SectionLabel>
+                              <AmountTable rows={viewRecord.collected} totalLabel="Total collected" currency={settings.currency} empty="No loan repayments were received." />
+                            </div>
+
+                            <div className="flex items-center justify-between px-4 py-3 rounded-sm border-2 border-primary/40 bg-primary/10">
+                              <span className="text-sm font-semibold text-foreground">Total collected (savings + loans)</span>
+                              <span className="figure text-base font-bold text-primary">{settings.currency} {formatAmount(viewRecord.totals.totalCollected)}</span>
+                            </div>
+
+                            {viewRecord.newLoans.length > 0 && (
+                              <div>
+                                <SectionLabel>New loans issued</SectionLabel>
+                                <AmountTable rows={viewRecord.newLoans} totalLabel="Total loans issued" currency={settings.currency} empty="" />
+                              </div>
+                            )}
+
+                            {viewRecord.reserve.length > 0 && (
+                              <div>
+                                <SectionLabel>Reserve fund</SectionLabel>
+                                <div className="divide-y divide-border/60 rounded-sm border border-border/60 overflow-hidden">
+                                  {viewRecord.reserve.map((t, i) => (
+                                    <div key={i} className="flex items-center justify-between gap-4 px-4 py-2.5">
+                                      <span className="text-sm">{reserveLabel(t)}</span>
+                                      <span className={cn("figure text-sm font-bold whitespace-nowrap", t.transaction_type === "expense" ? "text-destructive" : "text-secondary")}>
+                                        {t.transaction_type === "expense" ? "-" : "+"} {settings.currency} {formatAmount(t.amount)}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {viewRecord.next && (
+                              <div>
+                                <SectionLabel>Next meeting</SectionLabel>
+                                <div className="flex items-center gap-3 px-4 py-3 rounded-sm border border-border/60 bg-muted/40">
+                                  <CalendarDays className="w-4 h-4 text-primary flex-shrink-0" />
+                                  <span className="figure text-sm text-foreground">
+                                    {[formatDay(viewRecord.next.meeting_date, settings), formatTime(viewRecord.next.meeting_time, settings), viewRecord.next.venue].filter(Boolean).join(" · ")}
+                                  </span>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )}
                       </DialogContent>
@@ -427,6 +494,56 @@ export default function Meetings() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+  );
+}
+
+function SectionLabel({ children }: { children: ReactNode }) {
+  return <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">{children}</p>;
+}
+
+/** Member / amount list with a total row, matching the lists in the WhatsApp message. */
+function AmountTable({ rows, totalLabel, currency, empty, status }: {
+  rows: AmountRow[];
+  totalLabel: string;
+  currency: string;
+  empty: string;
+  /** When given, adds an attendance column: true = present, false = absent, undefined = not recorded. */
+  status?: (memberId: string) => boolean | undefined;
+}) {
+  if (rows.length === 0) return <p className="text-sm text-muted-foreground">{empty}</p>;
+  const total = rows.reduce((s, r) => s + Number(r.amount), 0);
+  return (
+    <div className="divide-y divide-border/60 rounded-sm border border-border/60 overflow-hidden">
+      <div className="grid grid-cols-12 px-4 py-2 bg-muted/50">
+        <span className={cn("text-xs font-semibold uppercase tracking-wider text-muted-foreground", status ? "col-span-6" : "col-span-8")}>Member</span>
+        {status && <span className="col-span-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Attendance</span>}
+        <span className={cn("text-xs font-semibold uppercase tracking-wider text-muted-foreground text-right", status ? "col-span-3" : "col-span-4")}>Amount</span>
+      </div>
+      {rows.map((r, i) => {
+        const present = status?.(r.memberId);
+        return (
+          <div key={`${r.memberId}-${i}`} className="grid grid-cols-12 items-center px-4 py-2.5 hover:bg-muted/30 transition-colors">
+            <span className={cn("text-sm font-medium", status ? "col-span-6" : "col-span-8")}>{r.name}</span>
+            {status && (
+              <div className="col-span-3">
+                {present === undefined ? (
+                  <span className="text-xs text-muted-foreground">Not recorded</span>
+                ) : (
+                  <Badge variant={present ? "secondary" : "destructive"} className="text-xs">{present ? "Present" : "Absent"}</Badge>
+                )}
+              </div>
+            )}
+            <span className={cn("figure text-sm text-right", status ? "col-span-3" : "col-span-4", Number(r.amount) > 0 ? "font-bold text-foreground" : "text-muted-foreground")}>
+              {formatAmount(r.amount)}
+            </span>
+          </div>
+        );
+      })}
+      <div className="grid grid-cols-12 px-4 py-2.5 bg-muted/40">
+        <span className="col-span-8 text-xs font-semibold text-muted-foreground">{totalLabel}</span>
+        <span className="figure col-span-4 text-sm font-bold text-foreground text-right">{currency} {formatAmount(total)}</span>
+      </div>
     </div>
   );
 }

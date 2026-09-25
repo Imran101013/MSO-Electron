@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { Pool, types } = require('pg');
@@ -131,6 +131,24 @@ ipcMain.handle('db-restore', async () => {
     return { error: err.message };
   } finally {
     client.release();
+  }
+});
+
+// Share text through WhatsApp: the desktop app if one is registered for whatsapp:// links,
+// otherwise WhatsApp Web. The user picks the recipient there. The renderer supplies only the
+// message; the URL is built here so this can't be used to open arbitrary links.
+ipcMain.handle('share-whatsapp', async (_, { text }) => {
+  if (typeof text !== 'string' || !text.trim()) return { error: 'There is nothing to share.' };
+  const encoded = encodeURIComponent(text);
+  try {
+    if (app.getApplicationNameForProtocol('whatsapp://')) {
+      await shell.openExternal(`whatsapp://send?text=${encoded}`);
+      return { opened: 'app' };
+    }
+    await shell.openExternal(`https://web.whatsapp.com/send?text=${encoded}`);
+    return { opened: 'web' };
+  } catch (err) {
+    return { error: err.message };
   }
 });
 

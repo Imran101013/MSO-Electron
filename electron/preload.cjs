@@ -7,4 +7,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   changePassword: (userId, currentPassword, newPassword) => ipcRenderer.invoke('auth-change-password', { userId, currentPassword, newPassword }),
   backupDatabase: () => ipcRenderer.invoke('db-backup'),
   restoreDatabase: () => ipcRenderer.invoke('db-restore'),
+  shareWhatsApp: (text) => ipcRenderer.invoke('share-whatsapp', { text }),
 });
