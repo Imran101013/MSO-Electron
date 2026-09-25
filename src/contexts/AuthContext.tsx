@@ -48,12 +48,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const login = async (email: string, password: string): Promise<{ error: string | null }> => {
     const api = (window as any).electronAPI;
     if (!api) return { error: 'Not running as desktop app. Please launch via Electron.' };
-    const res = await api.login(email, password);
+    const timeoutPromise = new Promise<{ error: string }>((resolve) =>
+      setTimeout(() => resolve({ error: 'Connection timed out. Is PostgreSQL running?' }), 10000)
+    );
+    const res = await Promise.race([api.login(email, password), timeoutPromise]);
     if (res.error) return { error: res.error };
-    if (res.user.role !== 'admin') return { error: 'Only admin access is allowed.' };
-    localStorage.setItem(TOKEN_KEY, res.token);
-    setUser(res.user);
-    setDbActor(res.user.email ?? res.user.id);
+    if ((res as any).user?.role !== 'admin') return { error: 'Only admin access is allowed.' };
+    localStorage.setItem(TOKEN_KEY, (res as any).token);
+    setUser((res as any).user);
+    setDbActor((res as any).user.email ?? (res as any).user.id);
     return { error: null };
   };
 

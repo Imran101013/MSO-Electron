@@ -10,19 +10,32 @@ import { useReserveTransactions } from "@/hooks/useReserveTransactions";
 import { useProfitDistributions } from "@/hooks/useProfitDistributions";
 
 export interface MonthlyContribution {
+  id?: string;
   month: string;
   amount: number;
   paid: boolean;
+  meetingId?: string | null;
+  createdAt?: string;
 }
 
 export interface Attendance {
   date: string;
   present: boolean;
+  meetingId?: string;
 }
 
 export interface LoanInstallment {
+  id?: string;
   date: string;
   amount: number;
+}
+
+export interface LoanScheduleEntry {
+  installmentNumber: number;
+  dueDate: string;
+  dueAmount: number;
+  paidAmount: number;
+  status: "pending" | "paid";
 }
 
 export interface Loan {
@@ -33,6 +46,11 @@ export interface Loan {
   status: LoanStatus;
   remainingAmount: number;
   installments: LoanInstallment[];
+  // Terms as recorded on the loan when it was issued (not the current global setting)
+  interestRate: number;
+  totalPayable: number;
+  termMonths: number;
+  schedule: LoanScheduleEntry[];
 }
 
 export interface MeetingContribution {
@@ -81,10 +99,12 @@ export interface ProfitDistribution {
   totalProfit: number;
   reserveAllocation: number;
   memberAllocations: ProfitAllocation[];
+  createdAt?: string;
 }
 
 export interface Meeting {
   id: number;
+  dbId: string;
   date: string;
   agenda: string;
   decisions: string;
@@ -159,86 +179,15 @@ interface OrganizationContextType {
   profitDistributions: ProfitDistribution[];
   calculateBudgetRatios: () => ProfitAllocation[];
   distributeProfit: (totalProfit: number, date: string) => Promise<boolean>;
+  refreshData: () => Promise<void>;
 }
 
 const OrganizationContext = createContext<OrganizationContextType | undefined>(
   undefined
 );
 
-const initialMembers: Member[] = [
-  {
-    id: 1,
-    dbId: "sample-1",
-    name: "John Doe",
-    fatherName: "Father Doe",
-    dob: new Date("1990-01-01"),
-    email: "john@example.com",
-    phone: "03001234567",
-    address: "123 Main St",
-    joinDate: new Date("2023-01-01"),
-    monthlyContributions: [
-      { month: "2024-01", amount: 500, paid: true },
-      { month: "2024-02", amount: 500, paid: false }
-    ],
-    attendance: [
-      { date: "2024-01-01", present: true },
-      { date: "2024-02-01", present: false }
-    ],
-    loans: [
-      {
-        id: 1,
-        dbId: "sample-loan-1",
-        amount: 5000,
-        date: "2024-01-15",
-        status: "Active",
-        remainingAmount: 3000,
-        installments: [
-          { date: "2024-02-01", amount: 1000 },
-          { date: "2024-03-01", amount: 1000 }
-        ]
-      }
-    ],
-    totalBudget: 10000
-  },
-  {
-    id: 2,
-    dbId: "sample-2",
-    name: "Jane Smith",
-    fatherName: "Father Smith",
-    dob: new Date("1992-05-15"),
-    email: "jane@example.com",
-    phone: "03009876543",
-    address: "456 Oak St",
-    joinDate: new Date("2023-03-01"),
-    monthlyContributions: [
-      { month: "2024-01", amount: 500, paid: true },
-      { month: "2024-02", amount: 500, paid: true }
-    ],
-    attendance: [
-      { date: "2024-01-01", present: true },
-      { date: "2024-02-01", present: true }
-    ],
-    loans: [],
-    totalBudget: 15000
-  }
-];
-const initialMeetings: Meeting[] = [
-  {
-    id: 1,
-    date: "2024-01-15",
-    agenda: "Monthly meeting and loan approvals",
-    decisions: "Approved 3 new loans",
-    contributions: [
-      { memberId: 1, amount: 500, present: true },
-      { memberId: 2, amount: 500, present: true }
-    ],
-    loanCollections: [
-      { memberId: 1, loanId: 1, amount: 1000 }
-    ],
-    loanIssues: [],
-    reserveFundDonations: []
-  }
-];
+const initialMembers: Member[] = [];
+const initialMeetings: Meeting[] = [];
 const initialUpcomingMeetings: UpcomingMeeting[] = [];
 
 export function OrganizationProvider({ children }: { children: ReactNode }) {
@@ -262,17 +211,33 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
 
   // Load data from Postgres via the Electron IPC bridge
   const { members: dbMembers, fetchMembers: refetchMembers } = useMembers();
-  const { loans: dbLoans, installments: dbInstallments } = useLoans();
-  const { contributions: dbContributions } = useContributions();
-  const { attendance: dbAttendance } = useAttendance();
-  const { meetings: dbMeetings, upcomingMeetings: dbUpcomingMeetings } = useMeetings();
-  const { transactions: dbReserveTransactions, addTransaction: dbAddReserveTransaction } = useReserveTransactions();
-  const { distributions: dbDistributions, allocations: dbAllocations, recordDistribution } = useProfitDistributions();
+  const { loans: dbLoans, installments: dbInstallments, schedule: dbSchedule, fetchLoans, fetchInstallments, fetchSchedule } = useLoans();
+  const { contributions: dbContributions, fetchContributions: refetchContributions } = useContributions();
+  const { attendance: dbAttendance, fetchAttendance } = useAttendance();
+  const { meetings: dbMeetings, upcomingMeetings: dbUpcomingMeetings, fetchMeetings } = useMeetings();
+  const { transactions: dbReserveTransactions, addTransaction: dbAddReserveTransaction, fetchTransactions } = useReserveTransactions();
+  const { distributions: dbDistributions, allocations: dbAllocations, recordDistribution, fetchDistributions } = useProfitDistributions();
+
+  // These hook instances load once when the provider mounts, while other pages write through
+  // their own instances — reports call this first so they are built from current records.
+  const refreshData = async () => {
+    await Promise.all([
+      refetchMembers(),
+      fetchLoans(),
+      fetchInstallments(),
+      fetchSchedule(),
+      refetchContributions(),
+      fetchAttendance(),
+      fetchMeetings(),
+      fetchTransactions(),
+      fetchDistributions(),
+    ]);
+  };
 
   // Transform database data to context format
   useEffect(() => {
     if (dbMembers.length > 0) {
-      const transformedMembers: Member[] = dbMembers.map((dbMember: DbMember) => {
+      const transformedMembers: Member[] = dbMembers.map((dbMember: DbMember, idx: number) => {
         // Get loans for this member
         const memberLoans = dbLoans
           .filter((loan: DbLoan) => loan.member_id === dbMember.id)
@@ -280,8 +245,20 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
             const loanInstallments = dbInstallments
               .filter((inst: DbLoanInstallment) => inst.loan_id === loan.id)
               .map((inst: DbLoanInstallment) => ({
+                id: inst.id,
                 date: inst.payment_date,
                 amount: inst.amount,
+              }));
+
+            const loanSchedule = dbSchedule
+              .filter((row) => row.loan_id === loan.id)
+              .sort((a, b) => a.installment_number - b.installment_number)
+              .map((row) => ({
+                installmentNumber: row.installment_number,
+                dueDate: row.due_date,
+                dueAmount: Number(row.due_amount),
+                paidAmount: Number(row.paid_amount),
+                status: row.status,
               }));
 
             return {
@@ -292,6 +269,10 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
               status: loan.status as LoanStatus,
               remainingAmount: loan.remaining_amount,
               installments: loanInstallments,
+              interestRate: Number(loan.interest_rate) || 0,
+              totalPayable: Number(loan.total_payable) || loan.amount,
+              termMonths: loan.term_months || 1,
+              schedule: loanSchedule,
             };
           });
 
@@ -299,21 +280,25 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         const memberContributions = dbContributions
           .filter((contrib: DbContribution) => contrib.member_id === dbMember.id)
           .map((contrib: DbContribution) => ({
+            id: contrib.id,
             month: contrib.contribution_date,
             amount: contrib.amount,
             paid: true, // Assume paid if contribution exists
+            meetingId: contrib.meeting_id,
+            createdAt: contrib.created_at,
           }));
 
         // Get attendance for this member
         const memberAttendance = dbAttendance
           .filter((att: DbAttendance) => att.member_id === dbMember.id)
           .map((att: DbAttendance) => ({
-            date: att.created_at.split('T')[0], // Use created_at date as attendance date
+            date: att.created_at.substring(0, 10),
             present: att.present,
+            meetingId: att.meeting_id,
           }));
 
         return {
-          id: parseInt(dbMember.id),
+          id: idx + 1,
           dbId: dbMember.id,
           name: dbMember.name,
           fatherName: dbMember.father_name,
@@ -331,17 +316,15 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       });
 
       setMembers(transformedMembers);
-    } else {
-      // Use sample data if no database data is available
-      setMembers(initialMembers);
     }
-  }, [dbMembers, dbLoans, dbInstallments, dbContributions, dbAttendance]);
+  }, [dbMembers, dbLoans, dbInstallments, dbSchedule, dbContributions, dbAttendance]);
 
   // Transform meetings data
   useEffect(() => {
     if (dbMeetings.length > 0) {
       const transformedMeetings: Meeting[] = dbMeetings.map((dbMeeting: DbMeeting) => ({
         id: parseInt(dbMeeting.id),
+        dbId: dbMeeting.id,
         date: dbMeeting.meeting_date,
         agenda: dbMeeting.agenda,
         decisions: dbMeeting.decisions || '',
@@ -390,6 +373,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       date: dist.distribution_date,
       totalProfit: dist.total_profit,
       reserveAllocation: dist.reserve_allocation,
+      createdAt: dist.created_at,
       memberAllocations: dbAllocations
         .filter((a) => a.distribution_id === dist.id)
         .map((a) => {
@@ -646,6 +630,10 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       status: ORGANIZATION_CONFIG.LOAN_STATUS.ACTIVE,
       remainingAmount: loanWithInterest,
       installments: [],
+      interestRate: effectiveInterestRate,
+      totalPayable: loanWithInterest,
+      termMonths: ORGANIZATION_CONFIG.DEFAULT_LOAN_TERM_MONTHS,
+      schedule: [],
     };
 
     const updatedMembers = members.map((m) =>
@@ -722,6 +710,10 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       status,
       remainingAmount,
       installments: [],
+      interestRate: 0,
+      totalPayable: Math.max(amount, remainingAmount),
+      termMonths: ORGANIZATION_CONFIG.DEFAULT_LOAN_TERM_MONTHS,
+      schedule: [],
     };
 
     const updatedMembers = members.map((m) =>
@@ -778,6 +770,9 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   // Function to distribute profit: persists the distribution header, per-member allocations,
   // the reserve's cut (as a reserve_transactions row), and each member's budget bump.
   const distributeProfit = async (totalProfit: number, date: string): Promise<boolean> => {
+    // Always fetch fresh contributions before computing ratios so mid-session
+    // additions are included and allocations are never based on stale data.
+    await refetchContributions();
     const budgetRatios = calculateBudgetRatios();
     if (budgetRatios.length === 0) return false;
 
@@ -830,6 +825,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         profitDistributions,
         calculateBudgetRatios,
         distributeProfit,
+        refreshData,
       }}>
       {children}
     </OrganizationContext.Provider>

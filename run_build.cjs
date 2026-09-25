@@ -1,0 +1,1 @@
+const fs=require("fs");const lines=JSON.parse(fs.readFileSync("f:/Projects/MSO-Electron/pdf_lines.json","utf8"));fs.writeFileSync("f:/Projects/MSO-Electron/src/utils/pdfReports.ts",lines.join("\n")+"\n","utf8");console.log("wrote",lines.length,"lines");

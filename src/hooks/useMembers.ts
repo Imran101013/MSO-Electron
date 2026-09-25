@@ -89,19 +89,7 @@ export function useMembers() {
     }
   };
 
-  const approveMember = async (id: string, name: string) => {
-    try {
-      await dbQuery('UPDATE public.members SET is_approved=true WHERE id=$1', [id]);
-      toast({ title: "Member Approved", description: `${name} can now sign in.` });
-      await fetchMembers();
-      return true;
-    } catch (err: any) {
-      toast({ title: "Error", description: err.message || "Failed to approve member", variant: "destructive" });
-      return false;
-    }
-  };
-
   useEffect(() => { fetchMembers(); }, []);
 
-  return { members, isLoading, fetchMembers, addMember, updateMember, deleteMember, approveMember };
+  return { members, isLoading, fetchMembers, addMember, updateMember, deleteMember };
 }

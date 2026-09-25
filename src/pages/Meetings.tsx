@@ -51,7 +51,7 @@ export default function Meetings() {
 
   const form = useForm<MeetingFormValues>({ resolver: zodResolver(meetingSchema), defaultValues: { date: undefined, agenda: "", decisions: "" } });
   const scheduleForm = useForm<UpcomingMeetingFormValues>({ resolver: zodResolver(upcomingMeetingSchema), defaultValues: { date: undefined, time: "", venue: "" } });
-  const approvedMembers = members.filter(m => m.is_approved);
+  const approvedMembers = members;
 
   const handleOpenAddDialog = () => {
     setMemberContributions(approvedMembers.map(m => ({ memberId: m.id, memberName: m.name, amount: 0, present: false })));
@@ -123,14 +123,15 @@ export default function Meetings() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between border-b-2 border-primary/40 pb-4">
         <div className="flex items-center gap-4">
-          <div className="w-11 h-11 rounded-xl bg-gradient-primary flex items-center justify-center shadow-md">
-            <CalendarDays className="w-5 h-5 text-white" />
+          <div className="w-11 h-11 rounded-sm border-2 border-primary/40 bg-primary/10 flex items-center justify-center">
+            <CalendarDays className="w-5 h-5 text-primary" />
           </div>
           <div>
-            <h2 className="text-2xl font-bold text-foreground">Meeting Records</h2>
-            <p className="text-sm text-muted-foreground">Schedule and document meetings</p>
+            <p className="tracked-label text-[10px] font-semibold text-primary uppercase">Meeting Register</p>
+            <h2 className="text-2xl font-bold text-foreground mt-1">Meeting Records</h2>
+            <p className="text-sm text-muted-foreground mt-0.5">Schedule and document meetings</p>
           </div>
         </div>
         {isAdmin && (
@@ -144,8 +145,8 @@ export default function Meetings() {
               <DialogContent className="sm:max-w-[440px] flex flex-col max-h-[90vh] p-0 gap-0 overflow-hidden">
                 {/* Header */}
                 <div className="flex items-center gap-4 px-6 py-5 border-b bg-muted/30 flex-shrink-0">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center shadow-md flex-shrink-0">
-                    <Clock className="w-5 h-5 text-white" />
+                  <div className="w-10 h-10 rounded-sm border-2 border-primary/40 bg-primary/10 flex items-center justify-center flex-shrink-0">
+                    <Clock className="w-5 h-5 text-primary" />
                   </div>
                   <div>
                     <h2 className="text-base font-bold text-foreground">Schedule Upcoming Meeting</h2>
@@ -182,8 +183,8 @@ export default function Meetings() {
               <DialogContent className="max-w-3xl flex flex-col max-h-[90vh] p-0 gap-0 overflow-hidden">
                 {/* Header */}
                 <div className="flex items-center gap-4 px-6 py-5 border-b bg-muted/30 flex-shrink-0">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center shadow-md flex-shrink-0">
-                    <Plus className="w-5 h-5 text-white" />
+                  <div className="w-10 h-10 rounded-sm border-2 border-primary/40 bg-primary/10 flex items-center justify-center flex-shrink-0">
+                    <Plus className="w-5 h-5 text-primary" />
                   </div>
                   <div>
                     <h2 className="text-base font-bold text-foreground">Add New Meeting</h2>
@@ -209,14 +210,14 @@ export default function Meetings() {
                       {/* Attendance */}
                       <div className="space-y-3">
                         <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Member Attendance & Contributions</p>
-                        <div className="grid grid-cols-12 px-3 py-2 bg-muted/50 rounded-lg">
+                        <div className="grid grid-cols-12 px-3 py-2 bg-muted/50 rounded-sm">
                           <span className="col-span-5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Member</span>
                           <span className="col-span-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Present</span>
                           <span className="col-span-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Amount (PKR)</span>
                         </div>
                         <div className="space-y-1.5">
                           {memberContributions.map((mc) => (
-                            <div key={mc.memberId} className="grid grid-cols-12 items-center px-3 py-2.5 rounded-lg border border-border/60 hover:bg-muted/20 transition-colors">
+                            <div key={mc.memberId} className="grid grid-cols-12 items-center px-3 py-2.5 rounded-sm border border-border/60 hover:bg-muted/20 transition-colors">
                               <div className="col-span-5 flex items-center gap-2">
                                 <Avatar className="h-7 w-7"><AvatarFallback className="bg-gradient-primary text-white text-xs">{mc.memberName.split(" ").map(n => n[0]).join("")}</AvatarFallback></Avatar>
                                 <span className="text-sm font-medium truncate">{mc.memberName}</span>
@@ -248,14 +249,14 @@ export default function Meetings() {
 
       {/* Upcoming Meetings */}
       {upcomingMeetings.length > 0 && (
-        <Card className="shadow-md border-0 border-l-4 border-l-primary">
-          <CardHeader className="pb-3">
+        <Card className="shadow-sm rounded-sm border-t-2 border-primary/70">
+          <CardHeader className="pb-3 border-b border-border">
             <CardTitle className="flex items-center gap-2 text-base">
-              <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center">
+              <div className="w-7 h-7 rounded-sm border-2 border-primary/40 bg-primary/10 flex items-center justify-center">
                 <Clock className="w-4 h-4 text-primary" />
               </div>
               Upcoming Meetings
-              <span className="ml-auto text-xs text-muted-foreground bg-muted px-2.5 py-1 rounded-full font-normal">{upcomingMeetings.length} scheduled</span>
+              <span className="figure ml-auto text-xs text-muted-foreground bg-muted px-2.5 py-1 rounded-sm font-normal">{upcomingMeetings.length} scheduled</span>
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
@@ -263,19 +264,19 @@ export default function Meetings() {
               {upcomingMeetings.map((meeting) => (
                 <div key={meeting.id} className="flex items-center justify-between px-5 py-3.5 hover:bg-muted/30 transition-colors">
                   <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                    <div className="w-8 h-8 rounded-sm border-2 border-primary/30 bg-primary/5 flex items-center justify-center flex-shrink-0">
                       <Calendar className="w-4 h-4 text-primary" />
                     </div>
                     <div>
-                      <p className="text-sm font-semibold text-foreground">
+                      <p className="figure text-sm font-bold text-primary">
                         {format(new Date(meeting.meeting_date), settings.dateFormat)}
                         {meeting.meeting_time && <span className="text-muted-foreground font-normal"> at {formatTimeTo12Hour(meeting.meeting_time)}</span>}
                       </p>
-                      <p className="text-xs text-muted-foreground">{meeting.venue}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{meeting.venue}</p>
                     </div>
                   </div>
                   {isAdmin && (
-                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl text-destructive hover:text-destructive" onClick={() => setUpcomingToDelete(meeting)}>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-sm text-destructive hover:text-destructive" onClick={() => setUpcomingToDelete(meeting)}>
                       <Trash2 className="w-4 h-4" />
                     </Button>
                   )}
@@ -287,22 +288,22 @@ export default function Meetings() {
       )}
 
       {/* All Meetings */}
-      <Card className="shadow-md border-0">
-        <CardHeader className="pb-3">
+      <Card className="shadow-sm rounded-sm">
+        <CardHeader className="pb-3 border-b border-border">
           <CardTitle className="flex items-center justify-between text-base">
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center">
+              <div className="w-7 h-7 rounded-sm border-2 border-primary/40 bg-primary/10 flex items-center justify-center">
                 <CalendarDays className="w-4 h-4 text-primary" />
               </div>
               All Meetings
             </div>
-            {meetings.length > 0 && <span className="text-xs text-muted-foreground bg-muted px-2.5 py-1 rounded-full font-normal">{meetings.length} records</span>}
+            {meetings.length > 0 && <span className="figure text-xs text-muted-foreground bg-muted px-2.5 py-1 rounded-sm font-normal">{meetings.length} records</span>}
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           {meetings.length === 0 ? (
             <div className="text-center py-12">
-              <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
+              <div className="w-12 h-12 rounded-sm border-2 border-border bg-muted flex items-center justify-center mx-auto mb-3">
                 <CalendarDays className="w-6 h-6 text-muted-foreground" />
               </div>
               <p className="text-sm text-muted-foreground">No meetings recorded yet</p>
@@ -312,11 +313,11 @@ export default function Meetings() {
               {meetings.map((meeting) => (
                 <div key={meeting.id} className="flex items-center justify-between px-5 py-3.5 hover:bg-muted/30 transition-colors">
                   <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                    <div className="w-8 h-8 rounded-sm border-2 border-primary/30 bg-primary/5 flex items-center justify-center flex-shrink-0">
                       <Calendar className="w-4 h-4 text-primary" />
                     </div>
                     <div>
-                      <p className="text-sm font-semibold text-foreground">{format(new Date(meeting.meeting_date), settings.dateFormat)}</p>
+                      <p className="figure text-sm font-semibold text-foreground">{format(new Date(meeting.meeting_date), settings.dateFormat)}</p>
                       <p className="text-xs text-muted-foreground truncate max-w-xs">{meeting.agenda}</p>
                     </div>
                   </div>
@@ -328,17 +329,17 @@ export default function Meetings() {
                       <DialogContent className="max-w-2xl flex flex-col max-h-[90vh] p-0 gap-0 overflow-hidden">
                         {/* Header */}
                         <div className="flex items-center gap-4 px-6 py-5 border-b bg-muted/30 flex-shrink-0">
-                          <div className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center shadow-md flex-shrink-0">
-                            <Eye className="w-5 h-5 text-white" />
+                          <div className="w-10 h-10 rounded-sm border-2 border-primary/40 bg-primary/10 flex items-center justify-center flex-shrink-0">
+                            <Eye className="w-5 h-5 text-primary" />
                           </div>
                           <div>
                             <h2 className="text-base font-bold text-foreground">Meeting Details</h2>
-                            <p className="text-xs text-muted-foreground">{format(new Date(meeting.meeting_date), settings.dateFormat)}</p>
+                            <p className="figure text-xs text-muted-foreground">{format(new Date(meeting.meeting_date), settings.dateFormat)}</p>
                           </div>
                         </div>
                         {viewedMeeting && (
                           <div className="overflow-y-auto flex-1 px-6 py-5 space-y-5">
-                            <div className="p-4 rounded-lg bg-muted/40 border border-border/60 space-y-3">
+                            <div className="p-4 rounded-sm bg-muted/40 border border-border/60 space-y-3">
                               <div>
                                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">Agenda</p>
                                 <p className="text-sm text-foreground">{viewedMeeting.agenda}</p>
@@ -351,13 +352,13 @@ export default function Meetings() {
                               )}
                             </div>
                             <div className="grid grid-cols-2 gap-3">
-                              <div className="p-4 rounded-lg bg-emerald-500/10 border border-emerald-200 dark:border-emerald-900/40 text-center">
-                                <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 mb-1">Present</p>
-                                <p className="text-3xl font-bold text-emerald-600">{viewMeetingData.attendance.filter((a: any) => a.present).length}</p>
+                              <div className="p-4 rounded-sm border-2 border-secondary/40 bg-secondary/10 text-center">
+                                <p className="text-xs font-semibold text-secondary mb-1">Present</p>
+                                <p className="figure text-3xl font-bold text-secondary">{viewMeetingData.attendance.filter((a: any) => a.present).length}</p>
                               </div>
-                              <div className="p-4 rounded-lg bg-rose-500/10 border border-rose-200 dark:border-rose-900/40 text-center">
-                                <p className="text-xs font-semibold text-rose-700 dark:text-rose-400 mb-1">Absent</p>
-                                <p className="text-3xl font-bold text-rose-600">{viewMeetingData.attendance.filter((a: any) => !a.present).length}</p>
+                              <div className="p-4 rounded-sm border-2 border-destructive/40 bg-destructive/10 text-center">
+                                <p className="text-xs font-semibold text-destructive mb-1">Absent</p>
+                                <p className="figure text-3xl font-bold text-destructive">{viewMeetingData.attendance.filter((a: any) => !a.present).length}</p>
                               </div>
                             </div>
                             <div>
@@ -365,7 +366,7 @@ export default function Meetings() {
                               {viewMeetingData.contributions.length === 0 ? (
                                 <p className="text-sm text-muted-foreground text-center py-4">No contributions recorded for this meeting.</p>
                               ) : (
-                                <div className="divide-y divide-border/60 rounded-lg border border-border/60 overflow-hidden">
+                                <div className="divide-y divide-border/60 rounded-sm border border-border/60 overflow-hidden">
                                   <div className="grid grid-cols-12 px-4 py-2 bg-muted/50">
                                     <span className="col-span-7 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Member</span>
                                     <span className="col-span-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Status</span>
@@ -375,17 +376,17 @@ export default function Meetings() {
                                     const att = viewMeetingData.attendance.find((a: any) => a.member_id === contrib.member_id);
                                     return (
                                       <div key={contrib.id} className="grid grid-cols-12 items-center px-4 py-3 hover:bg-muted/30 transition-colors">
-                                        <span className="col-span-7 text-sm font-medium">{contrib.members?.name || "Unknown"}</span>
+                                        <span className="col-span-7 text-sm font-medium">{contrib.name || "Unknown"}</span>
                                         <div className="col-span-2">
-                                          <Badge variant={att?.present ? "default" : "secondary"} className="text-xs">{att?.present ? "Present" : "Absent"}</Badge>
+                                          <Badge variant={att?.present ? "secondary" : "destructive"} className="text-xs">{att?.present ? "Present" : "Absent"}</Badge>
                                         </div>
-                                        <span className="col-span-3 text-sm font-bold text-foreground text-right">PKR {contrib.amount.toLocaleString()}</span>
+                                        <span className="figure col-span-3 text-sm font-bold text-foreground text-right">PKR {contrib.amount.toLocaleString()}</span>
                                       </div>
                                     );
                                   })}
                                   <div className="grid grid-cols-12 px-4 py-2.5 bg-muted/40 border-t border-border/60">
                                     <span className="col-span-9 text-xs font-semibold text-muted-foreground">Total Contributions</span>
-                                    <span className="col-span-3 text-sm font-bold text-foreground text-right">PKR {viewMeetingData.contributions.reduce((s: number, c: any) => s + c.amount, 0).toLocaleString()}</span>
+                                    <span className="figure col-span-3 text-sm font-bold text-foreground text-right">PKR {viewMeetingData.contributions.reduce((s: number, c: any) => s + c.amount, 0).toLocaleString()}</span>
                                   </div>
                                 </div>
                               )}

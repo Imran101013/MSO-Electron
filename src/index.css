@@ -1,106 +1,116 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/*
+  DIRECTION CONTRACT
+  THESIS: The app reads as a trusted institutional counter, not another blue SaaS card grid — every screen behaves like a statement being printed at the window in front of you.
+  OWN-WORLD: charcoal-navy counter ground + brass grille accent + paper-white statement panels; IBM Plex Sans for chrome, IBM Plex Mono/tabular-nums for every figure; brass top-rules divide sections like a printed slip; status reads as an ink stamp, not a soft pill.
+  STORY: an admin opens the app, immediately reads it as "the ledger, digitized" — trustworthy, precise, built for money — and finds today's numbers and next task at a glance.
+  FIRST VIEWPORT: dark counter-grille sidebar (numbered nav) left, statement-letterhead header top, paper-white dashboard body with stamp-styled stat slips in a row and a brass-ruled "Upcoming" register beneath.
+  FORM: Bank Teller Counter & Statement Register — grounded direction 4 of 7 (ledger/committee/institutional/instrument-panel families), seed key 3ad2975d, chosen over Ledger Bindery (skeuomorphic leather) challenger on product clarity for dense financial tables.
+  FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, and DESIGN.md.
+*/
+
 @layer base {
   :root {
-    --background: 210 45% 98%;
-    --foreground: 222 40% 16%;
+    --background: 40 26% 95%;
+    --foreground: 222 32% 14%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 222 40% 16%;
+    --card: 42 38% 98%;
+    --card-foreground: 222 32% 14%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222 40% 16%;
+    --popover: 42 38% 98%;
+    --popover-foreground: 222 32% 14%;
 
-    --primary: 205 88% 54%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 38 58% 38%;
+    --primary-foreground: 42 45% 97%;
 
-    --secondary: 172 62% 40%;
-    --secondary-foreground: 0 0% 100%;
+    --secondary: 150 38% 27%;
+    --secondary-foreground: 42 45% 97%;
 
-    --muted: 210 38% 95%;
-    --muted-foreground: 215 16% 47%;
+    --muted: 36 18% 91%;
+    --muted-foreground: 30 10% 40%;
 
-    --accent: 38 92% 54%;
-    --accent-foreground: 222 40% 16%;
+    --accent: 38 68% 52%;
+    --accent-foreground: 222 32% 14%;
 
-    --destructive: 356 78% 58%;
-    --destructive-foreground: 0 0% 100%;
+    --destructive: 6 55% 40%;
+    --destructive-foreground: 42 45% 97%;
 
-    --border: 210 30% 90%;
-    --input: 210 30% 90%;
-    --ring: 205 88% 54%;
+    --border: 34 22% 84%;
+    --input: 34 22% 84%;
+    --ring: 38 58% 38%;
 
-    --radius: 1rem;
+    --radius: 0.625rem;
 
-    --gradient-primary: linear-gradient(135deg, hsl(205 88% 50%), hsl(199 92% 60%));
-    --gradient-secondary: linear-gradient(135deg, hsl(172 62% 36%), hsl(168 70% 48%));
-    --gradient-accent: linear-gradient(135deg, hsl(38 92% 48%), hsl(35 92% 60%));
-    --gradient-hero: linear-gradient(135deg, hsl(222 45% 14%) 0%, hsl(205 80% 38%) 55%, hsl(172 62% 42%) 100%);
+    --gradient-primary: linear-gradient(135deg, hsl(38 58% 36%), hsl(42 72% 52%));
+    --gradient-secondary: linear-gradient(135deg, hsl(150 40% 24%), hsl(150 44% 38%));
+    --gradient-accent: linear-gradient(135deg, hsl(6 50% 36%), hsl(14 55% 48%));
+    --gradient-hero: linear-gradient(135deg, hsl(222 42% 8%) 0%, hsl(222 34% 15%) 55%, hsl(38 48% 24%) 100%);
 
-    --shadow-sm: 0 1px 3px hsl(205 60% 30% / 0.06), 0 1px 2px hsl(205 60% 30% / 0.04);
-    --shadow-md: 0 8px 20px hsl(205 70% 45% / 0.12), 0 2px 8px hsl(205 60% 30% / 0.06);
-    --shadow-lg: 0 16px 40px hsl(205 70% 45% / 0.16), 0 4px 12px hsl(205 60% 30% / 0.08);
+    --shadow-sm: 0 1px 2px hsl(30 30% 18% / 0.06);
+    --shadow-md: 0 6px 18px hsl(30 28% 18% / 0.10), 0 2px 6px hsl(30 24% 14% / 0.06);
+    --shadow-lg: 0 16px 36px hsl(30 28% 18% / 0.14), 0 4px 10px hsl(30 24% 14% / 0.08);
 
-    --sidebar-background: 215 48% 13%;
-    --sidebar-foreground: 205 30% 92%;
-    --sidebar-primary: 199 88% 62%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 215 40% 20%;
-    --sidebar-accent-foreground: 205 30% 92%;
-    --sidebar-border: 215 40% 18%;
-    --sidebar-ring: 199 88% 62%;
+    --sidebar-background: 222 40% 9%;
+    --sidebar-foreground: 40 22% 88%;
+    --sidebar-primary: 38 68% 56%;
+    --sidebar-primary-foreground: 222 40% 9%;
+    --sidebar-accent: 222 30% 16%;
+    --sidebar-accent-foreground: 40 22% 92%;
+    --sidebar-border: 38 24% 20%;
+    --sidebar-ring: 38 68% 56%;
   }
 
   .dark {
-    --background: 222 35% 9%;
-    --foreground: 210 35% 95%;
+    --background: 222 32% 8%;
+    --foreground: 40 22% 92%;
 
-    --card: 222 35% 12%;
-    --card-foreground: 210 35% 95%;
+    --card: 222 28% 11%;
+    --card-foreground: 40 22% 92%;
 
-    --popover: 222 35% 12%;
-    --popover-foreground: 210 35% 95%;
+    --popover: 222 28% 11%;
+    --popover-foreground: 40 22% 92%;
 
-    --primary: 205 88% 60%;
-    --primary-foreground: 222 35% 9%;
+    --primary: 38 70% 58%;
+    --primary-foreground: 222 32% 8%;
 
-    --secondary: 172 55% 46%;
-    --secondary-foreground: 222 35% 9%;
+    --secondary: 150 40% 42%;
+    --secondary-foreground: 222 32% 8%;
 
-    --muted: 222 30% 16%;
-    --muted-foreground: 215 18% 62%;
+    --muted: 222 22% 16%;
+    --muted-foreground: 36 12% 65%;
 
-    --accent: 38 88% 56%;
-    --accent-foreground: 222 35% 9%;
+    --accent: 38 70% 58%;
+    --accent-foreground: 222 32% 8%;
 
-    --destructive: 356 70% 55%;
-    --destructive-foreground: 0 0% 100%;
+    --destructive: 6 60% 52%;
+    --destructive-foreground: 42 45% 97%;
 
-    --border: 222 30% 18%;
-    --input: 222 30% 18%;
-    --ring: 205 88% 60%;
+    --border: 222 22% 19%;
+    --input: 222 22% 19%;
+    --ring: 38 70% 58%;
 
-    --gradient-primary: linear-gradient(135deg, hsl(205 88% 52%), hsl(199 90% 62%));
-    --gradient-secondary: linear-gradient(135deg, hsl(172 55% 40%), hsl(168 62% 50%));
-    --gradient-accent: linear-gradient(135deg, hsl(38 88% 50%), hsl(35 88% 60%));
-    --gradient-hero: linear-gradient(135deg, hsl(222 40% 6%) 0%, hsl(205 75% 30%) 55%, hsl(172 55% 38%) 100%);
+    --gradient-primary: linear-gradient(135deg, hsl(38 65% 46%), hsl(42 75% 60%));
+    --gradient-secondary: linear-gradient(135deg, hsl(150 40% 32%), hsl(150 46% 46%));
+    --gradient-accent: linear-gradient(135deg, hsl(6 55% 42%), hsl(14 58% 54%));
+    --gradient-hero: linear-gradient(135deg, hsl(222 45% 5%) 0%, hsl(222 36% 11%) 55%, hsl(38 50% 20%) 100%);
 
-    --shadow-sm: 0 1px 3px hsl(0 0% 0% / 0.3);
-    --shadow-md: 0 8px 20px hsl(0 0% 0% / 0.35);
-    --shadow-lg: 0 16px 40px hsl(0 0% 0% / 0.45);
+    --shadow-sm: 0 1px 3px hsl(0 0% 0% / 0.35);
+    --shadow-md: 0 8px 20px hsl(0 0% 0% / 0.4);
+    --shadow-lg: 0 16px 40px hsl(0 0% 0% / 0.5);
 
-    --sidebar-background: 218 45% 9%;
-    --sidebar-foreground: 205 30% 90%;
-    --sidebar-primary: 199 88% 64%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 218 38% 15%;
-    --sidebar-accent-foreground: 205 30% 90%;
-    --sidebar-border: 218 38% 14%;
-    --sidebar-ring: 199 88% 64%;
+    --sidebar-background: 222 42% 7%;
+    --sidebar-foreground: 40 20% 88%;
+    --sidebar-primary: 38 70% 58%;
+    --sidebar-primary-foreground: 222 42% 7%;
+    --sidebar-accent: 222 30% 14%;
+    --sidebar-accent-foreground: 40 20% 90%;
+    --sidebar-border: 38 22% 16%;
+    --sidebar-ring: 38 70% 58%;
   }
 }
 
@@ -110,41 +120,48 @@
   }
 
   html {
-    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    font-family: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
   body {
     @apply bg-background text-foreground;
-    font-feature-settings: "rlig" 1, "calt" 1, "cv02" 1, "cv03" 1, "cv04" 1;
-    letter-spacing: -0.01em;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    letter-spacing: -0.005em;
   }
 
   h1, h2, h3, h4, h5, h6 {
-    letter-spacing: -0.02em;
+    letter-spacing: -0.015em;
     font-weight: 700;
   }
 }
 
 @layer utilities {
+  /* Every monetary/numeric figure runs through this: dot-matrix statement register, tabular so columns line up. */
+  .figure {
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+  }
+  .tracked-label {
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    letter-spacing: 0.08em;
+  }
   .glass {
-    @apply bg-white/15 backdrop-blur-xl border border-white/25;
+    @apply bg-white/10 backdrop-blur-xl border border-white/15;
   }
-  .gradient-text {
-    @apply bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent;
-  }
-  .nav-item-active {
-    @apply bg-sidebar-primary/20 text-sidebar-primary shadow-sm border border-sidebar-primary/20;
+  /* Brass rule: the signature divider of the counter/statement world. */
+  .ledger-rule {
+    @apply border-t-2 border-primary/70;
   }
   .card-hover {
     @apply transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5;
   }
   .sidebar-nav-active {
-    background: linear-gradient(135deg, hsl(199 88% 62% / 0.28), hsl(172 62% 45% / 0.18));
-    @apply text-white border border-sidebar-primary/30 shadow-sm;
+    @apply bg-sidebar-primary/15 text-sidebar-primary border-l-2 border-sidebar-primary;
   }
   .sidebar-nav-item {
-    @apply text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/60 transition-all duration-150 rounded-xl;
+    @apply text-sidebar-foreground/65 hover:text-sidebar-foreground hover:bg-sidebar-accent/70 transition-all duration-150 border-l-2 border-transparent;
   }
 }

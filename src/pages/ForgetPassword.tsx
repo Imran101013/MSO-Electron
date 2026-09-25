@@ -6,11 +6,11 @@ import { Mail } from "lucide-react";
 
 export default function ForgetPassword() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md rounded-2xl border-0 shadow-lg">
+    <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4">
+      <Card className="w-full max-w-md rounded-sm border-t-2 border-primary/70 shadow-lg">
         <CardHeader className="text-center">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-primary flex items-center justify-center mx-auto mb-4 shadow-md">
-            <Mail className="w-6 h-6 text-primary-foreground" />
+          <div className="w-14 h-14 rounded-sm border-2 border-primary/50 bg-primary/10 flex items-center justify-center mx-auto mb-4">
+            <Mail className="w-6 h-6 text-primary" />
           </div>
           <CardTitle className="text-2xl">Forgot Password?</CardTitle>
           <CardDescription>Contact your administrator to reset your password</CardDescription>
@@ -21,7 +21,7 @@ export default function ForgetPassword() {
               This is an offline desktop application. Password reset emails are not available. Please contact your MSO administrator to reset your password.
             </AlertDescription>
           </Alert>
-          <Button asChild className="w-full h-11 rounded-xl shadow-md">
+          <Button asChild className="w-full h-11 rounded-sm shadow-md">
             <Link to="/login">Back to Login</Link>
           </Button>
         </CardContent>

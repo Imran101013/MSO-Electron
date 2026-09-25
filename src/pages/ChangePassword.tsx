@@ -46,11 +46,11 @@ export default function ChangePassword() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md rounded-2xl border-0 shadow-lg">
+    <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4">
+      <Card className="w-full max-w-md rounded-sm border-t-2 border-primary/70 shadow-lg">
         <CardHeader className="text-center">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-primary flex items-center justify-center mx-auto mb-4 shadow-md">
-            <Lock className="w-6 h-6 text-primary-foreground" />
+          <div className="w-14 h-14 rounded-sm border-2 border-primary/50 bg-primary/10 flex items-center justify-center mx-auto mb-4">
+            <Lock className="w-6 h-6 text-primary" />
           </div>
           <CardTitle className="text-2xl">Change Password</CardTitle>
           <CardDescription>Update your account password</CardDescription>
@@ -100,7 +100,7 @@ export default function ChangePassword() {
                 <AlertDescription>{message}</AlertDescription>
               </Alert>
             )}
-            <Button type="submit" className="w-full h-11 rounded-xl shadow-md" disabled={isLoading}>
+            <Button type="submit" className="w-full h-11 rounded-sm shadow-md" disabled={isLoading}>
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

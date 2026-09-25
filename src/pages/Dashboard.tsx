@@ -79,15 +79,17 @@ export default function Dashboard() {
     );
   }, [meetings, upcomingMeetings]);
 
-  // Calculate total members (only approved)
+  // Calculate total members
   const totalMembers = useMemo(() => {
-    return members.filter(m => m.is_approved).length;
+    return members.length;
   }, [members]);
 
-  // Calculate total budget from contributions
+  // Each member's total_budget already includes both their monthly contributions and
+  // their ratio share of any past profit distribution, so summing it here — rather than
+  // summing contributions alone — is what actually reflects the organization's total fund.
   const totalBudget = useMemo(() => {
-    return contributions.reduce((sum, c) => sum + c.amount, 0);
-  }, [contributions]);
+    return members.reduce((sum, m) => sum + m.total_budget, 0);
+  }, [members]);
 
   // Calculate active loans (remaining amount)
   const activeLoans = useMemo(() => {
@@ -162,72 +164,75 @@ export default function Dashboard() {
 
   const isLoading = membersLoading || meetingsLoading || loansLoading || contributionsLoading || reserveLoading;
 
+  const today = useMemo(() => format(new Date(), "EEEE, dd MMMM yyyy"), []);
+
   return (
     <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex items-center justify-between">
+      {/* Page Header — statement letterhead */}
+      <div className="flex items-center justify-between border-b-2 border-primary/40 pb-4">
         <div>
-          <h2 className="text-2xl font-bold text-foreground">Dashboard</h2>
-          <p className="text-sm text-muted-foreground mt-0.5">Overview of MSO activity</p>
+          <p className="tracked-label text-[10px] font-semibold text-primary uppercase">Daily Statement</p>
+          <h2 className="text-2xl font-bold text-foreground mt-1">Dashboard</h2>
+          <p className="text-sm text-muted-foreground mt-0.5">{today} · Mogh Students Organisation</p>
         </div>
       </div>
 
-      {/* Stats Grid */}
+      {/* Stats Grid — printed summary slips */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <StatCard
           title="Total Members"
           value={isLoading ? "—" : totalMembers.toString()}
           icon={Users}
-          iconColor="bg-gradient-primary"
+          iconColor="border-primary/40 bg-primary/10 text-primary"
         />
         <StatCard
           title="Total Budget"
-          value={isLoading ? "—" : `PKR ${totalBudget.toLocaleString()}`}
+          value={isLoading ? "—" : `${settings.currency} ${totalBudget.toLocaleString()}`}
           icon={Wallet}
-          iconColor="bg-gradient-secondary"
+          iconColor="border-secondary/40 bg-secondary/10 text-secondary"
         />
         <StatCard
           title="Active Loans"
-          value={isLoading ? "—" : `PKR ${activeLoans.toLocaleString()}`}
+          value={isLoading ? "—" : `${settings.currency} ${activeLoans.toLocaleString()}`}
           icon={HandCoins}
-          iconColor="bg-rose-500"
+          iconColor="border-destructive/40 bg-destructive/10 text-destructive"
         />
         <StatCard
           title="Reserve Fund"
-          value={isLoading ? "—" : `PKR ${reserveFund.toLocaleString()}`}
+          value={isLoading ? "—" : `${settings.currency} ${reserveFund.toLocaleString()}`}
           icon={PiggyBank}
-          iconColor="bg-gradient-accent"
+          iconColor="border-accent/50 bg-accent/15 text-accent-foreground"
         />
         <StatCard
           title="Overdue Loans"
-          value={isLoading ? "—" : `${loanStats.overdueCount} · PKR ${loanStats.overdueAmount.toLocaleString()}`}
+          value={isLoading ? "—" : `${loanStats.overdueCount} · ${settings.currency} ${loanStats.overdueAmount.toLocaleString()}`}
           icon={AlertTriangle}
-          iconColor="bg-amber-500"
+          iconColor="border-destructive/40 bg-destructive/10 text-destructive"
         />
       </div>
 
       {/* Quick Info */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card className="shadow-md border-0">
-          <CardHeader className="pb-3">
+        <Card className="shadow-sm rounded-sm">
+          <CardHeader className="pb-3 border-b border-border">
             <CardTitle className="flex items-center gap-2 text-base">
-              <div className="w-7 h-7 rounded-xl bg-primary/10 flex items-center justify-center">
+              <div className="w-7 h-7 rounded-sm border-2 border-primary/40 bg-primary/10 flex items-center justify-center">
                 <Calendar className="w-4 h-4 text-primary" />
               </div>
               Upcoming Meetings
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-4">
             {allUpcomingMeetings.length > 0 ? (
-              <div className="space-y-3">
+              <div className="space-y-0 divide-y divide-border">
                 {allUpcomingMeetings.map((meeting) => (
-                  <div key={meeting.id} className="flex items-start gap-3 p-3 rounded-xl bg-muted/50 border border-border/50">
-                    <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <div key={meeting.id} className="flex items-start gap-3 py-3 first:pt-0 last:pb-0">
+                    <div className="w-8 h-8 rounded-sm border-2 border-primary/30 bg-primary/5 flex items-center justify-center flex-shrink-0 mt-0.5">
                       <Clock className="w-4 h-4 text-primary" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-sm text-foreground truncate">{meeting.venue || "TBD"}</p>
-                      <p className="text-sm font-bold text-primary mt-0.5">
+                      <p className="figure text-sm font-bold text-primary mt-0.5">
                         {format(parseISO(meeting.date), settings.dateFormat)}
                         {meeting.time && ` at ${formatTimeTo12Hour(meeting.time)}`}
                       </p>
@@ -237,7 +242,7 @@ export default function Dashboard() {
               </div>
             ) : (
               <div className="text-center py-8">
-                <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
+                <div className="w-12 h-12 rounded-sm border-2 border-border bg-muted flex items-center justify-center mx-auto mb-3">
                   <Calendar className="w-6 h-6 text-muted-foreground" />
                 </div>
                 <p className="text-sm font-medium text-muted-foreground">No upcoming meetings</p>
@@ -251,26 +256,26 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card className="shadow-md border-0">
-          <CardHeader className="pb-3">
+        <Card className="shadow-sm rounded-sm">
+          <CardHeader className="pb-3 border-b border-border">
             <CardTitle className="flex items-center gap-2 text-base">
-              <div className="w-7 h-7 rounded-xl bg-secondary/10 flex items-center justify-center">
+              <div className="w-7 h-7 rounded-sm border-2 border-secondary/40 bg-secondary/10 flex items-center justify-center">
                 <TrendingUp className="w-4 h-4 text-secondary" />
               </div>
               Quick Stats
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
+          <CardContent className="pt-4">
+            <div className="divide-y divide-border">
               {[
                 { label: "Total Members", value: isLoading ? "—" : totalMembers },
-                { label: "Total Budget", value: isLoading ? "—" : `PKR ${totalBudget.toLocaleString()}` },
-                { label: "Active Loans", value: isLoading ? "—" : `PKR ${activeLoans.toLocaleString()}` },
-                { label: "Reserve Fund", value: isLoading ? "—" : `PKR ${reserveFund.toLocaleString()}` },
+                { label: "Total Budget", value: isLoading ? "—" : `${settings.currency} ${totalBudget.toLocaleString()}` },
+                { label: "Active Loans", value: isLoading ? "—" : `${settings.currency} ${activeLoans.toLocaleString()}` },
+                { label: "Reserve Fund", value: isLoading ? "—" : `${settings.currency} ${reserveFund.toLocaleString()}` },
               ].map(({ label, value }) => (
-                <div key={label} className="flex justify-between items-center py-2 border-b border-border/50 last:border-0">
+                <div key={label} className="flex justify-between items-center py-2.5 first:pt-0 last:pb-0">
                   <span className="text-sm text-muted-foreground">{label}</span>
-                  <span className="text-sm font-semibold text-foreground">{value}</span>
+                  <span className="figure text-sm font-semibold text-foreground">{value}</span>
                 </div>
               ))}
             </div>
@@ -280,26 +285,26 @@ export default function Dashboard() {
 
       {/* Trend Graphs */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card className="shadow-md border-0">
-          <CardHeader className="pb-3">
+        <Card className="shadow-sm rounded-sm">
+          <CardHeader className="pb-3 border-b border-border">
             <CardTitle className="flex items-center gap-2 text-base">
-              <div className="w-7 h-7 rounded-xl bg-primary/10 flex items-center justify-center">
+              <div className="w-7 h-7 rounded-sm border-2 border-primary/40 bg-primary/10 flex items-center justify-center">
                 <Wallet className="w-4 h-4 text-primary" />
               </div>
               Monthly Budget Trend
             </CardTitle>
             <CardDescription className="text-xs">Organization's total budget over time</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-4">
             {budgetData.length > 0 ? (
               <ResponsiveContainer width="100%" height={260}>
                 <BarChart data={budgetData} barSize={28}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip formatter={(value) => `PKR ${Number(value).toLocaleString()}`} />
+                  <XAxis dataKey="month" tick={{ fontSize: 11, fontFamily: "IBM Plex Mono" }} />
+                  <YAxis tick={{ fontSize: 11, fontFamily: "IBM Plex Mono" }} />
+                  <Tooltip formatter={(value) => `${settings.currency} ${Number(value).toLocaleString()}`} />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Bar dataKey="budget" fill="hsl(var(--primary))" name="Budget Contributions" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="budget" fill="hsl(var(--primary))" name="Budget Contributions" radius={[2, 2, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -315,27 +320,27 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card className="shadow-md border-0">
-          <CardHeader className="pb-3">
+        <Card className="shadow-sm rounded-sm">
+          <CardHeader className="pb-3 border-b border-border">
             <CardTitle className="flex items-center gap-2 text-base">
-              <div className="w-7 h-7 rounded-xl bg-secondary/10 flex items-center justify-center">
+              <div className="w-7 h-7 rounded-sm border-2 border-secondary/40 bg-secondary/10 flex items-center justify-center">
                 <HandCoins className="w-4 h-4 text-secondary" />
               </div>
               Monthly Loans Trend
             </CardTitle>
             <CardDescription className="text-xs">Loans issued and recovered trends</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-4">
             {loansData.length > 0 ? (
               <ResponsiveContainer width="100%" height={260}>
                 <BarChart data={loansData} barSize={20}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip formatter={(value) => `PKR ${Number(value).toLocaleString()}`} />
+                  <XAxis dataKey="month" tick={{ fontSize: 11, fontFamily: "IBM Plex Mono" }} />
+                  <YAxis tick={{ fontSize: 11, fontFamily: "IBM Plex Mono" }} />
+                  <Tooltip formatter={(value) => `${settings.currency} ${Number(value).toLocaleString()}`} />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Bar dataKey="issued" fill="hsl(var(--destructive))" name="Loans Issued" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="recovered" fill="hsl(var(--secondary))" name="Loans Recovered" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="issued" fill="hsl(var(--destructive))" name="Loans Issued" radius={[2, 2, 0, 0]} />
+                  <Bar dataKey="recovered" fill="hsl(var(--secondary))" name="Loans Recovered" radius={[2, 2, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (

@@ -15,7 +15,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Architecture
 
-This is an **Electron desktop app** (product name "Mso Connect", formerly "Hilal Connect" — some strings/IDs mid-rename, see below) wrapping a Vite + React 18 + TypeScript SPA. It manages a savings/microfinance organization's members, budgets, loans, reserve fund, meetings, and profit distribution.
+This is an **Electron desktop app** (product name "MSO", formerly "Hilal Connect" — some strings/IDs mid-rename, see below) wrapping a Vite + React 18 + TypeScript SPA. It manages a savings/microfinance organization's members, budgets, loans, reserve fund, meetings, and profit distribution.
 
 ### Two-process split and the data layer
 

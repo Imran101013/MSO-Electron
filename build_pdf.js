@@ -1,0 +1,1 @@
+const fs=require("fs");const p="f:/Projects/MSO-Electron/src/utils/pdfReports.ts";fs.writeFileSync(p,"","utf8");console.log("ready");

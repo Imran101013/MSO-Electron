@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input, PasswordInput } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, ShieldCheck } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import MsoMark from "@/components/MsoMark";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -27,43 +28,37 @@ export default function Login() {
 
   return (
     <div className="min-h-screen flex bg-background">
-      {/* Left panel */}
+      {/* Left panel — the counter, after hours */}
       <div className="hidden lg:flex lg:w-1/2 bg-gradient-hero flex-col items-center justify-center p-12 relative overflow-hidden">
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute top-20 left-20 w-64 h-64 rounded-full bg-white/20 blur-3xl" />
-          <div className="absolute bottom-20 right-20 w-80 h-80 rounded-full bg-white/10 blur-3xl" />
-        </div>
-        <img src="./MSO-Logo.png" alt="MSO Logo" className="w-28 h-28 object-contain mb-8 drop-shadow-2xl" />
-        <h1 className="text-4xl font-bold text-white text-center leading-tight">
+        <div className="absolute inset-0 opacity-[0.06] bg-[linear-gradient(hsl(38_60%_70%)_1px,transparent_1px),linear-gradient(90deg,hsl(38_60%_70%)_1px,transparent_1px)] bg-[size:2.5rem_2.5rem]" />
+        <MsoMark className="relative w-36 h-36 mb-8 drop-shadow-lg" />
+        <h1 className="relative text-4xl font-bold text-white text-center leading-tight">
           Mogh Students<br />Organisation
         </h1>
-        <p className="text-white/70 mt-4 text-center text-lg max-w-xs">
+        <p className="relative tracked-label text-primary/80 mt-3 text-center text-xs uppercase">Savings &amp; Loan Register</p>
+        <p className="relative text-white/60 mt-4 text-center text-base max-w-xs">
           Manage members, finances, and meetings — all in one place.
         </p>
-        <div className="mt-12 grid grid-cols-2 gap-4 w-full max-w-xs">
+        <div className="relative mt-12 grid grid-cols-2 gap-3 w-full max-w-xs">
           {["Members", "Budget", "Loans", "Meetings"].map((item) => (
-            <div key={item} className="glass rounded-xl px-4 py-3 text-white/90 text-sm font-medium text-center">
+            <div key={item} className="border border-white/15 bg-white/[0.04] rounded-sm px-4 py-3 text-white/80 text-sm font-medium text-center">
               {item}
             </div>
           ))}
         </div>
       </div>
 
-      {/* Right panel */}
-      <div className="flex-1 flex items-center justify-center p-8">
-        <div className="w-full max-w-md space-y-8">
-          <div className="text-center lg:hidden mb-6">
-            <img src="./MSO-Logo.png" alt="MSO Logo" className="w-16 h-16 object-contain mx-auto mb-3" />
+      {/* Right panel — the statement */}
+      <div className="flex-1 flex items-center justify-center p-8 bg-muted/30">
+        <div className="w-full max-w-md space-y-8 bg-card border-t-2 border-primary/70 rounded-sm shadow-lg p-8">
+          <div className="text-center lg:hidden mb-2">
+            <MsoMark className="w-20 h-20 mx-auto mb-3" />
           </div>
 
           <div>
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-11 h-11 rounded-2xl bg-gradient-primary flex items-center justify-center shadow-lg">
-                <ShieldCheck className="w-5 h-5 text-white" />
-              </div>
-              <h2 className="text-3xl font-bold text-foreground">Welcome back</h2>
-            </div>
-            <p className="text-muted-foreground ml-13">Sign in to your MSO account</p>
+            <p className="tracked-label text-[10px] font-semibold text-primary uppercase">Admin Access</p>
+            <h2 className="text-3xl font-bold text-foreground mt-1">Welcome back</h2>
+            <p className="text-muted-foreground mt-1">Sign in to your MSO account</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
@@ -77,7 +72,7 @@ export default function Login() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 disabled={isLoading}
-                className="h-11"
+                className="h-11 rounded-sm"
               />
             </div>
             <div className="space-y-2">
@@ -91,17 +86,17 @@ export default function Login() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 disabled={isLoading}
-                className="h-11"
+                className="h-11 rounded-sm"
               />
             </div>
 
             {error && (
-              <Alert variant="destructive" className="py-2">
+              <Alert variant="destructive" className="py-2 rounded-sm">
                 <AlertDescription className="text-sm">{error}</AlertDescription>
               </Alert>
             )}
 
-            <Button type="submit" className="w-full h-11 text-base font-semibold shadow-lg rounded-xl" disabled={isLoading}>
+            <Button type="submit" className="w-full h-11 text-base font-semibold shadow-md rounded-sm" disabled={isLoading}>
               {isLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Signing in...</> : "Sign In"}
             </Button>
           </form>

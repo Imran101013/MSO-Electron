@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Search, Mail, Phone, Upload, Eye, MessageCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Dialog,
@@ -130,18 +131,18 @@ export default function MemberSearch() {
         />
         {showSuggestions && suggestions.length > 0 && (
           <div
-            className="absolute top-full left-0 right-0 mt-2 bg-background border border-border rounded-md shadow-lg z-50 max-h-60 overflow-y-auto"
+            className="absolute top-full left-0 right-0 mt-2 bg-card border-t-2 border-primary/60 border-x border-b border-border rounded-sm shadow-lg z-50 max-h-60 overflow-y-auto"
             onMouseDown={(e) => e.preventDefault()}>
             {suggestions.map((member) => (
               <button
                 key={member.id}
                 type="button"
                 onClick={() => handleSelectMember(member)}
-                className="w-full text-left px-4 py-3 hover:bg-accent transition-colors flex items-center gap-3 border-b border-border last:border-b-0">
-                <Avatar className="h-8 w-8 flex-shrink-0">
+                className="w-full text-left px-4 py-3 hover:bg-muted/60 transition-colors flex items-center gap-3 border-b border-border last:border-b-0">
+                <Avatar className="h-8 w-8 flex-shrink-0 rounded-sm">
                   <AvatarImage src={member.profilePicture} />
-                  <AvatarFallback className="bg-gradient-primary">
-                    <span className="text-primary-foreground text-sm font-semibold">
+                  <AvatarFallback className="rounded-sm bg-primary/10 border border-primary/30">
+                    <span className="text-primary text-sm font-semibold">
                       {member.name
                         .split(" ")
                         .map((n) => n[0])
@@ -164,17 +165,17 @@ export default function MemberSearch() {
       </div>
 
       <Dialog open={detailsDialogOpen} onOpenChange={handleDialogClose}>
-        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl border border-border p-0 bg-gradient-to-br from-background/70 to-muted/10">
+        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto rounded-sm shadow-2xl border-t-2 border-primary/70 border-x border-b border-border p-6 bg-card">
           <DialogHeader>
             <DialogTitle>Member Details</DialogTitle>
           </DialogHeader>
           {selectedMember && (
             <div className="space-y-6">
               <div className="flex items-center gap-4 pb-4 border-b">
-                <Avatar className="h-20 w-20">
+                <Avatar className="h-20 w-20 rounded-sm">
                   <AvatarImage src={selectedMember.profilePicture} />
-                  <AvatarFallback className="bg-gradient-primary">
-                    <span className="text-primary-foreground font-semibold text-xl">
+                  <AvatarFallback className="rounded-sm bg-primary/10 border-2 border-primary/40">
+                    <span className="text-primary font-semibold text-xl">
                       {selectedMember.name
                         .split(" ")
                         .map((n) => n[0])
@@ -263,7 +264,7 @@ export default function MemberSearch() {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Total Budget</p>
-                  <p className="font-medium text-lg text-primary">
+                  <p className="figure font-medium text-lg text-primary">
                     PKR {selectedMember.totalBudget.toLocaleString()}
                   </p>
                 </div>
@@ -307,20 +308,15 @@ export default function MemberSearch() {
                                         settings.dateFormat
                                       )}
                                     </TableCell>
-                                    <TableCell>
+                                    <TableCell className="figure">
                                       PKR {contribution.amount.toLocaleString()}
                                     </TableCell>
                                     <TableCell>
-                                      <span
-                                        className={`px-2 py-1 rounded-full text-xs ${
-                                          attendanceRecord?.present
-                                            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-                                            : "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400"
-                                        }`}>
+                                      <Badge variant={attendanceRecord?.present ? "secondary" : "destructive"}>
                                         {attendanceRecord?.present
                                           ? "Present"
                                           : "Absent"}
-                                      </span>
+                                      </Badge>
                                     </TableCell>
                                   </TableRow>
                                 );
@@ -369,21 +365,16 @@ export default function MemberSearch() {
                                       settings.dateFormat
                                     )}
                                   </TableCell>
-                                  <TableCell>
+                                  <TableCell className="figure">
                                     PKR {amountWithInterest.toLocaleString()}
                                   </TableCell>
-                                  <TableCell>
+                                  <TableCell className="figure">
                                     PKR {loan.remainingAmount.toLocaleString()}
                                   </TableCell>
                                   <TableCell>
-                                    <span
-                                      className={`px-2 py-1 rounded-full text-xs ${
-                                        loan.status === "Paid"
-                                          ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-                                          : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
-                                      }`}>
+                                    <Badge variant={loan.status === "Paid" ? "secondary" : "default"}>
                                       {loan.status}
-                                    </span>
+                                    </Badge>
                                   </TableCell>
                                 </TableRow>
                               );

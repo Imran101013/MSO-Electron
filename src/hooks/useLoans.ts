@@ -167,7 +167,7 @@ export function useLoans() {
         const outstanding = Number(row.due_amount) - Number(row.paid_amount);
         const applied = Math.min(outstanding, remainingPayment);
         const newPaid = Number(row.paid_amount) + applied;
-        const newStatus = newPaid >= Number(row.due_amount) ? "paid" : "pending";
+        const newStatus = Math.abs(newPaid - Number(row.due_amount)) < 0.01 ? "paid" : "pending";
         await dbQuery('UPDATE public.loan_schedule SET paid_amount=$1, status=$2 WHERE id=$3', [newPaid, newStatus, row.id]);
         remainingPayment -= applied;
       }
@@ -209,7 +209,10 @@ export function useLoans() {
 
   const getOverdueStats = () => {
     const todayStr = format(new Date(), "yyyy-MM-dd");
-    const overdueRows = schedule.filter(s => s.status === 'pending' && s.due_date < todayStr);
+    const activeIds = new Set(loans.filter(l => l.status === 'active').map(l => l.id));
+    const overdueRows = schedule.filter(s =>
+      s.status === 'pending' && s.due_date < todayStr && activeIds.has(s.loan_id)
+    );
     const overdueLoanIds = new Set(overdueRows.map(s => s.loan_id));
     return {
       overdueCount: overdueLoanIds.size,

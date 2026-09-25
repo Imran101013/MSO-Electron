@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import MemberSearch from "@/components/MemberSearch";
+import MsoMark from "@/components/MsoMark";
 
 interface LayoutProps { children: ReactNode; }
 
@@ -54,27 +55,25 @@ export default function Layout({ children }: LayoutProps) {
   return (
     <SidebarProvider>
       <Sidebar className="border-r border-sidebar-border">
-        {/* Logo */}
-        <SidebarHeader className="px-5 py-6">
+        {/* Letterhead mark */}
+        <SidebarHeader className="px-2 py-3">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-primary flex items-center justify-center shadow-lg flex-shrink-0 ring-2 ring-white/10">
-              <img src="./MSO-Logo.png" alt="MSO" className="w-7 h-7 object-contain" />
-            </div>
+            <MsoMark className="w-14 h-14 flex-shrink-0" />
             <div className="min-w-0">
-              <p className="text-[11px] font-bold text-white/90 leading-tight tracking-wider uppercase">Mogh Students</p>
-              <p className="text-[11px] font-bold leading-tight text-sidebar-primary">Organisation</p>
+              {/* <p className="tracked-label text-[10px] font-semibold text-sidebar-foreground/60 leading-tight uppercase">Mogh Students Org.</p> */}
+              <p className="text-[45px] font-bold leading-tight text-sidebar-foreground tracking-tight">MSO</p>
             </div>
           </div>
         </SidebarHeader>
 
-        <div className="mx-4 h-px bg-white/8" />
+        <div className="mx-5 h-px bg-sidebar-border" />
 
-        {/* Nav */}
+        {/* Nav — counter windows, numbered like a teller grille */}
         <SidebarContent className="px-3 py-4">
           <SidebarGroup>
             <SidebarGroupContent>
-              <SidebarMenu className="space-y-1">
-                {navigation.map((item) => {
+              <SidebarMenu className="space-y-0.5">
+                {navigation.map((item, index) => {
                   const isActive = location.pathname === item.href;
                   return (
                     <SidebarMenuItem key={item.name}>
@@ -82,14 +81,15 @@ export default function Layout({ children }: LayoutProps) {
                         <Link
                           to={item.href}
                           className={cn(
-                            "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150",
-                            isActive
-                              ? "sidebar-nav-active"
-                              : "sidebar-nav-item"
+                            "flex items-center gap-3 px-3 py-2.5 rounded-sm text-sm font-medium",
+                            isActive ? "sidebar-nav-active" : "sidebar-nav-item"
                           )}
                         >
-                          <item.icon className={cn("w-4 h-4 flex-shrink-0", isActive ? "text-white" : "text-sidebar-foreground/60")} />
-                          <span className={isActive ? "text-white font-semibold" : ""}>{item.name}</span>
+                          {/* <span className={cn("figure text-[10px] w-4 flex-shrink-0", isActive ? "text-sidebar-primary" : "text-sidebar-foreground/35")}>
+                            {String(index + 1).padStart(2, "0")}
+                          </span> */}
+                          <item.icon className={cn("w-4 h-4 flex-shrink-0", isActive ? "text-sidebar-primary" : "text-sidebar-foreground/55")} />
+                          <span className={isActive ? "text-sidebar-foreground font-semibold" : ""}>{item.name}</span>
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -102,25 +102,25 @@ export default function Layout({ children }: LayoutProps) {
 
         {/* Footer */}
         <SidebarFooter className="px-3 py-3">
-          <div className="h-px bg-white/8 mb-3" />
-          <div className="flex items-center gap-3 px-3 py-2.5 rounded-2xl bg-white/6 border border-white/8">
-            <Avatar className="w-8 h-8">
-              <AvatarFallback className="bg-gradient-primary text-white text-xs font-bold shadow-sm">
+          <div className="h-px bg-sidebar-border mb-3" />
+          <div className="flex items-center gap-3 px-3 py-2.5 rounded-sm bg-sidebar-accent/50 border border-sidebar-border">
+            <Avatar className="w-8 h-8 rounded-sm">
+              <AvatarFallback className="rounded-sm bg-sidebar-primary/15 border border-sidebar-primary/40 text-sidebar-primary text-xs font-bold">
                 {initials}
               </AvatarFallback>
             </Avatar>
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-semibold text-white/90 truncate">{displayName}</p>
-              <p className="text-[10px] text-white/40 capitalize tracking-wide">{user?.role}</p>
+              <p className="text-xs font-semibold text-sidebar-foreground/90 truncate">{displayName}</p>
+              <p className="tracked-label text-[9px] text-sidebar-foreground/45 capitalize">{user?.role}</p>
             </div>
           </div>
         </SidebarFooter>
       </Sidebar>
 
       <SidebarInset>
-        {/* Top header */}
-        <header className="flex h-16 border-b border-border/60 shrink-0 items-center gap-3 px-5 bg-background/95 backdrop-blur-md sticky top-0 z-10 shadow-sm">
-          <SidebarTrigger className="-ml-1 text-muted-foreground hover:text-foreground rounded-xl" />
+        {/* Top header — statement letterhead */}
+        <header className="flex h-16 border-b-2 border-primary/50 shrink-0 items-center gap-3 px-5 bg-card/95 backdrop-blur-md sticky top-0 z-10 shadow-sm">
+          <SidebarTrigger className="-ml-1 text-muted-foreground hover:text-foreground rounded-sm" />
           <Separator orientation="vertical" className="h-5 opacity-40" />
           <div className="flex-1">
             <MemberSearch />
@@ -129,28 +129,28 @@ export default function Layout({ children }: LayoutProps) {
             <Button
               variant="ghost"
               size="icon"
-              className="w-9 h-9 rounded-xl"
+              className="w-9 h-9 rounded-sm"
               onClick={() => updateSettings({ theme: settings.theme === "dark" ? "light" : "dark" })}
               title={`Switch to ${settings.theme === "dark" ? "light" : "dark"} mode`}
             >
               {settings.theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </Button>
-            <div className="flex items-center gap-2 pl-2 border-l border-border/60">
-              <Avatar className="w-9 h-9">
-                <AvatarFallback className="bg-gradient-primary text-white text-xs font-bold">
+            <div className="flex items-center gap-2 pl-2 border-l border-border">
+              <Avatar className="w-9 h-9 rounded-sm">
+                <AvatarFallback className="rounded-sm bg-primary/10 border border-primary/40 text-primary text-xs font-bold">
                   {initials}
                 </AvatarFallback>
               </Avatar>
               <div className="hidden sm:block">
                 <p className="text-xs font-semibold text-foreground leading-tight">{displayName}</p>
-                <p className="text-[10px] text-muted-foreground capitalize">{user?.role}</p>
+                <p className="tracked-label text-[9px] text-muted-foreground capitalize">{user?.role}</p>
               </div>
             </div>
-            <div className="flex items-center gap-1 pl-2 border-l border-border/60">
+            <div className="flex items-center gap-1 pl-2 border-l border-border">
               <Button
                 variant="ghost"
                 size="icon"
-                className="w-9 h-9 rounded-xl"
+                className="w-9 h-9 rounded-sm"
                 onClick={() => navigate("/change-password")}
                 title="Change Password"
               >
@@ -159,7 +159,7 @@ export default function Layout({ children }: LayoutProps) {
               <Button
                 variant="ghost"
                 size="icon"
-                className="w-9 h-9 rounded-xl text-destructive hover:text-destructive"
+                className="w-9 h-9 rounded-sm text-destructive hover:text-destructive"
                 onClick={handleLogout}
                 title="Logout"
               >

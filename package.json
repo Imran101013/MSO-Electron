@@ -11,11 +11,12 @@
     "electron:build": "vite build && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "generate-icon": "electron scripts/generate-icon.cjs"
   },
   "build": {
     "appId": "com.mso.Msoconnect",
-    "productName": "Mso Connect",
+    "productName": "MSO",
     "files": [
       "dist/**/*",
       "electron/**/*"
@@ -23,11 +24,11 @@
     "directories": {
       "output": "release"
     },
-    "icon": "public/favicon.ico",
+    "icon": "build/icon.ico",
     "forceCodeSigning": false,
     "win": {
       "target": "nsis",
-      "icon": "public/favicon.ico",
+      "icon": "build/icon.ico",
       "verifyUpdateCodeSignature": false
     },
     "nsis": {
@@ -38,6 +39,12 @@
     }
   },
   "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "jsonwebtoken": "^9.0.3",
+    "pg": "^8.20.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.32.0",
     "@hookform/resolvers": "^3.10.0",
     "@radix-ui/react-accordion": "^1.2.11",
     "@radix-ui/react-alert-dialog": "^1.1.14",
@@ -67,20 +74,38 @@
     "@radix-ui/react-toggle-group": "^1.1.10",
     "@radix-ui/react-tooltip": "^1.2.7",
     "@supabase/supabase-js": "^2.90.1",
+    "@tailwindcss/typography": "^0.5.16",
     "@tanstack/react-query": "^5.83.0",
-    "bcryptjs": "^3.0.3",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^22.16.5",
+    "@types/pg": "^8.20.0",
+    "@types/react": "^18.3.23",
+    "@types/react-dom": "^18.3.7",
+    "@vitejs/plugin-react-swc": "^3.11.0",
+    "autoprefixer": "^10.4.21",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
+    "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
     "date-fns": "^3.6.0",
+    "electron": "^42.0.0",
+    "electron-builder": "^26.8.1",
     "embla-carousel-react": "^8.6.0",
+    "eslint": "^9.32.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.4.20",
+    "globals": "^15.15.0",
     "html2canvas": "^1.4.1",
     "input-otp": "^1.4.2",
-    "jsonwebtoken": "^9.0.3",
     "jspdf": "^3.0.3",
+    "jspdf-autotable": "^5.0.8",
+    "lovable-tagger": "^1.1.11",
     "lucide-react": "^0.462.0",
     "next-themes": "^0.3.0",
-    "pg": "^8.20.0",
+    "png-to-ico": "^3.0.2",
+    "postcss": "^8.5.6",
     "react": "^18.3.1",
     "react-day-picker": "^8.10.1",
     "react-dom": "^18.3.1",
@@ -90,35 +115,13 @@
     "recharts": "^2.15.4",
     "sonner": "^1.7.4",
     "tailwind-merge": "^2.6.0",
-    "tailwindcss-animate": "^1.0.7",
-    "vaul": "^0.9.9",
-    "zod": "^3.25.76"
-  },
-  "devDependencies": {
-    "@eslint/js": "^9.32.0",
-    "@tailwindcss/typography": "^0.5.16",
-    "@types/bcryptjs": "^2.4.6",
-    "@types/jsonwebtoken": "^9.0.10",
-    "@types/node": "^22.16.5",
-    "@types/pg": "^8.20.0",
-    "@types/react": "^18.3.23",
-    "@types/react-dom": "^18.3.7",
-    "@vitejs/plugin-react-swc": "^3.11.0",
-    "autoprefixer": "^10.4.21",
-    "concurrently": "^9.2.1",
-    "cross-env": "^10.1.0",
-    "electron": "^42.0.0",
-    "electron-builder": "^26.8.1",
-    "eslint": "^9.32.0",
-    "eslint-plugin-react-hooks": "^5.2.0",
-    "eslint-plugin-react-refresh": "^0.4.20",
-    "globals": "^15.15.0",
-    "lovable-tagger": "^1.1.11",
-    "postcss": "^8.5.6",
     "tailwindcss": "^3.4.17",
+    "tailwindcss-animate": "^1.0.7",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.38.0",
+    "vaul": "^0.9.9",
     "vite": "^5.4.19",
-    "wait-on": "^9.0.5"
+    "wait-on": "^9.0.5",
+    "zod": "^3.25.76"
   }
 }

@@ -38,6 +38,13 @@ export function useReserveTransactions() {
 
   const addTransaction = async (formData: ReserveTransactionFormData) => {
     try {
+      if (formData.transaction_type === 'expense') {
+        const balance = getReserveFundTotal();
+        if (formData.amount > balance) {
+          toast({ title: "Insufficient Balance", description: `Expense of PKR ${formData.amount.toLocaleString()} exceeds reserve balance of PKR ${balance.toLocaleString()}.`, variant: "destructive" });
+          return null;
+        }
+      }
       const rows = await dbQuery<DbReserveTransaction>(
         'INSERT INTO public.reserve_transactions (transaction_type, amount, donor_name, notes, transaction_date) VALUES ($1,$2,$3,$4,$5) RETURNING *',
         [formData.transaction_type, formData.amount, formData.donor_name || null, formData.notes || null, formData.transaction_date]

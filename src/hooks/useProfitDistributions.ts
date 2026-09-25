@@ -57,6 +57,16 @@ export function useProfitDistributions() {
     memberAllocations: MemberAllocationInput[]
   ) => {
     try {
+      // Guard: prevent distributing profit twice for the same calendar year.
+      const existing = await dbQuery<{ id: string }>(
+        "SELECT id FROM public.profit_distributions WHERE EXTRACT(year FROM distribution_date::date) = EXTRACT(year FROM $1::date)",
+        [distributionDate]
+      );
+      if (existing.length > 0) {
+        toast({ title: "Already Distributed", description: "Profit has already been distributed for this year.", variant: "destructive" });
+        return null;
+      }
+
       const distRows = await dbQuery<DbProfitDistribution>(
         'INSERT INTO public.profit_distributions (distribution_date, total_profit, reserve_allocation) VALUES ($1,$2,$3) RETURNING *',
         [distributionDate, totalProfit, reserveAllocation]

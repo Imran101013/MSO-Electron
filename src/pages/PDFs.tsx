@@ -1,6 +1,8 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { endOfMonth, format, startOfMonth, subMonths } from "date-fns";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { DatePicker } from "@/components/ui/date-picker";
 import {
   Select,
   SelectTrigger,
@@ -10,7 +12,8 @@ import {
 } from "@/components/ui/select";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useSettings } from "@/contexts/SettingsContext";
-import { generateReport } from "@/utils/pdfReports";
+import { buildBooks, parseDay, todayKey, type ReportPeriod } from "@/utils/accounting";
+import { generateReport, type ReportKind, type ReportRequest } from "@/utils/pdfReports";
 import { toast } from "sonner";
 import {
   FileText,
@@ -18,44 +21,101 @@ import {
   BookOpen,
   HandCoins,
   PiggyBank,
-  BarChart3,
   CalendarDays,
   Download,
   Loader2,
   ClipboardList,
   UserSquare2,
+  Landmark,
+  Scale,
+  BookText,
+  PieChart,
+  CalendarRange,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type ReportKey =
-  | "member-ledger"
-  | "member-directory"
-  | "meetings"
-  | "contribution-register"
-  | "loan-register"
-  | "loan-ledger"
-  | "reserve-transactions"
-  | "financial-summary"
-  | "attendance";
+type PeriodPreset = "all" | "this-year" | "last-year" | "this-month" | "last-month" | "custom";
+
+const PRESETS: { value: PeriodPreset; label: string }[] = [
+  { value: "all", label: "Since inception" },
+  { value: "this-year", label: "This year to date" },
+  { value: "last-year", label: "Last financial year" },
+  { value: "this-month", label: "This month to date" },
+  { value: "last-month", label: "Last month" },
+  { value: "custom", label: "Custom period" },
+];
+
+const iso = (d: Date) => format(d, "yyyy-MM-dd");
+
+function resolvePeriod(preset: PeriodPreset, from?: Date, to?: Date): ReportPeriod {
+  const today = todayKey();
+  const now = new Date();
+  const y = now.getFullYear();
+  switch (preset) {
+    case "this-year":
+      return { from: `${y}-01-01`, to: today };
+    case "last-year":
+      return { from: `${y - 1}-01-01`, to: `${y - 1}-12-31` };
+    case "this-month":
+      return { from: iso(startOfMonth(now)), to: today };
+    case "last-month": {
+      const prev = subMonths(now, 1);
+      return { from: iso(startOfMonth(prev)), to: iso(endOfMonth(prev)) };
+    }
+    case "custom":
+      return { from: from ? iso(from) : null, to: to ? iso(to) : today };
+    default:
+      return { from: null, to: today };
+  }
+}
+
+type Scope = "period" | "as-at" | "distribution";
 
 export default function PDFsPage() {
-  const {
-    members,
-    meetings,
-    reserveFund,
-    reserveTransactions,
-  } = useOrganization();
+  const { members, meetings, reserveTransactions, profitDistributions, refreshData } = useOrganization();
   const { settings } = useSettings();
 
+  const [preset, setPreset] = useState<PeriodPreset>("all");
+  const [customFrom, setCustomFrom] = useState<Date | undefined>();
+  const [customTo, setCustomTo] = useState<Date | undefined>();
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
-  const [selectedLoanKey, setSelectedLoanKey] = useState<string | null>(null);
-  const [loading, setLoading] = useState<ReportKey | null>(null);
+  const [selectedLoanId, setSelectedLoanId] = useState<string | null>(null);
+  const [selectedDistributionId, setSelectedDistributionId] = useState<string | null>(null);
+  const [loading, setLoading] = useState<ReportKind | null>(null);
+  const [refreshing, setRefreshing] = useState(true);
 
-  const run = async (key: ReportKey, fn: () => Promise<void>) => {
-    setLoading(key);
+  // Reload records on open so reports include anything recorded elsewhere this session.
+  useEffect(() => {
+    let active = true;
+    refreshData().finally(() => active && setRefreshing(false));
+    return () => {
+      active = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // One derived ledger feeds every report so figures agree across documents.
+  const books = useMemo(
+    () => buildBooks({ members, meetings, reserveTransactions, profitDistributions }),
+    [members, meetings, reserveTransactions, profitDistributions],
+  );
+
+  const period = resolvePeriod(preset, customFrom, customTo);
+  const periodInvalid = !!period.from && period.from > period.to;
+  const fmt = (key: string) => format(parseDay(key), settings.dateFormat || "dd/MM/yyyy");
+  const periodText = period.from ? `${fmt(period.from)} – ${fmt(period.to)}` : `Inception – ${fmt(period.to)}`;
+  const scopeText = (scope: Scope) =>
+    scope === "period" ? `Period · ${periodText}` : scope === "as-at" ? `As at · ${fmt(period.to)}` : "Per distribution";
+
+  const run = async (kind: ReportKind, extra: Omit<ReportRequest, "kind" | "period"> = {}) => {
+    if (periodInvalid) {
+      toast.error("The period start date is after its end date");
+      return;
+    }
+    setLoading(kind);
     try {
-      await fn();
-      toast.success("Report generated successfully");
+      const filename = await generateReport(books, { kind, period, ...extra }, settings);
+      toast.success("Report generated", { description: filename });
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to generate report");
     } finally {
@@ -63,250 +123,201 @@ export default function PDFsPage() {
     }
   };
 
-  const loanOptions: { key: string; label: string }[] = [];
-  members.forEach((m) =>
-    m.loans.forEach((l) =>
-      loanOptions.push({
-        key: `${m.dbId}|${l.dbId}`,
-        label: `${m.name} — PKR ${l.amount.toLocaleString()}`,
-      })
-    )
+  const card = (kind: ReportKind, scope: Scope, props: Omit<ReportCardProps, "scope" | "action">, extra?: Omit<ReportRequest, "kind" | "period">, selector?: React.ReactNode, disabled?: boolean) => (
+    <ReportCard
+      {...props}
+      scope={scopeText(scope)}
+      action={
+        <div className="flex flex-col sm:flex-row gap-3">
+          {selector}
+          <DownloadButton loading={loading === kind} disabled={disabled || refreshing} onClick={() => run(kind, extra)} />
+        </div>
+      }
+    />
   );
-
-  const isLoading = (key: ReportKey) => loading === key;
 
   return (
     <div className="space-y-8">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <div className="w-11 h-11 rounded-xl bg-gradient-primary flex items-center justify-center shadow-md">
-          <FileText className="w-5 h-5 text-white" />
+        <div className="w-11 h-11 rounded-sm border-2 border-primary/50 bg-primary/10 flex items-center justify-center">
+          <FileText className="w-5 h-5 text-primary" />
         </div>
         <div>
-          <h2 className="text-2xl font-bold text-foreground">PDF Reports</h2>
-          <p className="text-sm text-muted-foreground">Generate and download official MSO reports</p>
+          <p className="tracked-label text-[10px] font-semibold text-primary uppercase">Reports & Documents</p>
+          <h2 className="text-2xl font-bold text-foreground mt-1">PDF Reports</h2>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Financial statements, ledgers and registers on the MSO letterhead
+          </p>
         </div>
       </div>
 
-      {/* Member Reports */}
-      <Section title="Member Reports" icon={Users} color="bg-primary/10 text-primary">
-        <ReportCard
-          icon={BookOpen}
-          iconColor="bg-primary/10 text-primary"
-          title="Member Ledger"
-          description="Full contribution and loan history for a specific member."
-          action={
-            <div className="flex flex-col sm:flex-row gap-3 mt-4">
-              <Select
-                value={selectedMemberId ?? undefined}
-                onValueChange={(v) => setSelectedMemberId(v || null)}
-              >
-                <SelectTrigger className="w-full sm:w-64 h-9 text-sm ml-12">
-                  <SelectValue placeholder="Select a member…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {members.map((m) => (
-                    <SelectItem key={m.dbId} value={m.dbId}>
-                      {m.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <DownloadButton
-                loading={isLoading("member-ledger")}
-                onClick={() =>
-                  run("member-ledger", async () => {
-                    if (!selectedMemberId) throw new Error("Please select a member");
-                    const member = members.find((m) => m.dbId === selectedMemberId);
-                    if (!member) throw new Error("Member not found");
-                    await generateReport("member-ledger", { member, members }, settings);
-                  })
-                }
-              />
+      {/* Reporting period */}
+      <Card className="border border-border/60 shadow-sm rounded-sm ledger-rule">
+        <CardContent className="p-5 space-y-4">
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-sm border-2 border-primary/40 bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
+              <CalendarRange className="w-4 h-4" />
             </div>
-          }
-        />
-
-        <ReportCard
-          icon={UserSquare2}
-          iconColor="bg-primary/10 text-primary"
-          title="Member Directory"
-          description="Complete directory of all registered MSO members."
-          action={
-            <DownloadButton
-              loading={isLoading("member-directory")}
-              onClick={() =>
-                run("member-directory", () =>
-                  generateReport("member-directory", { members }, settings)
-                )
-              }
-            />
-          }
-        />
-      </Section>
-
-      {/* Meetings & Collections */}
-      <Section title="Meetings & Collections" icon={CalendarDays} color="bg-secondary/10 text-secondary">
-        <ReportCard
-          icon={CalendarDays}
-          iconColor="bg-secondary/10 text-secondary"
-          title="Meetings Ledger"
-          description="Record of all meetings including agenda and decisions."
-          action={
-            <DownloadButton
-              loading={isLoading("meetings")}
-              onClick={() =>
-                run("meetings", () =>
-                  generateReport("meetings", { members, meetings }, settings)
-                )
-              }
-            />
-          }
-        />
-
-        <ReportCard
-          icon={ClipboardList}
-          iconColor="bg-secondary/10 text-secondary"
-          title="Contribution Register"
-          description="Monthly contribution records for all members."
-          action={
-            <DownloadButton
-              loading={isLoading("contribution-register")}
-              onClick={() =>
-                run("contribution-register", () =>
-                  generateReport("contribution-register", { members }, settings)
-                )
-              }
-            />
-          }
-        />
-      </Section>
-
-      {/* Loans & Reserve */}
-      <Section title="Loans & Reserve" icon={HandCoins} color="bg-rose-500/10 text-rose-600">
-        <ReportCard
-          icon={HandCoins}
-          iconColor="bg-rose-500/10 text-rose-600"
-          title="Loan Register"
-          description="Overview of all loans issued, outstanding, and recovered."
-          action={
-            <DownloadButton
-              loading={isLoading("loan-register")}
-              onClick={() =>
-                run("loan-register", () =>
-                  generateReport("loan-register", { members }, settings)
-                )
-              }
-            />
-          }
-        />
-
-        <ReportCard
-          icon={BookOpen}
-          iconColor="bg-rose-500/10 text-rose-600"
-          title="Per-Loan Ledger"
-          description="Detailed installment history for a specific loan."
-          action={
-            <div className="flex flex-col sm:flex-row gap-3 mt-4">
-              <Select
-                value={selectedLoanKey ?? undefined}
-                onValueChange={(v) => setSelectedLoanKey(v ?? null)}
-              >
-                <SelectTrigger className="w-full sm:w-80 h-9 text-sm">
-                  <SelectValue placeholder="Select a loan…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {loanOptions.length === 0 ? (
-                    <SelectItem value="__none" disabled>No loans available</SelectItem>
-                  ) : (
-                    loanOptions.map((o) => (
-                      <SelectItem key={o.key} value={o.key}>{o.label}</SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-              <DownloadButton
-                loading={isLoading("loan-ledger")}
-                onClick={() =>
-                  run("loan-ledger", async () => {
-                    if (!selectedLoanKey) throw new Error("Please select a loan");
-                    const [memberDbId, loanDbId] = selectedLoanKey.split("|");
-                    const member = members.find((m) => m.dbId === memberDbId);
-                    if (!member) throw new Error("Member not found");
-                    await generateReport("loan-ledger", { member, members, loanId: loanDbId }, settings);
-                  })
-                }
-              />
+            <div>
+              <p className="font-semibold text-sm text-foreground">Reporting period</p>
+              <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                Period reports cover the selected dates with balances brought forward. As-at reports show the position at the end date.
+              </p>
             </div>
-          }
-        />
+          </div>
+          <div className="pl-12 flex flex-col lg:flex-row lg:items-center gap-3">
+            <Select value={preset} onValueChange={(v) => setPreset(v as PeriodPreset)}>
+              <SelectTrigger className="w-full lg:w-56 h-9 text-sm rounded-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PRESETS.map((p) => (
+                  <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {preset === "custom" && (
+              <div className="flex flex-col sm:flex-row gap-3">
+                <DatePicker date={customFrom} onDateChange={setCustomFrom} placeholder="From (inception)" className="h-9 sm:w-52 rounded-sm" />
+                <DatePicker date={customTo} onDateChange={setCustomTo} placeholder="To (today)" className="h-9 sm:w-52 rounded-sm" />
+              </div>
+            )}
+            <p className={cn("figure text-xs lg:ml-auto", periodInvalid ? "text-destructive" : "text-muted-foreground")}>
+              {refreshing ? "Loading latest records…" : periodInvalid ? "Start date is after end date" : periodText}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
 
-        <ReportCard
-          icon={PiggyBank}
-          iconColor="bg-rose-500/10 text-rose-600"
-          title="Reserve Transactions"
-          description="All reserve fund deposits and withdrawals."
-          action={
-            <DownloadButton
-              loading={isLoading("reserve-transactions")}
-              onClick={() =>
-                run("reserve-transactions", () =>
-                  generateReport("reserve-transactions", { transactions: reserveTransactions }, settings)
-                )
-              }
-            />
-          }
-        />
+      <Section title="Financial Statements" icon={Landmark}>
+        {card("financial-statements", "period", {
+          icon: Landmark,
+          title: "Financial Statements",
+          description: "Financial position, income & expenditure, changes in funds, cash flows, notes and approval page.",
+        })}
+        {card("trial-balance", "as-at", {
+          icon: Scale,
+          title: "Trial Balance",
+          description: "Debit and credit balances of every account, proving the books agree.",
+        })}
+        {card("cash-book", "period", {
+          icon: BookText,
+          title: "Cash Book",
+          description: "Every receipt and payment by voucher, with running cash balance.",
+        })}
       </Section>
 
-      {/* Summary Reports */}
-      <Section title="Summary Reports" icon={BarChart3} color="bg-accent/20 text-amber-600">
-        <ReportCard
-          icon={BarChart3}
-          iconColor="bg-accent/20 text-amber-600"
-          title="Financial Summary"
-          description="High-level financial overview including contributions, loans, and reserves."
-          action={
-            <DownloadButton
-              loading={isLoading("financial-summary")}
-              onClick={() =>
-                run("financial-summary", async () => {
-                  const totalContributions = members.reduce(
-                    (s, m) => s + m.monthlyContributions.reduce((ss, c) => ss + c.amount, 0), 0
-                  );
-                  const totalLoans = members.reduce(
-                    (s, m) => s + m.loans.reduce((ls, l) => ls + l.amount, 0), 0
-                  );
-                  const totalLoanRecovered = members.reduce(
-                    (s, m) => s + m.loans.reduce((ls, l) => ls + l.installments.reduce((isum, i) => isum + i.amount, 0), 0), 0
-                  );
-                  await generateReport("financial-summary", {
-                    members, totalContributions, totalLoans,
-                    totalLoanRecovered, reserveFund,
-                    organizationName: settings.organizationName,
-                  }, settings);
-                })
-              }
-            />
-          }
-        />
+      <Section title="Member Accounts" icon={Users}>
+        {card(
+          "member-statement",
+          "period",
+          {
+            icon: BookOpen,
+            title: "Member Account Statement",
+            description: "Savings and loan accounts for one member, with balances brought forward.",
+          },
+          { memberId: selectedMemberId ?? undefined },
+          <Select value={selectedMemberId ?? undefined} onValueChange={(v) => setSelectedMemberId(v || null)}>
+            <SelectTrigger className="w-full sm:w-56 h-9 text-sm rounded-sm">
+              <SelectValue placeholder="Select a member…" />
+            </SelectTrigger>
+            <SelectContent>
+              {books.members.map((m) => (
+                <SelectItem key={m.dbId} value={m.dbId}>{m.memberNo} · {m.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>,
+          !selectedMemberId,
+        )}
+        {card("member-register", "as-at", {
+          icon: UserSquare2,
+          title: "Register of Members",
+          description: "Members in order of admission with contact details and balances.",
+        })}
+      </Section>
 
-        <ReportCard
-          icon={CalendarDays}
-          iconColor="bg-accent/20 text-amber-600"
-          title="Attendance Report"
-          description="Member attendance records across all meetings."
-          action={
-            <DownloadButton
-              loading={isLoading("attendance")}
-              onClick={() =>
-                run("attendance", () =>
-                  generateReport("attendance", { members }, settings)
-                )
-              }
-            />
-          }
-        />
+      <Section title="Loans" icon={HandCoins}>
+        {card("loan-portfolio", "as-at", {
+          icon: HandCoins,
+          title: "Loan Portfolio & Ageing",
+          description: "All loans with arrears, days past due, ageing buckets and portfolio at risk.",
+        })}
+        {card(
+          "loan-statement",
+          "as-at",
+          {
+            icon: BookOpen,
+            title: "Loan Account Statement",
+            description: "Terms, repayment schedule and principal/interest split for one loan.",
+          },
+          { loanId: selectedLoanId ?? undefined },
+          <Select value={selectedLoanId ?? undefined} onValueChange={(v) => setSelectedLoanId(v || null)}>
+            <SelectTrigger className="w-full sm:w-64 h-9 text-sm rounded-sm">
+              <SelectValue placeholder="Select a loan…" />
+            </SelectTrigger>
+            <SelectContent>
+              {books.loans.length === 0 ? (
+                <SelectItem value="__none" disabled>No loans available</SelectItem>
+              ) : (
+                [...books.loans].reverse().map((l) => (
+                  <SelectItem key={l.dbId} value={l.dbId}>
+                    {l.loanNo} · {l.memberName} · {settings.currency} {l.principal.toLocaleString()}
+                  </SelectItem>
+                ))
+              )}
+            </SelectContent>
+          </Select>,
+          !selectedLoanId,
+        )}
+      </Section>
+
+      <Section title="Funds & Collections" icon={PiggyBank}>
+        {card("contribution-register", "period", {
+          icon: ClipboardList,
+          title: "Contribution Register",
+          description: "Receipts by month with subtotals, plus a per-member summary.",
+        })}
+        {card("reserve-ledger", "period", {
+          icon: PiggyBank,
+          title: "Reserve Fund Ledger",
+          description: "Donations, profit allocations and expenses with running fund balance.",
+        })}
+        {card(
+          "profit-distribution",
+          "distribution",
+          {
+            icon: PieChart,
+            title: "Profit Distribution Statement",
+            description: "Member allocations, reserve share, rounding and surplus availability.",
+          },
+          { distributionId: selectedDistributionId ?? undefined },
+          <Select value={selectedDistributionId ?? undefined} onValueChange={(v) => setSelectedDistributionId(v || null)}>
+            <SelectTrigger className="w-full sm:w-56 h-9 text-sm rounded-sm">
+              <SelectValue placeholder={books.distributions.length ? "Latest distribution" : "None recorded"} />
+            </SelectTrigger>
+            <SelectContent>
+              {books.distributions.length === 0 ? (
+                <SelectItem value="__none" disabled>No distributions recorded</SelectItem>
+              ) : (
+                [...books.distributions].reverse().map((d) => (
+                  <SelectItem key={d.id} value={d.id}>
+                    {d.voucher} · {fmt(d.date.slice(0, 10))} · {settings.currency} {d.totalProfit.toLocaleString()}
+                  </SelectItem>
+                ))
+              )}
+            </SelectContent>
+          </Select>,
+          books.distributions.length === 0,
+        )}
+      </Section>
+
+      <Section title="Governance" icon={CalendarDays}>
+        {card("meetings-register", "period", {
+          icon: CalendarDays,
+          title: "Meetings & Attendance Register",
+          description: "Agenda, resolutions, attendance and collections for each meeting.",
+        })}
       </Section>
     </div>
   );
@@ -317,19 +328,17 @@ export default function PDFsPage() {
 function Section({
   title,
   icon: Icon,
-  color,
   children,
 }: {
   title: string;
   icon: React.ElementType;
-  color: string;
   children: React.ReactNode;
 }) {
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
-        <div className={cn("w-8 h-8 rounded-xl flex items-center justify-center", color.split(" ")[0])}>
-          <Icon className={cn("w-4 h-4", color.split(" ")[1])} />
+        <div className="w-8 h-8 rounded-sm border-2 border-primary/40 bg-primary/10 text-primary flex items-center justify-center">
+          <Icon className="w-4 h-4" />
         </div>
         <h3 className="text-base font-semibold text-foreground">{title}</h3>
       </div>
@@ -340,44 +349,41 @@ function Section({
   );
 }
 
-function ReportCard({
-  icon: Icon,
-  iconColor,
-  title,
-  description,
-  action,
-}: {
+interface ReportCardProps {
   icon: React.ElementType;
-  iconColor: string;
   title: string;
   description: string;
+  scope: string;
   action: React.ReactNode;
-}) {
+}
+
+function ReportCard({ icon: Icon, title, description, scope, action }: ReportCardProps) {
   return (
-    <Card className="card-hover border border-border/60 shadow-sm">
-      <CardContent className="p-5">
-        <div className="flex items-start gap-3 mb-3">
-          <div className={cn("w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0", iconColor.split(" ")[0])}>
-            <Icon className={cn("w-4 h-4", iconColor.split(" ")[1])} />
+    <Card className="card-hover border border-border/60 shadow-sm rounded-sm">
+      <CardContent className="p-5 h-full flex flex-col">
+        <div className="flex items-start gap-3 mb-4">
+          <div className="w-9 h-9 rounded-sm border-2 border-primary/40 bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
+            <Icon className="w-4 h-4" />
           </div>
           <div>
             <p className="font-semibold text-sm text-foreground">{title}</p>
             <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{description}</p>
+            <p className="tracked-label text-[10px] text-primary uppercase mt-2">{scope}</p>
           </div>
         </div>
-        {action}
+        <div className="pl-12 mt-auto">{action}</div>
       </CardContent>
     </Card>
   );
 }
 
-function DownloadButton({ onClick, loading }: { onClick: () => void; loading: boolean }) {
+function DownloadButton({ onClick, loading, disabled }: { onClick: () => void; loading: boolean; disabled?: boolean }) {
   return (
     <Button
       size="sm"
       onClick={onClick}
-      disabled={loading}
-      className="h-9 gap-2 shadow-sm pt-0 flex items-center justify-center ml-12"
+      disabled={loading || disabled}
+      className="h-9 gap-2 shadow-sm flex items-center justify-center rounded-sm"
     >
       {loading ? (
         <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Generating…</>

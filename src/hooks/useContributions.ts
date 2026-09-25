@@ -8,6 +8,7 @@ export interface DbContribution {
   meeting_id: string | null;
   amount: number;
   contribution_date: string;
+  notes: string | null;
   created_at: string;
 }
 

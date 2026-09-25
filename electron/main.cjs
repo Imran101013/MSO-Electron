@@ -15,6 +15,15 @@ types.setTypeParser(1082, (val) => val); // date
 types.setTypeParser(1114, (val) => val); // timestamp without time zone
 types.setTypeParser(1184, (val) => val); // timestamp with time zone
 
+// pg returns NUMERIC/DECIMAL columns (every money amount in this schema) as strings by
+// default, to avoid float precision loss on values too large for a JS number. This app
+// treats amounts as plain JS numbers everywhere once fetched (Math.round(...*100)/100
+// arithmetic, .toLocaleString() formatting, reduce() sums), so leaving them as strings
+// makes `sum + row.amount`-style reductions silently do string concatenation instead of
+// addition as soon as more than one row is summed. Amounts here stay well within safe
+// float precision (PKR figures at 2 decimal places), so parsing eagerly is safe.
+types.setTypeParser(1700, (val) => parseFloat(val)); // numeric/decimal
+
 const pool = new Pool({
   host: 'localhost',
   port: 5432,
@@ -22,6 +31,8 @@ const pool = new Pool({
   user: 'postgres',       // change to your pgAdmin username
   password: 'postgres',   // change to your pgAdmin password
 });
+
+pool.on('error', (err) => console.error('Idle pool client error:', err));
 
 // Generic DB query handler
 ipcMain.handle('db-query', async (_, { sql, params, actor }) => {
@@ -92,10 +103,15 @@ ipcMain.handle('db-restore', async () => {
   if (!payload || typeof payload.tables !== 'object') {
     return { error: 'Selected file is not a valid MSO backup.' };
   }
+  const usersInBackup = payload.tables['users'];
+  if (!Array.isArray(usersInBackup) || usersInBackup.length === 0) {
+    return { error: 'Backup contains no users — restore aborted to prevent lockout.' };
+  }
 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    await client.query('SET LOCAL session_replication_role = replica');
     await client.query(`TRUNCATE TABLE ${BACKUP_TABLES.map((t) => `public.${t}`).join(', ')} CASCADE`);
     for (const table of BACKUP_TABLES) {
       const rows = payload.tables[table];
@@ -130,6 +146,8 @@ async function ensureSchema() {
       ALTER TABLE public.loans ADD COLUMN IF NOT EXISTS total_payable DECIMAL(12,2);
       UPDATE public.loans SET total_payable = amount WHERE total_payable IS NULL;
       ALTER TABLE public.loans ALTER COLUMN total_payable SET NOT NULL;
+
+      ALTER TABLE public.monthly_contributions ADD COLUMN IF NOT EXISTS notes TEXT;
 
       CREATE TABLE IF NOT EXISTS public.loan_schedule (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -274,7 +292,7 @@ function createWindow() {
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
-    icon: path.join(__dirname, '../public/MSO-Logo.png'),
+    icon: path.join(__dirname, '../build/icon.ico'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
@@ -288,7 +306,7 @@ function createWindow() {
   } else {
     win.loadFile(path.join(__dirname, '../dist/index.html'));
   }
-  win.webContents.openDevTools();
+  if (!app.isPackaged) win.webContents.openDevTools();
 }
 
 app.whenReady().then(async () => {

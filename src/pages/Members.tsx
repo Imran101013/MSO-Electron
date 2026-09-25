@@ -4,7 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Search, Pencil, Trash2, Eye, Upload, Loader2, UserCheck, Clock, Users } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, Eye, Upload, Loader2, Users, Wallet, UserPlus } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -28,6 +28,7 @@ import { useLoans, DbLoan } from "@/hooks/useLoans";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
 
 const formSchema = z.object({
   name: z.string().min(ORGANIZATION_CONFIG.MINIMUM_NAME_LENGTH, `Name must be at least ${ORGANIZATION_CONFIG.MINIMUM_NAME_LENGTH} characters`),
@@ -43,7 +44,7 @@ const formSchema = z.object({
 type MemberFormValues = z.infer<typeof formSchema>;
 
 export default function Members() {
-  const { members, isLoading, addMember, updateMember, deleteMember, approveMember } = useMembers();
+  const { members, isLoading, addMember, updateMember, deleteMember } = useMembers();
   const { getMemberContributions } = useContributions();
   const { getLoansByMember } = useLoans();
   const { isMember, isAdmin } = useAuth();
@@ -70,8 +71,12 @@ export default function Members() {
   const totalPages = Math.ceil(filteredMembers.length / membersPerPage);
   const currentMembers = filteredMembers.slice((currentPage - 1) * membersPerPage, currentPage * membersPerPage);
   const suggestions = searchQuery.length > 0 ? members.filter((m) => m.name.toLowerCase().includes(searchQuery.toLowerCase())).slice(0, 5) : [];
-  const approvedCount = members.filter((m) => m.is_approved).length;
-  const pendingCount = members.filter((m) => !m.is_approved).length;
+  const newThisMonth = members.filter((m) => {
+    const join = new Date(m.join_date);
+    const now = new Date();
+    return join.getFullYear() === now.getFullYear() && join.getMonth() === now.getMonth();
+  }).length;
+  const totalContributions = members.reduce((s, m) => s + m.total_budget, 0);
 
   const form = useForm<MemberFormValues>({
     resolver: zodResolver(formSchema),
@@ -203,15 +208,11 @@ export default function Members() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div className="w-11 h-11 rounded-xl bg-gradient-primary flex items-center justify-center shadow-md">
-            <Users className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <h2 className="text-2xl font-bold text-foreground">Members</h2>
-            <p className="text-sm text-muted-foreground">Manage organisation members</p>
-          </div>
+      <div className="flex items-center justify-between border-b-2 border-primary/40 pb-4">
+        <div>
+          <p className="tracked-label text-[10px] font-semibold text-primary uppercase">Membership Register</p>
+          <h2 className="text-2xl font-bold text-foreground mt-1">Members</h2>
+          <p className="text-sm text-muted-foreground mt-0.5">Manage organisation members</p>
         </div>
         {isAdmin && (
           <Dialog open={open} onOpenChange={handleDialogClose}>
@@ -221,8 +222,8 @@ export default function Members() {
             <DialogContent className="sm:max-w-[620px] flex flex-col max-h-[90vh] p-0 gap-0 overflow-hidden">
               {/* Dialog Header */}
               <div className="flex items-center gap-4 px-6 py-5 border-b bg-muted/30 flex-shrink-0">
-                <div className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center shadow-md flex-shrink-0">
-                  {editingMember ? <Pencil className="w-5 h-5 text-white" /> : <Plus className="w-5 h-5 text-white" />}
+                <div className="w-10 h-10 rounded-sm border-2 border-primary/40 bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  {editingMember ? <Pencil className="w-5 h-5 text-primary" /> : <Plus className="w-5 h-5 text-primary" />}
                 </div>
                 <div>
                   <h2 className="text-base font-bold text-foreground">{editingMember ? "Edit Member" : "Add New Member"}</h2>
@@ -267,10 +268,10 @@ export default function Members() {
                     {/* Profile Picture */}
                     <div className="space-y-3">
                       <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Profile Picture</p>
-                      <div className="flex items-center gap-4 p-3 rounded-xl bg-muted/40 border border-border/60">
-                        <Avatar className="h-14 w-14 flex-shrink-0">
+                      <div className="flex items-center gap-4 p-3 rounded-sm bg-muted/40 border border-border/60">
+                        <Avatar className="h-14 w-14 flex-shrink-0 rounded-sm">
                           <AvatarImage src={profilePicturePreview || editingMember?.profile_picture || undefined} />
-                          <AvatarFallback className="bg-gradient-primary"><Upload className="w-5 h-5 text-primary-foreground" /></AvatarFallback>
+                          <AvatarFallback className="rounded-sm bg-primary/10 border border-primary/40"><Upload className="w-5 h-5 text-primary" /></AvatarFallback>
                         </Avatar>
                         <div className="flex-1">
                           <Input type="file" accept="image/*" onChange={handleProfilePictureChange} className="cursor-pointer h-9 text-xs" />
@@ -294,17 +295,13 @@ export default function Members() {
 
       {/* Stat cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {[
-          { label: "Total Members", value: members.length, color: "bg-gradient-primary" },
-          { label: "Approved", value: approvedCount, color: "bg-emerald-500" },
-          { label: "Pending Approval", value: pendingCount, color: "bg-amber-500" },
-        ].map(({ label, value, color }) => (
-          <StatCard key={label} title={label} value={value} icon={Users} iconColor={color} />
-        ))}
+        <StatCard title="Total Members" value={members.length} icon={Users} iconColor="border-primary/40 bg-primary/10 text-primary" />
+        <StatCard title="New This Month" value={newThisMonth} icon={UserPlus} iconColor="border-secondary/40 bg-secondary/10 text-secondary" />
+        <StatCard title="Total Contributions" value={`${settings.currency} ${totalContributions.toLocaleString()}`} icon={Wallet} iconColor="border-accent/50 bg-accent/15 text-accent-foreground" />
       </div>
 
       {/* Search + List */}
-      <Card className="shadow-md border-0">
+      <Card className="shadow-sm rounded-sm border-t-2 border-t-primary/70">
         <CardHeader className="pb-3">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -314,11 +311,11 @@ export default function Members() {
               onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
             />
             {showSuggestions && suggestions.length > 0 && (
-              <div className="absolute top-full left-0 right-0 mt-1 bg-background border border-border rounded-xl shadow-lg z-50 overflow-hidden" onMouseDown={(e) => e.preventDefault()}>
+              <div className="absolute top-full left-0 right-0 mt-1 bg-background border-t-2 border-primary/60 border-x border-b border-border rounded-sm shadow-lg z-50 overflow-hidden" onMouseDown={(e) => e.preventDefault()}>
                 {suggestions.map((m) => (
                   <button key={m.id} type="button" onClick={() => { setSearchQuery(m.name); setShowSuggestions(false); setTimeout(() => handleViewDetails(m), 100); }}
                     className="w-full text-left px-4 py-2.5 hover:bg-muted transition-colors flex items-center gap-3 border-b border-border/50 last:border-0">
-                    <Avatar className="h-7 w-7"><AvatarImage src={m.profile_picture || undefined} /><AvatarFallback className="bg-gradient-primary text-xs text-white">{m.name[0]}</AvatarFallback></Avatar>
+                    <Avatar className="h-7 w-7 rounded-sm"><AvatarImage src={m.profile_picture || undefined} /><AvatarFallback className="rounded-sm bg-primary/10 border border-primary/40 text-xs text-primary">{m.name[0]}</AvatarFallback></Avatar>
                     <div><p className="text-sm font-medium">{m.name}</p><p className="text-xs text-muted-foreground">{m.email}</p></div>
                   </button>
                 ))}
@@ -336,31 +333,21 @@ export default function Members() {
               {currentMembers.map((member) => (
                 <div key={member.id} className="flex items-center justify-between px-5 py-3.5 hover:bg-muted/30 transition-colors">
                   <div className="flex items-center gap-3">
-                    <Avatar className="h-10 w-10">
+                    <Avatar className="h-10 w-10 rounded-sm">
                       <AvatarImage src={member.profile_picture || undefined} />
-                      <AvatarFallback className="bg-gradient-primary text-primary-foreground text-sm font-semibold">
+                      <AvatarFallback className="rounded-sm bg-primary/10 border border-primary/40 text-primary text-sm font-semibold">
                         {member.name.split(" ").map((n) => n[0]).join("")}
                       </AvatarFallback>
                     </Avatar>
                     <div>
                       <p className="font-semibold text-sm text-foreground">{member.name}</p>
-                      <p className="text-xs text-muted-foreground">Joined {format(new Date(member.join_date), settings.dateFormat)}</p>
+                      <p className="text-xs text-muted-foreground">Joined <span className="figure">{format(new Date(member.join_date), settings.dateFormat)}</span></p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    {!member.is_approved && (
-                      <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-                        <Clock className="w-3 h-3" /> Pending
-                      </span>
-                    )}
                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleViewDetails(member)}><Eye className="w-4 h-4" /></Button>
                     {isAdmin && (
                       <>
-                        {!member.is_approved && (
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/30" onClick={() => approveMember(member.id, member.name)} title="Approve">
-                            <UserCheck className="w-4 h-4" />
-                          </Button>
-                        )}
                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(member)}><Pencil className="w-4 h-4" /></Button>
                         <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => handleDeleteClick(member)}><Trash2 className="w-4 h-4" /></Button>
                       </>
@@ -396,8 +383,8 @@ export default function Members() {
         <DialogContent className="sm:max-w-[680px] flex flex-col max-h-[90vh] p-0 gap-0 overflow-hidden">
           {/* Header */}
           <div className="flex items-center gap-4 px-6 py-5 border-b bg-muted/30 flex-shrink-0">
-            <div className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center shadow-md flex-shrink-0">
-              <Eye className="w-5 h-5 text-white" />
+            <div className="w-10 h-10 rounded-sm border-2 border-primary/40 bg-primary/10 flex items-center justify-center flex-shrink-0">
+              <Eye className="w-5 h-5 text-primary" />
             </div>
             <div>
               <h2 className="text-base font-bold text-foreground">Member Details</h2>
@@ -407,9 +394,9 @@ export default function Members() {
           {selectedMember && (
             <div className="overflow-y-auto flex-1 px-6 py-5 space-y-5">
               <div className="flex items-center gap-4 pb-4 border-b">
-                <Avatar className="h-16 w-16">
+                <Avatar className="h-16 w-16 rounded-sm">
                   <AvatarImage src={selectedMember.profile_picture || undefined} />
-                  <AvatarFallback className="bg-gradient-primary text-primary-foreground text-xl font-bold">{selectedMember.name.split(" ").map((n) => n[0]).join("")}</AvatarFallback>
+                  <AvatarFallback className="rounded-sm bg-primary/10 border-2 border-primary/40 text-primary text-xl font-bold">{selectedMember.name.split(" ").map((n) => n[0]).join("")}</AvatarFallback>
                 </Avatar>
                 <div className="flex-1">
                   <h3 className="text-xl font-bold text-foreground">{selectedMember.name}</h3>
@@ -419,16 +406,16 @@ export default function Members() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 {[
-                  { label: "Email", value: selectedMember.email || "N/A" },
-                  { label: "Phone", value: selectedMember.phone || "N/A" },
-                  { label: "Date of Birth", value: selectedMember.dob ? format(new Date(selectedMember.dob), settings.dateFormat) : "N/A" },
-                  { label: "Join Date", value: format(new Date(selectedMember.join_date), settings.dateFormat) },
-                  { label: "Address", value: selectedMember.address || "N/A" },
-                  { label: "Total Budget", value: `PKR ${(selectedMember.total_budget || 0).toLocaleString()}` },
-                ].map(({ label, value }) => (
-                  <div key={label} className="p-3 rounded-xl bg-muted/40">
+                  { label: "Email", value: selectedMember.email || "N/A", figure: false },
+                  { label: "Phone", value: selectedMember.phone || "N/A", figure: true },
+                  { label: "Date of Birth", value: selectedMember.dob ? format(new Date(selectedMember.dob), settings.dateFormat) : "N/A", figure: true },
+                  { label: "Join Date", value: format(new Date(selectedMember.join_date), settings.dateFormat), figure: true },
+                  { label: "Address", value: selectedMember.address || "N/A", figure: false },
+                  { label: "Total Budget", value: `${settings.currency} ${memberContributions.reduce((s, c) => s + c.amount, 0).toLocaleString()}`, figure: true },
+                ].map(({ label, value, figure }) => (
+                  <div key={label} className="p-3 rounded-sm bg-muted/40">
                     <p className="text-xs text-muted-foreground mb-0.5">{label}</p>
-                    <p className="text-sm font-semibold text-foreground">{value}</p>
+                    <p className={cn("text-sm font-semibold text-foreground", figure && "figure")}>{value}</p>
                   </div>
                 ))}
               </div>
@@ -436,15 +423,15 @@ export default function Members() {
                 <TabsList className="grid w-full grid-cols-2"><TabsTrigger value="contributions">Contributions</TabsTrigger><TabsTrigger value="loans">Loans</TabsTrigger></TabsList>
                 <TabsContent value="contributions" className="mt-3">
                   <Table>
-                    <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Amount</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
+                    <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Amount</TableHead><TableHead>Type</TableHead></TableRow></TableHeader>
                     <TableBody>
                       {isLoadingMemberData ? <TableRow><TableCell colSpan={3} className="text-center"><Loader2 className="w-4 h-4 animate-spin mx-auto" /></TableCell></TableRow>
                         : memberContributions.length === 0 ? <TableRow><TableCell colSpan={3} className="text-center text-muted-foreground text-sm">No contributions recorded yet</TableCell></TableRow>
                         : memberContributions.map((c) => (
                           <TableRow key={c.id}>
-                            <TableCell>{format(new Date(c.contribution_date), settings.dateFormat)}</TableCell>
-                            <TableCell>PKR {c.amount.toLocaleString()}</TableCell>
-                            <TableCell><span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">Completed</span></TableCell>
+                            <TableCell className="figure">{format(new Date(c.contribution_date), settings.dateFormat)}</TableCell>
+                            <TableCell className="figure">{settings.currency} {c.amount.toLocaleString()}</TableCell>
+                            <TableCell>{c.notes ? <Badge variant="outline">{c.notes}</Badge> : <Badge variant="secondary">Monthly</Badge>}</TableCell>
                           </TableRow>
                         ))}
                     </TableBody>
@@ -458,10 +445,10 @@ export default function Members() {
                         : memberLoans.length === 0 ? <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground text-sm">No loans recorded yet</TableCell></TableRow>
                         : memberLoans.map((loan) => (
                           <TableRow key={loan.id}>
-                            <TableCell>{format(new Date(loan.loan_date), settings.dateFormat)}</TableCell>
-                            <TableCell>PKR {loan.amount.toLocaleString()}</TableCell>
-                            <TableCell>PKR {loan.remaining_amount.toLocaleString()}</TableCell>
-                            <TableCell><span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold", loan.status === "paid" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400")}>{loan.status === "paid" ? "Paid" : "Active"}</span></TableCell>
+                            <TableCell className="figure">{format(new Date(loan.loan_date), settings.dateFormat)}</TableCell>
+                            <TableCell className="figure">PKR {loan.amount.toLocaleString()}</TableCell>
+                            <TableCell className="figure">PKR {loan.remaining_amount.toLocaleString()}</TableCell>
+                            <TableCell><Badge variant={loan.status === "paid" ? "secondary" : "default"}>{loan.status === "paid" ? "Paid" : "Active"}</Badge></TableCell>
                           </TableRow>
                         ))}
                     </TableBody>

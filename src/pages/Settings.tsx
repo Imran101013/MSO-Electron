@@ -138,21 +138,22 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between border-b-2 border-primary/40 pb-4">
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-primary flex items-center justify-center shadow-md">
-            <Settings className="w-5 h-5 text-white" />
+          <div className="w-10 h-10 rounded-sm border-2 border-primary/40 bg-primary/10 flex items-center justify-center">
+            <Settings className="w-5 h-5 text-primary" />
           </div>
           <div>
-            <h2 className="text-2xl font-bold text-foreground">Settings</h2>
-            <p className="text-sm text-muted-foreground">Configure application preferences</p>
+            <p className="tracked-label text-[10px] font-semibold text-primary uppercase">Configuration</p>
+            <h2 className="text-2xl font-bold text-foreground mt-1">Settings</h2>
+            <p className="text-sm text-muted-foreground mt-0.5">Configure application preferences</p>
           </div>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={onResetDefaults} disabled={saving} className="gap-2 rounded-xl">
+          <Button variant="outline" onClick={onResetDefaults} disabled={saving} className="gap-2 rounded-sm">
             <RotateCcw className="w-4 h-4" /> Reset Defaults
           </Button>
-          <Button onClick={handleSubmit(onSubmit)} disabled={saving || !isDirty} className="gap-2 shadow-sm rounded-xl">
+          <Button onClick={handleSubmit(onSubmit)} disabled={saving || !isDirty} className="gap-2 shadow-sm rounded-sm">
             <Save className="w-4 h-4" /> {saving ? "Saving…" : "Save Settings"}
           </Button>
         </div>
@@ -160,18 +161,18 @@ export default function SettingsPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Loan Settings */}
-        <Card className="shadow-md border-0 rounded-2xl card-hover">
-          <CardHeader className="pb-3">
+        <Card className="shadow-sm rounded-sm border-t-2 border-primary/70">
+          <CardHeader className="pb-3 border-b border-border">
             <CardTitle className="flex items-center gap-2.5 text-base">
-              <div className="w-9 h-9 rounded-2xl bg-primary/10 flex items-center justify-center">
+              <div className="w-7 h-7 rounded-sm border-2 border-primary/40 bg-primary/10 flex items-center justify-center">
                 <Settings className="w-4 h-4 text-primary" />
               </div>
               Loan Settings
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-5">
+          <CardContent className="space-y-5 pt-4">
             <SettingRow label="Loan Interest Rate (%)" error={errors.loanInterestRate?.message}>
-              <Input type="text" {...register("loanInterestRate", { valueAsNumber: true })} onChange={(e) => syncNumber("loanInterestRate", e.target.value)} className="h-10 rounded-xl" />
+              <Input type="text" {...register("loanInterestRate", { valueAsNumber: true })} onChange={(e) => syncNumber("loanInterestRate", e.target.value)} className="h-10 rounded-sm figure" />
             </SettingRow>
             <SettingRow label="Apply Loan Interest" inline>
               <Switch checked={watch("applyLoanInterest")} onCheckedChange={(v) => setValue("applyLoanInterest", v, { shouldDirty: true })} />
@@ -180,26 +181,26 @@ export default function SettingsPage() {
         </Card>
 
         {/* Display Settings */}
-        <Card className="shadow-md border-0 rounded-2xl card-hover">
-          <CardHeader className="pb-3">
+        <Card className="shadow-sm rounded-sm">
+          <CardHeader className="pb-3 border-b border-border">
             <CardTitle className="flex items-center gap-2.5 text-base">
-              <div className="w-9 h-9 rounded-2xl bg-secondary/10 flex items-center justify-center">
+              <div className="w-7 h-7 rounded-sm border-2 border-secondary/40 bg-secondary/10 flex items-center justify-center">
                 <Settings className="w-4 h-4 text-secondary" />
               </div>
               Display Settings
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-5">
+          <CardContent className="space-y-5 pt-4">
             <SettingRow label="Date Format" error={errors.dateFormat?.message}>
-              <select className="w-full h-10 rounded-xl border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring" {...register("dateFormat")}>
+              <select className="w-full h-10 rounded-sm border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring" {...register("dateFormat")}>
                 <option value="dd/MM/yyyy">dd/MM/yyyy</option>
                 <option value="MM/dd/yyyy">MM/dd/yyyy</option>
                 <option value="yyyy-MM-dd">yyyy-MM-dd</option>
               </select>
-              <p className="text-xs text-muted-foreground mt-1.5">Preview: {format(new Date(), watchedDateFormat ?? "dd/MM/yyyy")}</p>
+              <p className="text-xs text-muted-foreground mt-1.5">Preview: <span className="figure">{format(new Date(), watchedDateFormat ?? "dd/MM/yyyy")}</span></p>
             </SettingRow>
             <SettingRow label="Currency" error={errors.currency?.message}>
-              <Input {...register("currency")} className="h-10 rounded-xl" />
+              <Input {...register("currency")} className="h-10 rounded-sm" />
             </SettingRow>
             <SettingRow label="Enable Animations" inline>
               <Switch checked={watch("enableAnimations")} onCheckedChange={(v) => setValue("enableAnimations", v, { shouldDirty: true })} />
@@ -208,70 +209,70 @@ export default function SettingsPage() {
         </Card>
 
         {/* Pagination Settings */}
-        <Card className="shadow-md border-0 rounded-2xl card-hover">
-          <CardHeader className="pb-3">
+        <Card className="shadow-sm rounded-sm">
+          <CardHeader className="pb-3 border-b border-border">
             <CardTitle className="flex items-center gap-2.5 text-base">
-              <div className="w-9 h-9 rounded-2xl bg-amber-500/10 flex items-center justify-center">
-                <Settings className="w-4 h-4 text-amber-600" />
+              <div className="w-7 h-7 rounded-sm border-2 border-accent/50 bg-accent/15 flex items-center justify-center">
+                <Settings className="w-4 h-4 text-accent-foreground" />
               </div>
               Pagination
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-5">
+          <CardContent className="space-y-5 pt-4">
             <SettingRow label="Members Per Page" error={errors.membersPerPage?.message}>
-              <Input type="text" {...register("membersPerPage", { valueAsNumber: true })} onChange={(e) => syncNumber("membersPerPage", e.target.value)} className="h-10 rounded-xl" />
+              <Input type="text" {...register("membersPerPage", { valueAsNumber: true })} onChange={(e) => syncNumber("membersPerPage", e.target.value)} className="h-10 rounded-sm figure" />
             </SettingRow>
             <SettingRow label="Items Per Page" error={errors.itemsPerPage?.message}>
-              <Input type="text" {...register("itemsPerPage", { valueAsNumber: true })} onChange={(e) => syncNumber("itemsPerPage", e.target.value)} className="h-10 rounded-xl" />
+              <Input type="text" {...register("itemsPerPage", { valueAsNumber: true })} onChange={(e) => syncNumber("itemsPerPage", e.target.value)} className="h-10 rounded-sm figure" />
             </SettingRow>
           </CardContent>
         </Card>
 
         {/* Validation Settings */}
-        <Card className="shadow-md border-0 rounded-2xl card-hover">
-          <CardHeader className="pb-3">
+        <Card className="shadow-sm rounded-sm">
+          <CardHeader className="pb-3 border-b border-border">
             <CardTitle className="flex items-center gap-2.5 text-base">
-              <div className="w-9 h-9 rounded-2xl bg-rose-500/10 flex items-center justify-center">
-                <Settings className="w-4 h-4 text-rose-600" />
+              <div className="w-7 h-7 rounded-sm border-2 border-destructive/40 bg-destructive/10 flex items-center justify-center">
+                <Settings className="w-4 h-4 text-destructive" />
               </div>
               Validation Rules
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-5">
+          <CardContent className="space-y-5 pt-4">
             <SettingRow label="Min. Name Length" error={errors.minimumNameLength?.message}>
-              <Input type="text" {...register("minimumNameLength", { valueAsNumber: true })} onChange={(e) => syncNumber("minimumNameLength", e.target.value)} className="h-10 rounded-xl" />
+              <Input type="text" {...register("minimumNameLength", { valueAsNumber: true })} onChange={(e) => syncNumber("minimumNameLength", e.target.value)} className="h-10 rounded-sm figure" />
             </SettingRow>
             <SettingRow label="Min. Phone Length" error={errors.minimumPhoneLength?.message}>
-              <Input type="text" {...register("minimumPhoneLength", { valueAsNumber: true })} onChange={(e) => syncNumber("minimumPhoneLength", e.target.value)} className="h-10 rounded-xl" />
+              <Input type="text" {...register("minimumPhoneLength", { valueAsNumber: true })} onChange={(e) => syncNumber("minimumPhoneLength", e.target.value)} className="h-10 rounded-sm figure" />
             </SettingRow>
             <SettingRow label="Min. Address Length" error={errors.minimumAddressLength?.message}>
-              <Input type="text" {...register("minimumAddressLength", { valueAsNumber: true })} onChange={(e) => syncNumber("minimumAddressLength", e.target.value)} className="h-10 rounded-xl" />
+              <Input type="text" {...register("minimumAddressLength", { valueAsNumber: true })} onChange={(e) => syncNumber("minimumAddressLength", e.target.value)} className="h-10 rounded-sm figure" />
             </SettingRow>
           </CardContent>
         </Card>
 
         {/* Data Management */}
-        <Card className="shadow-md border-0 rounded-2xl card-hover">
-          <CardHeader className="pb-3">
+        <Card className="shadow-sm rounded-sm">
+          <CardHeader className="pb-3 border-b border-border">
             <CardTitle className="flex items-center gap-2.5 text-base">
-              <div className="w-9 h-9 rounded-2xl bg-emerald-500/10 flex items-center justify-center">
-                <DatabaseBackup className="w-4 h-4 text-emerald-600" />
+              <div className="w-7 h-7 rounded-sm border-2 border-secondary/40 bg-secondary/10 flex items-center justify-center">
+                <DatabaseBackup className="w-4 h-4 text-secondary" />
               </div>
               Data Management
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-3 pt-4">
             <p className="text-xs text-muted-foreground">
               Since this app runs fully offline against your local database, back up regularly — there is no cloud copy of your data.
             </p>
             <div className="flex flex-wrap gap-2">
-              <Button variant="outline" onClick={handleBackup} disabled={backingUp} className="gap-2 rounded-xl">
+              <Button variant="outline" onClick={handleBackup} disabled={backingUp} className="gap-2 rounded-sm">
                 {backingUp ? <Loader2 className="w-4 h-4 animate-spin" /> : <DatabaseBackup className="w-4 h-4" />}
                 {backingUp ? "Backing up…" : "Backup Data Now"}
               </Button>
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button variant="outline" disabled={restoring} className="gap-2 rounded-xl text-destructive hover:text-destructive">
+                  <Button variant="outline" disabled={restoring} className="gap-2 rounded-sm text-destructive hover:text-destructive">
                     {restoring ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
                     {restoring ? "Restoring…" : "Restore from Backup"}
                   </Button>
