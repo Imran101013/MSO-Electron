@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, TrendingDown, CheckCircle2, Loader2, HandCoins, AlertTriangle, CalendarClock, Ban } from "lucide-react";
+import { Plus, TrendingDown, CheckCircle2, Loader2, HandCoins, AlertTriangle, CalendarClock, Ban, Percent } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ORGANIZATION_CONFIG } from "@/config/organization";
 import StatCard from "@/components/StatCard";
@@ -19,6 +19,7 @@ import * as z from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useLoans, DbLoanScheduleEntry, LoanWithMember, parseLocalDate } from "@/hooks/useLoans";
 import { loanDueDate } from "@/utils/loanPenalty";
+import { loanIncome } from "@/utils/loanInterest";
 import { useMembers } from "@/hooks/useMembers";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
@@ -43,7 +44,7 @@ const buildPaymentSchema = (maxAmount: number) =>
 type PaymentFormValues = z.infer<ReturnType<typeof buildPaymentSchema>>;
 
 export default function Loans() {
-  const { loans, penalties, isLoading, issueLoan, recordPayment, markDefaulted, fetchSchedule, getNextDueDate, getActiveLoans, getLoanStats, isOverdue } = useLoans();
+  const { loans, installments, penalties, isLoading, issueLoan, recordPayment, markDefaulted, fetchSchedule, getNextDueDate, getActiveLoans, getLoanStats, isOverdue } = useLoans();
   const { members, isLoading: membersLoading } = useMembers();
   const { isAdmin } = useAuth();
   const { settings } = useSettings();
@@ -126,6 +127,32 @@ export default function Loans() {
   const activeLoans = getActiveLoans();
   const loanStats = getLoanStats();
 
+  // Interest and late penalties on every loan, repaid ones included (rule in utils/loanInterest.ts).
+  const incomeRows = useMemo(() => {
+    const paymentsByLoan = new Map<string, { date: string; amount: number }[]>();
+    for (const i of installments) {
+      const list = paymentsByLoan.get(i.loan_id) ?? [];
+      list.push({ date: i.payment_date, amount: Number(i.amount) });
+      paymentsByLoan.set(i.loan_id, list);
+    }
+    return loans
+      .map((loan) => ({
+        loan,
+        ...loanIncome({
+          loanDate: loan.loan_date,
+          amount: Number(loan.amount),
+          totalPayable: Number(loan.total_payable),
+          remaining: Number(loan.remaining_amount),
+          penaltiesCharged: Number(loan.penalty_total) || 0,
+          payments: paymentsByLoan.get(loan.id) ?? [],
+        }),
+      }))
+      .filter((x) => x.interest > 0.005 || x.penaltiesCharged > 0.005);
+  }, [loans, installments]);
+  const incomeTotal = (pick: (x: (typeof incomeRows)[number]) => number) =>
+    Math.round(incomeRows.reduce((s, x) => s + pick(x), 0) * 100) / 100;
+  const cur = settings.currency;
+
   if (isLoading || membersLoading) return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
 
   return (
@@ -205,7 +232,7 @@ export default function Loans() {
                         </p>
                         {settings.latePenaltyPerMonth > 0 && (
                           <p className="figure">
-                            A penalty of {settings.currency} {settings.latePenaltyPerMonth.toLocaleString()} is charged for each full month the loan is still unpaid after the due date.
+                            A penalty of {settings.currency} {settings.latePenaltyPerMonth.toLocaleString()} is added for each full month after the due date until the loan is paid in full, including any penalties already added.
                           </p>
                         )}
                       </div>
@@ -390,6 +417,92 @@ export default function Loans() {
         </CardContent>
       </Card>
 
+      {/* Interest & Penalties */}
+      <Card className="shadow-sm rounded-sm border-t-2 border-secondary/70">
+        <CardHeader className="pb-3 border-b border-border">
+          <CardTitle className="flex items-center justify-between text-base">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-sm border-2 border-secondary/40 bg-secondary/10 flex items-center justify-center">
+                <Percent className="w-4 h-4 text-secondary" />
+              </div>
+              Interest & Penalties
+            </div>
+            {incomeRows.length > 0 && (
+              <Badge variant="outline" className="font-normal">{incomeRows.length} loan{incomeRows.length === 1 ? "" : "s"}</Badge>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-border border-b border-border">
+            {[
+              { title: "Interest on loans", charged: incomeTotal((x) => x.interest), received: incomeTotal((x) => x.interestReceived), outstanding: incomeTotal((x) => x.interestOutstanding) },
+              { title: "Late penalties", charged: incomeTotal((x) => x.penaltiesCharged), received: incomeTotal((x) => x.penaltiesReceived), outstanding: incomeTotal((x) => x.penaltiesOutstanding) },
+            ].map((g) => (
+              <div key={g.title} className="px-5 py-4">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{g.title}</p>
+                <div className="grid grid-cols-3 gap-3 mt-2">
+                  <IncomeFigure label="Charged" value={`${cur} ${g.charged.toLocaleString()}`} />
+                  <IncomeFigure label="Received" value={`${cur} ${g.received.toLocaleString()}`} className="text-secondary" />
+                  <IncomeFigure label="Outstanding" value={`${cur} ${g.outstanding.toLocaleString()}`} className={g.outstanding > 0 ? "text-destructive" : undefined} />
+                </div>
+              </div>
+            ))}
+          </div>
+          {incomeRows.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-8">No interest or late penalties charged yet.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/50 hover:bg-muted/50">
+                    <TableHead className="text-xs font-semibold uppercase tracking-wider">Member</TableHead>
+                    <TableHead className="text-xs font-semibold uppercase tracking-wider">Issued</TableHead>
+                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-right">Interest</TableHead>
+                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-right">Penalties Added</TableHead>
+                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-right">Received</TableHead>
+                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-right">Outstanding</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {incomeRows.map((x) => {
+                    const charged = Math.round((x.interest + x.penaltiesCharged) * 100) / 100;
+                    return (
+                      <TableRow key={x.loan.id} className="hover:bg-muted/30">
+                        <TableCell className="font-semibold text-sm">{x.loan.member_name || "Unknown"}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground figure">{format(parseLocalDate(x.loan.loan_date), settings.dateFormat)}</TableCell>
+                        <TableCell className="text-sm figure text-right">
+                          {x.interest > 0.005 ? <>{cur} {x.interest.toLocaleString()} <span className="text-xs text-muted-foreground">({Number(x.loan.interest_rate)}%)</span></> : "—"}
+                        </TableCell>
+                        <TableCell className="text-sm figure text-right">{x.penaltiesCharged > 0.005 ? `${cur} ${x.penaltiesCharged.toLocaleString()}` : "—"}</TableCell>
+                        <TableCell className="text-sm figure text-right">
+                          {x.receivedOn ? (
+                            <span className="text-secondary font-medium">
+                              {cur} {charged.toLocaleString()}
+                              <span className="block text-xs font-normal text-muted-foreground">paid in full {format(parseLocalDate(x.receivedOn), settings.dateFormat)}</span>
+                            </span>
+                          ) : "—"}
+                        </TableCell>
+                        <TableCell className="text-sm figure text-right">
+                          {x.receivedOn ? "—" : (
+                            <span className="text-destructive font-semibold">
+                              {cur} {charged.toLocaleString()}
+                              {x.loan.status === "defaulted" && <Badge variant="destructive" className="ml-2 font-normal">Defaulted</Badge>}
+                            </span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+          <p className="text-xs text-muted-foreground px-5 py-3 border-t border-border">
+            Interest is added once, when a loan is issued. After the due date, a late penalty is added to the amount owed for each full month until the loan is paid in full, penalties included. Repayments are never split, so a loan's interest and penalties are recorded as received together when the loan is paid in full.
+          </p>
+        </CardContent>
+      </Card>
+
       {/* Schedule Dialog */}
       <Dialog open={!!scheduleLoan} onOpenChange={(o) => { if (!o) setScheduleLoan(null); }}>
         <DialogContent className="sm:max-w-[520px] flex flex-col max-h-[85vh] p-0 gap-0 overflow-hidden rounded-sm">
@@ -445,7 +558,7 @@ export default function Loans() {
             )}
             {scheduleLoan && Number(scheduleLoan.penalty_per_month) > 0 && (
               <p className="text-xs text-muted-foreground mt-3 figure">
-                Instalments are a guide; the loan may also be repaid as a lump sum before the due date. After that, {settings.currency} {Number(scheduleLoan.penalty_per_month).toLocaleString()} is charged for each full month it remains unpaid.
+                Instalments are a guide; the loan may also be repaid as a lump sum before the due date. After that, {settings.currency} {Number(scheduleLoan.penalty_per_month).toLocaleString()} is added for each full month until everything, penalties included, is paid.
               </p>
             )}
             {!scheduleLoading && schedulePenalties.length > 0 && (
@@ -488,6 +601,15 @@ export default function Loans() {
           )}
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+function IncomeFigure({ label, value, className }: { label: string; value: string; className?: string }) {
+  return (
+    <div>
+      <p className="text-[11px] text-muted-foreground">{label}</p>
+      <p className={cn("figure text-sm font-bold text-foreground mt-0.5", className)}>{value}</p>
     </div>
   );
 }

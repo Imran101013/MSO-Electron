@@ -212,13 +212,21 @@ async function ensureSchema() {
     `);
 
     // Backfill a single schedule row for pre-existing loans that predate this feature,
-    // so they still show up in overdue tracking without requiring re-entry.
+    // so they still show up in overdue tracking without requiring re-entry. What has been paid is
+    // measured against the total payable (principal + interest fixed at issue), not the principal,
+    // and excludes penalties, which remaining_amount also carries.
     await client.query(`
       INSERT INTO public.loan_schedule (loan_id, installment_number, due_date, due_amount, paid_amount, status)
-      SELECT l.id, 1, l.loan_date, l.total_payable, (l.amount - l.remaining_amount),
-             CASE WHEN l.remaining_amount <= 0 THEN 'paid' ELSE 'pending' END
-      FROM public.loans l
-      WHERE NOT EXISTS (SELECT 1 FROM public.loan_schedule s WHERE s.loan_id = l.id);
+      SELECT id, 1, loan_date, total_payable, paid,
+             CASE WHEN paid >= total_payable - 0.005 THEN 'paid' ELSE 'pending' END
+      FROM (
+        SELECT l.id, l.loan_date, l.total_payable,
+               LEAST(l.total_payable, GREATEST(0, l.total_payable
+                 + COALESCE((SELECT SUM(p.amount) FROM public.loan_penalties p WHERE p.loan_id = l.id), 0)
+                 - l.remaining_amount)) AS paid
+        FROM public.loans l
+        WHERE NOT EXISTS (SELECT 1 FROM public.loan_schedule s WHERE s.loan_id = l.id)
+      ) t;
     `);
 
     await client.query(`

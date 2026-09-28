@@ -9,9 +9,9 @@
  *
  * Postings (Dr / Cr):
  *   Contribution received     Cash               / Members' savings
- *   Loan disbursed            Loans (principal)  / Cash
- *   Loan repayment            Cash               / Loans (principal share) + Interest income (interest share)
- *                                                  + Penalty income (any amount beyond the loan's total payable)
+ *   Loan disbursed            Loans (total payable) / Cash (principal) + Interest income (flat interest)
+ *   Late penalty charged      Loans              / Penalty income
+ *   Loan repayment            Cash               / Loans (the whole repayment; never split)
  *   Reserve donation          Cash               / Reserve fund
  *   Reserve expense           Reserve fund       / Cash
  *   Bank profit received      Cash               / Bank profit income
@@ -25,19 +25,22 @@
  *   Impairment                Impairment expense / Allowance for loan losses
  *
  * Accounting policies applied (disclosed in the Financial Statements notes):
- * - Loans carry flat interest fixed at issue (loans.total_payable). Interest is
- *   recognised as it is received: each repayment is split between principal and
- *   interest pro rata to the loan's principal : interest mix. Unearned interest is
- *   never recognised as income.
+ * - Loans carry flat interest worked out once, when the loan is issued (loans.total_payable).
+ *   That interest is income on the issue date, and the loan is carried at the balance the member
+ *   owes. Repayments (instalments or a lump sum) only reduce that balance; they are never split
+ *   between the amount lent, interest and penalties.
  * - Loans run for one year (utils/loanPenalty.ts). A loan still owing after that is overdue
  *   and aged from its due date; instalments missed within the year are not arrears, as the
- *   member may repay as a lump sum instead. Late penalties charged after the due date are
- *   owed by the member but, like interest, recognised as income only when received.
- *   Repayments clear the loan's total payable before any penalties.
- * - Loans flagged "defaulted" are provided for in full (100% of principal outstanding).
+ *   member may repay as a lump sum instead. Each monthly late penalty is added to the balance
+ *   owed and taken to income when it is charged.
+ * - A loan's interest and penalties count as received when the loan is repaid in full
+ *   (utils/loanInterest.ts) — this drives the Interest & Penalties sections, not the postings.
+ * - Loans flagged "defaulted" are provided for in full (100% of the balance still owed, which
+ *   includes interest and penalties already taken to income).
  */
 import { addDays, addMonths, differenceInCalendarDays, format } from "date-fns";
 import { loanDueDate } from "@/utils/loanPenalty";
+import { paidInFullOn } from "@/utils/loanInterest";
 import type {
   Member,
   Meeting,
@@ -110,9 +113,6 @@ export interface LoanReceipt {
   date: string;
   sourceId: string;
   amount: number;
-  principal: number;
-  interest: number;
-  penalty: number;
   /** Balance owed after this receipt, including penalties charged up to its date. */
   balanceAfter: number;
   itemised: boolean;
@@ -155,6 +155,8 @@ export interface LoanRecord {
   /** Late penalties charged, oldest first. */
   penalties: PenaltyRow[];
   penaltyTotal: number;
+  /** Date the loan was repaid in full, which is when its interest and penalties count as received (utils/loanInterest.ts). */
+  paidInFullOn: string | null;
   disbursementVoucher: string;
 }
 
@@ -180,15 +182,17 @@ export interface LoanPosition {
   loan: LoanRecord;
   asAt: string;
   repaid: number;
-  principalRepaid: number;
-  interestReceived: number;
+  /** Balance owed: total payable + penalties charged by `asAt`, less repayments. */
   outstanding: number;
-  principalOutstanding: number;
-  unearnedInterest: number;
+  /** The loan's interest once it is repaid in full by `asAt`, else 0. */
+  interestReceived: number;
+  /** Interest still inside `outstanding`. */
+  interestOutstanding: number;
   penaltiesCharged: number;
+  /** Penalties charged, once the loan is repaid in full by `asAt`; else 0. */
   penaltyReceived: number;
   penaltyOutstanding: number;
-  /** Everything owed once the due date has passed (loan balance + penalties); 0 before it. */
+  /** Everything owed once the due date has passed; 0 before it. */
   arrears: number;
   daysPastDue: number;
   nextDueDate: string | null;
@@ -215,7 +219,8 @@ export type EntryKind =
   | "expense"
   | "bank_profit"
   | "profit_member"
-  | "profit_reserve";
+  | "profit_reserve"
+  | "penalty_charge";
 
 const KIND_ORDER: Record<EntryKind, number> = {
   contribution: 1,
@@ -226,6 +231,7 @@ const KIND_ORDER: Record<EntryKind, number> = {
   bank_profit: 6,
   profit_member: 7,
   profit_reserve: 8,
+  penalty_charge: 9,
 };
 
 export const KIND_LABELS: Record<EntryKind, string> = {
@@ -237,6 +243,7 @@ export const KIND_LABELS: Record<EntryKind, string> = {
   bank_profit: "Bank profit received",
   profit_member: "Bank profit share to member",
   profit_reserve: "Bank profit share to reserve fund",
+  penalty_charge: "Late payment penalty charged",
 };
 
 /** Before 20/07/2026 the app saved the reserve's share of a distribution as a "donation" row with this donor name. */
@@ -272,8 +279,11 @@ export interface LedgerEntry {
   /** When the row was recorded (contributions), used to rebuild a distribution's basis. */
   createdAt?: string;
   amount: number;
-  principal: number;
+  /** Posted to Loans to members: the total payable on a disbursement, a penalty charged, or a whole repayment. */
+  loans: number;
+  /** Flat interest charged, on disbursements only. */
   interest: number;
+  /** Late penalty charged, on penalty charges only. */
   penalty: number;
   cashIn: number;
   cashOut: number;
@@ -282,7 +292,8 @@ export interface LedgerEntry {
 export interface Balances {
   asAt: string | null;
   cash: number;
-  loansPrincipal: number;
+  /** Balance still owed on loans: total payable + penalties charged, less repayments. */
+  loansReceivable: number;
   allowance: number;
   netLoans: number;
   totalAssets: number;
@@ -298,9 +309,14 @@ export interface Movements {
   contributions: number;
   disbursements: number;
   repayments: number;
-  principalRepaid: number;
+  /** Flat interest charged on loans issued in the period (income). */
   interestIncome: number;
+  /** Late penalties charged in the period (income). */
   penaltyIncome: number;
+  /** Interest on loans repaid in full in the period. */
+  interestReceived: number;
+  /** Penalties on loans repaid in full in the period. */
+  penaltiesReceived: number;
   donations: number;
   expenses: number;
   bankProfit: number;
@@ -423,28 +439,12 @@ export function buildBooks(input: AccountingInput): Books {
       ? [{ date, amount: unitemised, sourceId: `${loan.dbId}-bf`, itemised: false }, ...itemised]
       : itemised;
 
-    // Receipts clear the total payable first (split principal : interest pro rata); anything
-    // beyond it pays late penalties.
+    // Interest (at issue) and penalties (as charged) are already in the balance owed, so a receipt
+    // just reduces it — it is never split between the amount lent, interest and penalties.
     let cumRepaid = 0;
-    let cumPrincipal = 0;
-    let cumPenalty = 0;
     const receipts: LoanReceipt[] = rawReceipts.map((rc) => {
       cumRepaid = r2(cumRepaid + rc.amount);
-      const loanPaid = Math.min(cumRepaid, totalPayable);
-      const targetPrincipal = totalPayable > 0 ? r2((loanPaid * principal) / totalPayable) : 0;
-      const targetPenalty = r2(cumRepaid - loanPaid);
-      const principalPart = r2(targetPrincipal - cumPrincipal);
-      const penaltyPart = r2(targetPenalty - cumPenalty);
-      cumPrincipal = targetPrincipal;
-      cumPenalty = targetPenalty;
-      return {
-        ...rc,
-        principal: principalPart,
-        interest: r2(rc.amount - principalPart - penaltyPart),
-        penalty: penaltyPart,
-        balanceAfter: r2(totalPayable + penaltiesBy(rc.date) - cumRepaid),
-        voucher: "",
-      };
+      return { ...rc, balanceAfter: r2(totalPayable + penaltiesBy(rc.date) - cumRepaid), voucher: "" };
     });
 
     let schedule: ScheduleRow[] = (loan.schedule || []).map((s) => ({
@@ -485,6 +485,7 @@ export function buildBooks(input: AccountingInput): Books {
       penaltyPerMonth: r2(Number(loan.penaltyPerMonth) || 0),
       penalties,
       penaltyTotal,
+      paidInFullOn: paidInFullOn(r2(totalPayable + penaltyTotal), date, rawReceipts),
       disbursementVoucher: "",
     };
   });
@@ -492,7 +493,7 @@ export function buildBooks(input: AccountingInput): Books {
 
   // ── Ledger entries
   const entries: LedgerEntry[] = [];
-  const base = { principal: 0, interest: 0, penalty: 0, cashIn: 0, cashOut: 0 };
+  const base = { loans: 0, interest: 0, penalty: 0, cashIn: 0, cashOut: 0 };
 
   for (const mr of members) {
     for (const c of mr.source.monthlyContributions) {
@@ -529,9 +530,28 @@ export function buildBooks(input: AccountingInput): Books {
       loanNo: loan.loanNo,
       loanId: loan.dbId,
       amount: loan.principal,
-      principal: loan.principal,
+      loans: loan.totalPayable,
+      interest: loan.interest,
       cashOut: loan.principal,
     });
+    for (const pen of loan.penalties) {
+      entries.push({
+        ...base,
+        date: pen.date,
+        kind: "penalty_charge",
+        voucher: "",
+        particulars: `Late payment penalty - month ${pen.month} past due - ${loan.loanNo}`,
+        sourceId: `${loan.dbId}-p${pen.month}`,
+        memberId: loan.memberId,
+        memberNo: loan.memberNo,
+        memberName: loan.memberName,
+        loanNo: loan.loanNo,
+        loanId: loan.dbId,
+        amount: pen.amount,
+        loans: pen.amount,
+        penalty: pen.amount,
+      });
+    }
     for (const rc of loan.receipts) {
       entries.push({
         ...base,
@@ -546,9 +566,7 @@ export function buildBooks(input: AccountingInput): Books {
         loanNo: loan.loanNo,
         loanId: loan.dbId,
         amount: rc.amount,
-        principal: rc.principal,
-        interest: rc.interest,
-        penalty: rc.penalty,
+        loans: rc.amount,
         cashIn: rc.amount,
       });
     }
@@ -616,7 +634,9 @@ export function buildBooks(input: AccountingInput): Books {
   const jvByDate = new Map(distributions.map((d) => [dayKey(d.date), d.voucher]));
   for (const e of entries) {
     if (e.kind === "profit_member") continue;
-    if (e.kind === "profit_reserve") e.voucher = jvByDate.get(e.date) ?? `JV-${pad(++jv, 4)}`;
+    // A penalty charge moves no cash; like the interest charged at issue, it is referenced by its loan number.
+    if (e.kind === "penalty_charge") e.voucher = e.loanNo ?? "";
+    else if (e.kind === "profit_reserve") e.voucher = jvByDate.get(e.date) ?? `JV-${pad(++jv, 4)}`;
     else if (e.cashIn > 0 || e.kind === "contribution" || e.kind === "repayment" || e.kind === "donation") e.voucher = `RV-${pad(++rv, 5)}`;
     else e.voucher = `PV-${pad(++pv, 5)}`;
   }
@@ -664,12 +684,12 @@ export function buildBooks(input: AccountingInput): Books {
     if (loan.date > asAt) return null;
     const received = loan.receipts.filter((r) => r.date <= asAt);
     const repaid = sum(received, (r) => r.amount);
-    const principalRepaid = sum(received, (r) => r.principal);
-    const penaltyReceived = sum(received, (r) => r.penalty);
     const penaltiesCharged = sum(loan.penalties.filter((p) => p.date <= asAt), (p) => p.amount);
     const outstanding = r2(Math.max(0, loan.totalPayable + penaltiesCharged - repaid));
-    const principalOutstanding = r2(Math.max(0, loan.principal - principalRepaid));
-    const loanOutstanding = r2(Math.max(0, loan.totalPayable - (repaid - penaltyReceived)));
+    // Interest and penalties are received together, when the loan is repaid in full.
+    const paidInFull = loan.paidInFullOn !== null && loan.paidInFullOn <= asAt;
+    const interestReceived = paidInFull ? loan.interest : 0;
+    const penaltyReceived = paidInFull ? penaltiesCharged : 0;
 
     // Instalments are a guide: nothing is overdue until the loan's one-year due date has passed.
     const pastDue = asAt > loan.maturityDate && outstanding > EPS;
@@ -707,14 +727,12 @@ export function buildBooks(input: AccountingInput): Books {
       loan,
       asAt,
       repaid,
-      principalRepaid,
-      interestReceived: sum(received, (r) => r.interest),
       outstanding,
-      principalOutstanding,
-      unearnedInterest: r2(Math.max(0, loanOutstanding - principalOutstanding)),
+      interestReceived,
+      interestOutstanding: r2(loan.interest - interestReceived),
       penaltiesCharged,
       penaltyReceived,
-      penaltyOutstanding: r2(Math.max(0, penaltiesCharged - penaltyReceived)),
+      penaltyOutstanding: r2(penaltiesCharged - penaltyReceived),
       arrears,
       daysPastDue,
       nextDueDate: next?.dueDate ?? null,
@@ -729,7 +747,7 @@ export function buildBooks(input: AccountingInput): Books {
     if (asAt === null) return 0;
     return sum(
       loans.filter((l) => l.state === "defaulted"),
-      (l) => loanPositionAt(l, asAt)?.principalOutstanding ?? 0,
+      (l) => loanPositionAt(l, asAt)?.outstanding ?? 0,
     );
   };
 
@@ -737,27 +755,29 @@ export function buildBooks(input: AccountingInput): Books {
     const es = upTo(asAt);
     const of = (k: EntryKind, pick: (e: LedgerEntry) => number = (e) => e.amount) => sum(es.filter((e) => e.kind === k), pick);
     const cash = r2(sum(es, (e) => e.cashIn) - sum(es, (e) => e.cashOut));
-    const loansPrincipal = r2(of("disbursement") - of("repayment", (e) => e.principal));
+    const loansReceivable = r2(of("disbursement", (e) => e.loans) + of("penalty_charge", (e) => e.loans) - of("repayment", (e) => e.loans));
     const allowance = allowanceAt(asAt);
-    const netLoans = r2(loansPrincipal - allowance);
+    const netLoans = r2(loansReceivable - allowance);
     const savings = r2(of("contribution") + of("profit_member"));
     const reserve = r2(of("donation") + of("profit_reserve") - of("expense"));
-    const surplus = r2(of("repayment", (e) => e.interest) + of("repayment", (e) => e.penalty) + of("bank_profit") - of("profit_member") - of("profit_reserve") - allowance);
+    const surplus = r2(of("disbursement", (e) => e.interest) + of("penalty_charge", (e) => e.penalty) + of("bank_profit") - of("profit_member") - of("profit_reserve") - allowance);
     const totalAssets = r2(cash + netLoans);
     const totalFunds = r2(savings + reserve + surplus);
-    return { asAt, cash, loansPrincipal, allowance, netLoans, totalAssets, savings, reserve, surplus, totalFunds, difference: r2(totalAssets - totalFunds) };
+    return { asAt, cash, loansReceivable, allowance, netLoans, totalAssets, savings, reserve, surplus, totalFunds, difference: r2(totalAssets - totalFunds) };
   };
 
   const movements = (period: ReportPeriod): Movements => {
     const es = entries.filter((e) => inPeriod(e.date, period));
     const of = (k: EntryKind, pick: (e: LedgerEntry) => number = (e) => e.amount) => sum(es.filter((e) => e.kind === k), pick);
+    const paidInPeriod = loans.filter((l) => l.paidInFullOn !== null && inPeriod(l.paidInFullOn, period));
     return {
       contributions: of("contribution"),
       disbursements: of("disbursement"),
       repayments: of("repayment"),
-      principalRepaid: of("repayment", (e) => e.principal),
-      interestIncome: of("repayment", (e) => e.interest),
-      penaltyIncome: of("repayment", (e) => e.penalty),
+      interestIncome: of("disbursement", (e) => e.interest),
+      penaltyIncome: of("penalty_charge", (e) => e.penalty),
+      interestReceived: sum(paidInPeriod, (l) => l.interest),
+      penaltiesReceived: sum(paidInPeriod, (l) => l.penaltyTotal),
       donations: of("donation"),
       expenses: of("expense"),
       bankProfit: of("bank_profit"),

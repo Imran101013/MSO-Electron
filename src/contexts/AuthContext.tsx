@@ -28,30 +28,33 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   useEffect(() => {
     const api = (window as any).electronAPI;
-    if (!api) { setIsLoading(false); return; }
+    const apiBase = `http://${window.location.hostname}:8082`;
     const token = localStorage.getItem(TOKEN_KEY);
-    if (token) {
-      api.verifyToken(token).then((res: any) => {
-        if (res.user) {
-          setUser({ id: res.user.id, email: res.user.email, role: res.user.role, fullName: res.user.fullName });
-          setDbActor(res.user.email ?? res.user.id);
-        } else {
-          localStorage.removeItem(TOKEN_KEY);
-        }
-        setIsLoading(false);
-      });
-    } else {
+    if (!token) { setIsLoading(false); return; }
+    const doVerify = api
+      ? (t: string) => api.verifyToken(t)
+      : (t: string) => fetch(`${apiBase}/api/verify`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: t }) }).then(r => r.json());
+    doVerify(token).then((res: any) => {
+      if (res.user) {
+        setUser({ id: res.user.id, email: res.user.email, role: res.user.role, fullName: res.user.fullName });
+        setDbActor(res.user.email ?? res.user.id);
+      } else {
+        localStorage.removeItem(TOKEN_KEY);
+      }
       setIsLoading(false);
-    }
+    });
   }, []);
 
   const login = async (email: string, password: string): Promise<{ error: string | null }> => {
     const api = (window as any).electronAPI;
-    if (!api) return { error: 'Not running as desktop app. Please launch via Electron.' };
+    const apiBase = `http://${window.location.hostname}:8082`;
+    const doLogin = api
+      ? (e: string, p: string) => api.login(e, p)
+      : (e: string, p: string) => fetch(`${apiBase}/api/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: e, password: p }) }).then(r => r.json());
     const timeoutPromise = new Promise<{ error: string }>((resolve) =>
       setTimeout(() => resolve({ error: 'Connection timed out. Is PostgreSQL running?' }), 10000)
     );
-    const res = await Promise.race([api.login(email, password), timeoutPromise]);
+    const res = await Promise.race([doLogin(email, password), timeoutPromise]);
     if (res.error) return { error: res.error };
     if ((res as any).user?.role !== 'admin') return { error: 'Only admin access is allowed.' };
     localStorage.setItem(TOKEN_KEY, (res as any).token);

@@ -233,8 +233,8 @@ export default function ReportsPage() {
       <Section title="Loans" icon={HandCoins}>
         {card("loan-portfolio", "as-at", {
           icon: HandCoins,
-          title: "Loan Portfolio & Ageing",
-          description: "All loans with arrears, days past due, ageing buckets and portfolio at risk.",
+          title: "Loan Portfolio",
+          description: "All loans with due dates, penalties and balances, plus interest and penalties charged, received and outstanding.",
         })}
         {card(
           "loan-statement",
@@ -242,7 +242,7 @@ export default function ReportsPage() {
           {
             icon: BookOpen,
             title: "Loan Account Statement",
-            description: "Terms, repayment schedule and principal/interest split for one loan.",
+            description: "Terms, interest and penalties, repayment schedule and account transactions for one loan.",
           },
           { loanId: selectedLoanId ?? undefined },
           <Select value={selectedLoanId ?? undefined} onValueChange={(v) => setSelectedLoanId(v || null)}>

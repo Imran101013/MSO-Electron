@@ -39,7 +39,7 @@ export default function Login() {
         <p className="relative text-white/60 mt-4 text-center text-base max-w-xs">
           Manage members, finances, and meetings — all in one place.
         </p>
-        <div className="relative mt-12 grid grid-cols-2 gap-3 w-full max-w-xs">
+        <div className="relative mt-12 flex grid-cols-2 gap-3 w-full max-w-xs">
           {["Members", "Budget", "Loans", "Meetings"].map((item) => (
             <div key={item} className="border border-white/15 bg-white/[0.04] rounded-sm px-4 py-3 text-white/80 text-sm font-medium text-center">
               {item}

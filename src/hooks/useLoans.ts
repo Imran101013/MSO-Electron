@@ -295,7 +295,8 @@ export function useLoans() {
 
       toast({ title: "Payment Recorded", description: `Payment of ${settings.currency} ${formData.amount.toLocaleString()} has been recorded.` });
       await fetchLoans();
-      await fetchInstallments(formData.loan_id);
+      // All loans' payments, not just this one's: the Loans page's interest & penalties section needs every loan's.
+      await fetchInstallments();
       await fetchSchedule();
       return true;
     } catch (err: any) {

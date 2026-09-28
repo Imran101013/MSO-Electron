@@ -3,6 +3,11 @@ const path = require('path');
 const { Pool, types } = require('pg');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const express = require('express');
+const cors = require('cors');
+const http = require('http');
+
+const API_PORT = 8082;
 
 const JWT_SECRET = 'Mso-connect-secret-key-change-in-production';
 
@@ -146,6 +151,91 @@ ipcMain.handle('auth-change-password', async (_, { userId, currentPassword, newP
   }
 });
 
+// ── HTTP API server (for browser / network access) ──────────────────────────
+function startApiServer() {
+  const api = express();
+  const corsOptions = { origin: '*', methods: ['GET', 'POST', 'OPTIONS'], allowedHeaders: ['Content-Type', 'Authorization'] };
+  api.use(cors(corsOptions));
+  api.options('*', cors(corsOptions));
+  api.use(express.json());
+  api.use((req, res, next) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    next();
+  });
+
+  api.post('/api/login', async (req, res) => {
+    const { email, password } = req.body;
+    const client = await pool.connect();
+    try {
+      const result = await client.query(
+        'SELECT u.id, u.email, u.password_hash, u.full_name, m.is_approved, r.role FROM public.users u LEFT JOIN public.members m ON m.user_id = u.id LEFT JOIN public.user_roles r ON r.user_id = u.id WHERE u.email = $1 LIMIT 1',
+        [email]
+      );
+      const user = result.rows[0];
+      if (!user) return res.json({ error: 'Invalid email or password' });
+      const valid = await bcrypt.compare(password, user.password_hash);
+      if (!valid) return res.json({ error: 'Invalid email or password' });
+      if (!user.is_approved) return res.json({ error: 'Your account is pending approval.' });
+      const token = jwt.sign(
+        { id: user.id, email: user.email, role: user.role, fullName: user.full_name },
+        JWT_SECRET, { expiresIn: '7d' }
+      );
+      res.json({ token, user: { id: user.id, email: user.email, role: user.role, fullName: user.full_name } });
+    } catch (err) {
+      res.json({ error: err.message });
+    } finally {
+      client.release();
+    }
+  });
+
+  api.post('/api/verify', (req, res) => {
+    try {
+      const decoded = jwt.verify(req.body.token, JWT_SECRET);
+      res.json({ user: decoded });
+    } catch {
+      res.json({ error: 'Invalid or expired session' });
+    }
+  });
+
+  api.post('/api/db-query', async (req, res) => {
+    const { sql, params } = req.body;
+    const client = await pool.connect();
+    try {
+      const result = await client.query(sql, params);
+      res.json({ rows: result.rows });
+    } catch (err) {
+      res.json({ error: err.message });
+    } finally {
+      client.release();
+    }
+  });
+
+  api.post('/api/change-password', async (req, res) => {
+    const { userId, currentPassword, newPassword } = req.body;
+    const client = await pool.connect();
+    try {
+      const result = await client.query('SELECT password_hash FROM public.users WHERE id = $1', [userId]);
+      const user = result.rows[0];
+      if (!user) return res.json({ error: 'User not found' });
+      const valid = await bcrypt.compare(currentPassword, user.password_hash);
+      if (!valid) return res.json({ error: 'Current password is incorrect' });
+      const newHash = await bcrypt.hash(newPassword, 10);
+      await client.query('UPDATE public.users SET password_hash = $1 WHERE id = $2', [newHash, userId]);
+      res.json({ success: true });
+    } catch (err) {
+      res.json({ error: err.message });
+    } finally {
+      client.release();
+    }
+  });
+
+  http.createServer(api).listen(API_PORT, '0.0.0.0', () => {
+    console.log(`MSO API server listening on port ${API_PORT}`);
+  });
+}
+
 function createWindow() {
   const win = new BrowserWindow({
     width: 1280,
@@ -166,5 +256,5 @@ function createWindow() {
   }
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => { startApiServer(); createWindow(); });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });

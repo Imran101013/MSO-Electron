@@ -26,6 +26,12 @@ import { useToast } from "@/hooks/use-toast";
 import MemberDetailsDialog from "@/components/MemberDetailsDialog";
 import ViewReportButton from "@/components/ViewReportButton";
 
+// Up to two initials (first and last name) so long names still fit the 40px avatar.
+const initials = (name: string) => {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  return (parts.length > 1 ? parts[0][0] + parts[parts.length - 1][0] : (parts[0] ?? "").slice(0, 2)).toUpperCase();
+};
+
 const formSchema = z.object({
   name: z.string().min(ORGANIZATION_CONFIG.MINIMUM_NAME_LENGTH, `Name must be at least ${ORGANIZATION_CONFIG.MINIMUM_NAME_LENGTH} characters`),
   fatherName: z.string().min(ORGANIZATION_CONFIG.MINIMUM_NAME_LENGTH, `Father name must be at least ${ORGANIZATION_CONFIG.MINIMUM_NAME_LENGTH} characters`),
@@ -295,39 +301,39 @@ export default function Members() {
             )}
           </div>
         </CardHeader>
-        <CardContent className="p-0">
+        <CardContent className="p-0 overflow-hidden rounded-b-sm">
           {currentMembers.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground text-sm">
+            <div className="text-center py-12 text-muted-foreground text-sm border-t border-border/60">
               {searchQuery ? "No members found matching your search." : "No members yet. Add the first member to get started."}
             </div>
           ) : (
-            <div className="divide-y divide-border/60">
+            // A ruled register sheet: each cell draws its own right and bottom rule, and the sheet
+            // runs 1px past the card's right and bottom edges so the outermost rules are clipped.
+            <ul className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 -mr-px -mb-px border-t border-border/60">
               {currentMembers.map((member) => (
-                <div key={member.id} className="flex items-center justify-between px-5 py-3.5 hover:bg-muted/30 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <Avatar className="h-10 w-10 rounded-sm">
-                      <AvatarImage src={member.profile_picture || undefined} />
-                      <AvatarFallback className="rounded-sm bg-primary/10 border border-primary/40 text-primary text-sm font-semibold">
-                        {member.name.split(" ").map((n) => n[0]).join("")}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <p className="font-semibold text-sm text-foreground">{member.name}</p>
-                      <p className="text-xs text-muted-foreground">Joined <span className="figure">{format(new Date(member.join_date), settings.dateFormat)}</span></p>
-                    </div>
+                <li key={member.id} className="flex items-center gap-3 px-4 py-3 border-r border-b border-border/60 transition-colors hover:bg-muted/50">
+                  <Avatar className="h-10 w-10 rounded-sm flex-shrink-0">
+                    <AvatarImage src={member.profile_picture || undefined} />
+                    <AvatarFallback className="rounded-sm bg-primary/10 border border-primary/40 text-primary text-sm font-semibold">
+                      {initials(member.name)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-sm text-foreground truncate" title={member.name}>{member.name}</p>
+                    <p className="text-xs text-muted-foreground">Joined <span className="figure">{format(new Date(member.join_date), settings.dateFormat)}</span></p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleViewDetails(member)}><Eye className="w-4 h-4" /></Button>
+                  <div className="flex items-center gap-0.5 flex-shrink-0">
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" title="View details" aria-label={`View ${member.name}`} onClick={() => handleViewDetails(member)}><Eye className="w-4 h-4" /></Button>
                     {isAdmin && (
                       <>
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(member)}><Pencil className="w-4 h-4" /></Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => handleDeleteClick(member)}><Trash2 className="w-4 h-4" /></Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" title="Edit member" aria-label={`Edit ${member.name}`} onClick={() => handleEdit(member)}><Pencil className="w-4 h-4" /></Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 focus-visible:text-destructive" title="Delete member" aria-label={`Delete ${member.name}`} onClick={() => handleDeleteClick(member)}><Trash2 className="w-4 h-4" /></Button>
                       </>
                     )}
                   </div>
-                </div>
+                </li>
               ))}
-            </div>
+            </ul>
           )}
         </CardContent>
       </Card>

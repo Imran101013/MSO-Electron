@@ -267,7 +267,7 @@ export default function SettingsPage() {
             <SettingRow
               compact
               label="Late penalty"
-              help={`Charged for each full month a loan is still unpaid after its ${period}-month term.`}
+              help={`Added for each full month after a loan's ${period}-month term until it is paid in full, penalties included.`}
               htmlFor="latePenaltyPerMonth"
               error={errors.latePenaltyPerMonth?.message}
               hint={was("latePenaltyPerMonth", `${settings.currency} ${money(settings.latePenaltyPerMonth)} a month`)}

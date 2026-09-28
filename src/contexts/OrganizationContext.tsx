@@ -436,7 +436,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   // Calculate total loan collected from meetings (payments recorded in meetings)
   // this remains a record of payments logged via meeting entries
 
-  // Total loan outstanding: compute from members' loan remainingAmount (this includes interest applied per loan)
+  // Total loan outstanding: members' loan remainingAmount (the total payable fixed at issue, less repayments)
   const totalLoanOutstanding = members.reduce((sum, member) => {
     const memberRemaining = member.loans.reduce(
       (loanSum, loan) => loanSum + loan.remainingAmount,
@@ -445,15 +445,12 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     return sum + memberRemaining;
   }, 0);
 
-  // Calculate total recovered loans (amounts fully paid). Use principal+interest for each paid loan
+  // Calculate total recovered loans (amounts fully paid): each paid loan's total payable as fixed
+  // when it was issued — never re-derived from today's interest setting.
   const totalLoanRecovered = members.reduce((sum, member) => {
     const paidWithInterest = member.loans
       .filter((loan) => loan.status === ORGANIZATION_CONFIG.LOAN_STATUS.PAID)
-      .reduce(
-        (loanSum, loan) =>
-          loanSum + loan.amount * (1 + effectiveInterestRate / 100),
-        0
-      );
+      .reduce((loanSum, loan) => loanSum + loan.totalPayable, 0);
     return sum + paidWithInterest;
   }, 0);
 

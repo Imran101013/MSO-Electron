@@ -24,7 +24,7 @@ export interface PenaltyCharge {
 
 export interface PenaltyInput {
   loanDate: string;
-  /** Principal + profit. */
+  /** Amount lent + interest. */
   totalPayable: number;
   penaltyPerMonth: number;
   /** Repayment the loan row reflects but no dated payment explains (loans recorded before
@@ -37,10 +37,10 @@ export interface PenaltyInput {
  * Late penalties a loan has incurred by `asOf` (yyyy-MM-dd).
  *
  * A loan may be repaid in instalments or as a lump sum at any time before its due date. For each
- * full month after the due date that the loan amount (principal + profit) is still not fully paid,
- * a flat penalty is charged: due 1 Jan and still unpaid at the end of 1 Feb gives the first charge
- * on 2 Feb. Payments clear the loan amount before any penalties, so once it is paid no further
- * penalties arise; the ones already charged remain owed.
+ * full month after the due date that the loan is still not cleared, a flat penalty is added to what
+ * is owed: due 1 Jan and still unpaid at the end of 1 Feb gives the first charge on 2 Feb. "Cleared"
+ * means everything owed — the total payable plus every penalty charged so far — so penalties keep
+ * being added each month until the member has paid all of it, penalties included.
  */
 export function penaltiesDue(loan: PenaltyInput, asOf: string): PenaltyCharge[] {
   const charges: PenaltyCharge[] = [];
@@ -51,7 +51,9 @@ export function penaltiesDue(loan: PenaltyInput, asOf: string): PenaltyCharge[] 
     const monthEnd = toKey(addMonths(due, month));
     if (monthEnd >= asOf) break;
     const paid = loan.payments.reduce((s, p) => (p.date.slice(0, 10) <= monthEnd ? s + Number(p.amount) : s), loan.paidUndated);
-    if (paid >= loan.totalPayable - 0.005) break;
+    // Owed at this month's end: the total payable plus the penalties charged in earlier months.
+    const owed = loan.totalPayable + charges.reduce((s, c) => s + c.amount, 0);
+    if (paid >= owed - 0.005) break;
     charges.push({ month, chargeDate: toKey(addDays(fromKey(monthEnd), 1)), amount: loan.penaltyPerMonth });
   }
   return charges;

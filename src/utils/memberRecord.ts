@@ -2,6 +2,7 @@ import { differenceInCalendarDays, differenceInMonths, differenceInYears, format
 import { dbQuery } from "@/lib/db";
 import { parseLocalDate, syncLoanPenalties } from "@/hooks/useLoans";
 import { loanDueDate } from "@/utils/loanPenalty";
+import { loanIncome, type LoanIncome } from "@/utils/loanInterest";
 import type { DbMember } from "@/hooks/useMembers";
 import type { Settings } from "@/contexts/SettingsContext";
 import { memberNumber, registerOrder } from "@/utils/accounting";
@@ -29,6 +30,8 @@ export interface MemberLoan {
   daysOverdue: number;
   nextDue: { date: string; amount: number } | null;
   repayments: { date: string; amount: number }[];
+  /** Interest and late penalties: charged, received, outstanding. */
+  income: LoanIncome;
 }
 
 export interface SavingsEntry {
@@ -133,6 +136,7 @@ export async function getMemberRecord(memberId: string): Promise<MemberRecord> {
     const totalPayable = Number(l.total_payable) || Number(l.amount);
     const penaltyTotal = r2(Number(l.penalty_total) || 0);
     const remaining = Math.max(0, r2(Number(l.remaining_amount)));
+    const repayments = installments.filter((i) => i.loan_id === l.id).map((i) => ({ date: i.payment_date, amount: Number(i.amount) }));
     const dueDate = loanDueDate(l.loan_date);
     // Instalments are a guide (a lump sum before the due date is fine), so only the due date makes a loan overdue.
     const pastDue = dueDate < today;
@@ -158,7 +162,8 @@ export async function getMemberRecord(memberId: string): Promise<MemberRecord> {
       arrears: state === "Paid" || !pastDue ? 0 : remaining,
       daysOverdue: state === "Paid" || !pastDue ? 0 : differenceInCalendarDays(parseLocalDate(today), parseLocalDate(dueDate)),
       nextDue: state === "Paid" || !next ? null : next,
-      repayments: installments.filter((i) => i.loan_id === l.id).map((i) => ({ date: i.payment_date, amount: Number(i.amount) })),
+      repayments,
+      income: loanIncome({ loanDate: l.loan_date, amount: Number(l.amount), totalPayable, remaining, penaltiesCharged: penaltyTotal, payments: repayments }),
     };
   });
 
