@@ -1,6 +1,6 @@
 import { format } from "date-fns";
 import { dbQuery } from "@/lib/db";
-import { formatTimeTo12Hour } from "@/lib/utils";
+import { formatTime as formatClockTime } from "@/lib/utils";
 import { parseLocalDate } from "@/hooks/useLoans";
 import type { DbMeeting } from "@/hooks/useMeetings";
 import type { Settings } from "@/contexts/SettingsContext";
@@ -34,8 +34,7 @@ export const formatAmount = (v: number) => Number(v).toLocaleString("en-US", { m
 export const formatDay = (key: string, settings: Pick<Settings, "dateFormat">) =>
   format(parseLocalDate(key.slice(0, 10)), settings.dateFormat || "dd/MM/yyyy");
 
-export const formatTime = (t: string | null, settings: Pick<Settings, "timeFormat">) =>
-  !t ? "" : settings.timeFormat === "24" ? t.slice(0, 5) : formatTimeTo12Hour(t.slice(0, 5));
+export const formatTime = (t: string | null, settings: Pick<Settings, "timeFormat">) => formatClockTime(t, settings.timeFormat);
 
 export const reserveLabel = (t: ReserveEntry) => {
   const detail = [t.donor_name, t.notes].filter(Boolean).join(" - ");

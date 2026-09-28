@@ -27,7 +27,7 @@ const adminNavigation = [
   { name: "Loans", href: "/loans", icon: HandCoins },
   { name: "Reserve Fund", href: "/reserve", icon: PiggyBank },
   { name: "Meetings", href: "/meetings", icon: CalendarDays },
-  { name: "PDFs", href: "/pdfs", icon: FileText },
+  { name: "Reports", href: "/reports", icon: FileText },
   { name: "Profit Distribution", href: "/profit-distribution", icon: DollarSign },
   { name: "Audit Log", href: "/audit-log", icon: History },
   { name: "Settings", href: "/settings", icon: Settings },
@@ -37,7 +37,7 @@ const memberNavigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "Members", href: "/members", icon: Users },
   { name: "Meetings", href: "/meetings", icon: CalendarDays },
-  { name: "PDFs", href: "/pdfs", icon: FileText },
+  { name: "Reports", href: "/reports", icon: FileText },
 ];
 
 export default function Layout({ children }: LayoutProps) {

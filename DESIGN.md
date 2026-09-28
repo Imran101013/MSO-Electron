@@ -108,6 +108,8 @@ The palette is a Restrained-to-Committed strategy: a warm paper/charcoal neutral
 
 **The Fixed Counter Rule.** The sidebar and the Login screen's left panel are charcoal-navy in both light and dark app themes — they represent the physical counter, which doesn't change with the visitor's theme preference.
 
+**The Attention Stamp Rule.** When something needs the admin's attention but nothing has gone wrong (a backup that is due, no backup yet), it is stamped in amber: an amber-tinted border (`accent` at 50-60%) over an amber wash (`accent` at 10-15%), with the words in brass (`text-primary`), not in amber itself, so the text keeps its contrast on paper. Brick-red stays reserved for genuine loss or destruction; a reminder is never red.
+
 ## Typography
 
 **Chrome/Body Font:** IBM Plex Sans (with system-ui, -apple-system fallback)
@@ -127,6 +129,10 @@ The palette is a Restrained-to-Committed strategy: a warm paper/charcoal neutral
 ## Layout
 
 Content pages follow a consistent letterhead pattern: a brass-mono eyebrow label, then an h2 title, then a `border-b-2 border-primary/40` rule closing off the header block before the page body starts. Stat/summary cards sit in a responsive grid above supporting cards and tables. The app shell is a fixed left sidebar (counter grille, always dark) plus a sticky top header (statement letterhead bar with a `border-b-2 border-primary/50`) and a scrollable main content area. Density is comfortable, not enterprise-dense — the product's real data volumes are small (tens of members, a handful of active loans), so generous card padding and spacing are appropriate.
+
+**Settings pages group by consequence.** A settings surface is split into sections by what a change touches (members' money, how the screen reads, the data itself), not into a grid of equal cards per topic. Each section is a full-width card with a bold title and one line of plain consequence copy (capped at `68ch`). The section whose changes move money is the one emphasized card and carries the brass top-rule; the others sit plain. Inside a section, settings are a single column of rows with hairline dividers, split into two row-columns at `xl` when the section is long.
+
+**The No-Reflow Hint Rule.** Where editing a field reveals a secondary line ("In force now: 10%", or a validation error), that line lives in a fixed one-line slot (16px tall, no wrap) that is reserved whether or not it has content, so typing never shifts the rows below.
 
 ## Elevation & Depth
 
@@ -175,6 +181,39 @@ Corners use a single restrained radius scale (`0.625rem`/`0.469rem`/`0.3125rem`,
 ### Statement Header (signature component)
 The top app bar and every page's own header both carry the "letterhead" pattern: a small brass tracked-mono eyebrow line, the heading below it, and a brass rule closing the block. This recurs identically across all 13+ pages and is the single most repeated signature move in the system — it is what makes every page feel like a page from the same printed ledger.
 
+### Settings Rows
+- **Structure:** label (14px, medium) with a short help line (12px, muted, relaxed leading) on the left; the control right-aligned on the right, top-aligned with the label. Rows are separated by hairline `border-border` dividers with 16px vertical padding; on narrow windows the control drops below the label.
+- **Compact variant:** used in a column that shares its card with a side panel. Where that column is narrow (`lg`), the row stacks to one column with the control and its hint on one line; it returns to label-left/control-right at `xl`. The compact row always reserves the No-Reflow hint slot.
+- **Help copy** may carry a live preview of the setting as a figure ("Today reads 28/09/2026"), rendered through `.figure`.
+
+### Unit Input
+- **Style:** one bordered field (`rounded-sm`, 40px tall, hairline `input` border, page-background fill) holding the number with its unit inside the border: an optional prefix (currency code, mono, muted 12px) and suffix (`%`, `/ month`, `rows`, muted 12px).
+- **Figures:** the number is right-aligned and tabular (`.figure`), so a column of unit inputs aligns like a register.
+- **Focus / Error / Disabled:** the whole field takes the brass focus ring (`focus-within`); invalid turns the border brick-red with the message in the row's hint slot; disabled fades the field to 50% (e.g. the interest rate while interest is switched off).
+
+### Segmented Control
+- **Style:** for two or three mutually exclusive, short options (theme, 12/24-hour). A `rounded-sm` hairline-bordered track on a muted wash (`muted` at 50%) with a 2px inset; segments are 32px tall with muted text, and the selected segment lifts onto the statement-card colour with ink text and `shadow-sm`. No brass fill on the selected segment: selection reads as a raised slip, not an accent.
+- **Use a Select instead** when options are long or more than three.
+
+### Sticky Save Bar
+- **Style:** a full-bleed bar pinned to the bottom of a settings form, statement-card background, with a `border-t-2` that is a neutral hairline when everything is saved and turns brass (`primary` at 70%) the moment there are unsaved changes (200ms colour transition).
+- **Content:** on the left, a live status line (`aria-live="polite"`): "Unsaved changes in Money rules and Display & lists", naming the dirty sections, or a teller-green check with "All settings saved". On the right, a ghost **Discard** and the primary **Save changes**, both disabled while clean.
+- **Rule:** settings are staged, never applied on change; "Reset to defaults" only fills the form, and Save or Discard still decides.
+
+### Teller Slip (worked example)
+A small printed-slip readout showing what the current values will do to a sample transaction. It sits as the emphasized card's own right-hand column (below the rows on narrow windows), separated by a hairline rule rather than being a separate card.
+- **Lines:** 12px; label in muted text, a dotted leader (`border-dotted`, `border-border`) filling the gap, the figure right-aligned in `.figure`.
+- **Totals:** an ink rule (`foreground` at 60%, 1px) above a subtotal; a double rule (3px `border-double`) closes the slip under the final total. Totals are bold ink; a line takes teller-green or brick-red only when its figure carries that meaning (members' share, a penalty charged).
+- **Ledger correction:** when an edit changes a figure, the figure in force is shown struck through (muted, brick-red strike at 70%) beside the new one, wrapping above it in a narrow column, with screen-reader "was" / "now" text. A caption says so ("Struck-through figures are the ones in force now"). A figure that cannot be computed from an invalid field reads "—", never a guessed number.
+
+### Attention Strip
+- **Style:** a full-width `rounded-sm` strip in the Attention Stamp colours (amber border at 50%, amber wash at 10%), led by a 36px square stamp icon box (`border-2`, amber at 50%, brass icon), with a semibold one-line statement plus a muted explanation, and actions on the right (a ghost link to the relevant settings, then the primary action). Used for the Dashboard backup reminder; it renders only while the condition holds rather than sitting as a permanent banner.
+- **Badge form:** the same colours on an outline `<Badge>` ("Backup due", "No backup"); the resolved state switches to the teller-green `secondary` badge ("Backed up").
+
+### Destructive Footer Strip
+- **Style:** a destructive action inside an otherwise safe section is walled off in its own footer strip at the bottom of the card: hairline top border, a faint brick-red wash (`destructive` at 4%), a title and one-line consequence on the left, and an outline button in brick-red (border at 50%, brick-red text, 10% brick-red hover wash) on the right.
+- **Confirmation:** the button always opens an alert dialog that names exactly what will be overwritten and that it cannot be undone. The confirm action is the solid brick-red button with a specific verb ("Choose file and restore"), with Cancel beside it.
+
 ## Do's and Don'ts
 
 ### Do:
@@ -183,9 +222,15 @@ The top app bar and every page's own header both carry the "letterhead" pattern:
 - **Do** map status meaning strictly: teller-green = positive, brick-red = negative, brass/default = neutral, outline = informational.
 - **Do** keep the sidebar and Login-page left panel charcoal-navy in both light and dark themes.
 - **Do** use `rounded-sm` as the default corner radius for cards, buttons, inputs, badges, and avatars.
+- **Do** show what a money setting will do before it is saved: a teller slip with the in-force figure struck through beside the new one.
+- **Do** stage settings behind a sticky save bar that names the unsaved sections; nothing applies until Save.
+- **Do** reserve the hint slot under editable money fields so revealing a hint or error never moves the rows below.
 
 ### Don't:
 - **Don't** reintroduce filled gradient circles (`bg-gradient-primary` + white icon) for icon badges — the system uses bordered square "stamp" badges instead.
 - **Don't** use `rounded-full`/`rounded-xl`/`rounded-2xl` on cards, dialogs, or icon badges — reserve fully-rounded shapes for switches, radios, and spinners only.
 - **Don't** use raw ad-hoc colored `<span>` pills for status (e.g. `bg-emerald-100 text-emerald-700`) — always route status through the shared `<Badge>` component and its token-driven variants.
 - **Don't** imply live sync, multi-device presence, or network/connectivity status anywhere in the UI — this is a strictly offline, single-machine product.
+- **Don't** lay out settings as a grid of equal cards; group them by consequence, with the money section as the one brass-ruled card.
+- **Don't** colour a reminder or overdue-backup state brick-red; attention is amber, and red is for loss and destructive actions.
+- **Don't** place a destructive action inline among ordinary settings rows; wall it off in a tinted footer strip behind a confirmation dialog.

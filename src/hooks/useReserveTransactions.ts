@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { dbQuery } from "@/lib/db";
 import { useToast } from "@/hooks/use-toast";
+import { useSettings } from "@/contexts/SettingsContext";
 
 export interface DbReserveTransaction {
   id: string;
@@ -24,6 +25,7 @@ export function useReserveTransactions() {
   const [transactions, setTransactions] = useState<DbReserveTransaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+  const { settings } = useSettings();
 
   const fetchTransactions = async () => {
     setIsLoading(true);
@@ -41,7 +43,7 @@ export function useReserveTransactions() {
       if (formData.transaction_type === 'expense') {
         const balance = getReserveFundTotal();
         if (formData.amount > balance) {
-          toast({ title: "Insufficient Balance", description: `Expense of PKR ${formData.amount.toLocaleString()} exceeds reserve balance of PKR ${balance.toLocaleString()}.`, variant: "destructive" });
+          toast({ title: "Insufficient Balance", description: `Expense of ${settings.currency} ${formData.amount.toLocaleString()} exceeds reserve balance of ${settings.currency} ${balance.toLocaleString()}.`, variant: "destructive" });
           return null;
         }
       }
@@ -49,7 +51,7 @@ export function useReserveTransactions() {
         'INSERT INTO public.reserve_transactions (transaction_type, amount, donor_name, notes, transaction_date) VALUES ($1,$2,$3,$4,$5) RETURNING *',
         [formData.transaction_type, formData.amount, formData.donor_name || null, formData.notes || null, formData.transaction_date]
       );
-      toast({ title: "Transaction Added", description: `${formData.transaction_type} of PKR ${formData.amount.toLocaleString()} has been recorded.` });
+      toast({ title: "Transaction Added", description: `${formData.transaction_type} of ${settings.currency} ${formData.amount.toLocaleString()} has been recorded.` });
       await fetchTransactions();
       return rows[0];
     } catch (err: any) {

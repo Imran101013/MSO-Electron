@@ -1,4 +1,5 @@
 import StatCard from "@/components/StatCard";
+import BackupReminder from "@/components/BackupReminder";
 import {
   Card,
   CardContent,
@@ -18,7 +19,7 @@ import {
 } from "lucide-react";
 import { useSettings } from "@/contexts/SettingsContext";
 import { format, parseISO, isFuture, isToday } from "date-fns";
-import { formatTimeTo12Hour } from "@/lib/utils";
+import { formatTime } from "@/lib/utils";
 import { useMemo } from "react";
 import {
   BarChart,
@@ -177,6 +178,8 @@ export default function Dashboard() {
         </div>
       </div>
 
+      <BackupReminder />
+
       {/* Stats Grid — printed summary slips */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <StatCard
@@ -234,7 +237,7 @@ export default function Dashboard() {
                       <p className="font-semibold text-sm text-foreground truncate">{meeting.venue || "TBD"}</p>
                       <p className="figure text-sm font-bold text-primary mt-0.5">
                         {format(parseISO(meeting.date), settings.dateFormat)}
-                        {meeting.time && ` at ${formatTimeTo12Hour(meeting.time)}`}
+                        {meeting.time && ` at ${formatTime(meeting.time, settings.timeFormat)}`}
                       </p>
                     </div>
                   </div>

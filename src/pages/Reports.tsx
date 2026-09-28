@@ -13,7 +13,8 @@ import {
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useSettings } from "@/contexts/SettingsContext";
 import { buildBooks, parseDay, todayKey, type ReportPeriod } from "@/utils/accounting";
-import { generateReport, type ReportKind, type ReportRequest } from "@/utils/pdfReports";
+import { type ReportKind, type ReportRequest } from "@/utils/pdfReports";
+import { useReportViewer } from "@/contexts/ReportViewerContext";
 import { toast } from "sonner";
 import {
   FileText,
@@ -22,8 +23,7 @@ import {
   HandCoins,
   PiggyBank,
   CalendarDays,
-  Download,
-  Loader2,
+  Eye,
   ClipboardList,
   UserSquare2,
   Landmark,
@@ -71,9 +71,10 @@ function resolvePeriod(preset: PeriodPreset, from?: Date, to?: Date): ReportPeri
 
 type Scope = "period" | "as-at" | "distribution";
 
-export default function PDFsPage() {
+export default function ReportsPage() {
   const { members, meetings, reserveTransactions, profitDistributions, refreshData } = useOrganization();
   const { settings } = useSettings();
+  const { openReport } = useReportViewer();
 
   const [preset, setPreset] = useState<PeriodPreset>("all");
   const [customFrom, setCustomFrom] = useState<Date | undefined>();
@@ -81,10 +82,10 @@ export default function PDFsPage() {
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
   const [selectedLoanId, setSelectedLoanId] = useState<string | null>(null);
   const [selectedDistributionId, setSelectedDistributionId] = useState<string | null>(null);
-  const [loading, setLoading] = useState<ReportKind | null>(null);
   const [refreshing, setRefreshing] = useState(true);
 
-  // Reload records on open so reports include anything recorded elsewhere this session.
+  // Reload records on open so the member, loan and distribution pickers are current. (The viewer
+  // reloads again before building each report.)
   useEffect(() => {
     let active = true;
     refreshData().finally(() => active && setRefreshing(false));
@@ -107,20 +108,12 @@ export default function PDFsPage() {
   const scopeText = (scope: Scope) =>
     scope === "period" ? `Period · ${periodText}` : scope === "as-at" ? `As at · ${fmt(period.to)}` : "Per distribution";
 
-  const run = async (kind: ReportKind, extra: Omit<ReportRequest, "kind" | "period"> = {}) => {
+  const view = (kind: ReportKind, extra: Omit<ReportRequest, "kind" | "period"> = {}) => {
     if (periodInvalid) {
       toast.error("The period start date is after its end date");
       return;
     }
-    setLoading(kind);
-    try {
-      const filename = await generateReport(books, { kind, period, ...extra }, settings);
-      toast.success("Report generated", { description: filename });
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to generate report");
-    } finally {
-      setLoading(null);
-    }
+    openReport({ kind, period, ...extra });
   };
 
   const card = (kind: ReportKind, scope: Scope, props: Omit<ReportCardProps, "scope" | "action">, extra?: Omit<ReportRequest, "kind" | "period">, selector?: React.ReactNode, disabled?: boolean) => (
@@ -130,7 +123,7 @@ export default function PDFsPage() {
       action={
         <div className="flex flex-col sm:flex-row gap-3">
           {selector}
-          <DownloadButton loading={loading === kind} disabled={disabled || refreshing} onClick={() => run(kind, extra)} />
+          <ViewButton disabled={disabled} onClick={() => view(kind, extra)} />
         </div>
       }
     />
@@ -145,9 +138,9 @@ export default function PDFsPage() {
         </div>
         <div>
           <p className="tracked-label text-[10px] font-semibold text-primary uppercase">Reports & Documents</p>
-          <h2 className="text-2xl font-bold text-foreground mt-1">PDF Reports</h2>
+          <h2 className="text-2xl font-bold text-foreground mt-1">Reports</h2>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Financial statements, ledgers and registers on the MSO letterhead
+            Financial statements, ledgers and registers on the MSO letterhead. View a report, then download it from the viewer.
           </p>
         </div>
       </div>
@@ -377,19 +370,10 @@ function ReportCard({ icon: Icon, title, description, scope, action }: ReportCar
   );
 }
 
-function DownloadButton({ onClick, loading, disabled }: { onClick: () => void; loading: boolean; disabled?: boolean }) {
+function ViewButton({ onClick, disabled }: { onClick: () => void; disabled?: boolean }) {
   return (
-    <Button
-      size="sm"
-      onClick={onClick}
-      disabled={loading || disabled}
-      className="h-9 gap-2 shadow-sm flex items-center justify-center rounded-sm"
-    >
-      {loading ? (
-        <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Generating…</>
-      ) : (
-        <><Download className="w-3.5 h-3.5" /> Download PDF</>
-      )}
+    <Button size="sm" onClick={onClick} disabled={disabled} className="h-9 gap-2 shadow-sm flex items-center justify-center rounded-sm">
+      <Eye className="w-3.5 h-3.5" /> View
     </Button>
   );
 }

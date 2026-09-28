@@ -24,13 +24,17 @@ import { useMembers, DbMember } from "@/hooks/useMembers";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import MemberDetailsDialog from "@/components/MemberDetailsDialog";
+import ViewReportButton from "@/components/ViewReportButton";
 
 const formSchema = z.object({
   name: z.string().min(ORGANIZATION_CONFIG.MINIMUM_NAME_LENGTH, `Name must be at least ${ORGANIZATION_CONFIG.MINIMUM_NAME_LENGTH} characters`),
   fatherName: z.string().min(ORGANIZATION_CONFIG.MINIMUM_NAME_LENGTH, `Father name must be at least ${ORGANIZATION_CONFIG.MINIMUM_NAME_LENGTH} characters`),
   dob: z.date({ required_error: "Date of birth is required" }),
   email: z.string().email("Invalid email address"),
-  phone: z.string().min(ORGANIZATION_CONFIG.MINIMUM_PHONE_LENGTH, `Phone number must be at least ${ORGANIZATION_CONFIG.MINIMUM_PHONE_LENGTH} characters`),
+  phone: z
+    .string()
+    .trim()
+    .refine((v) => ORGANIZATION_CONFIG.PHONE_PATTERNS.ALL.test(v.replace(/[\s-]/g, "")), "Enter a Pakistani number, e.g. 03001234567 or +923001234567"),
   address: z.string().min(1, "Address is required"),
   joinDate: z.date({ required_error: "Join date is required" }),
   profilePicture: z.string().optional(),
@@ -179,83 +183,86 @@ export default function Members() {
           <h2 className="text-2xl font-bold text-foreground mt-1">Members</h2>
           <p className="text-sm text-muted-foreground mt-0.5">Manage organisation members</p>
         </div>
-        {isAdmin && (
-          <Dialog open={open} onOpenChange={handleDialogClose}>
-            <DialogTrigger asChild>
-              <Button className="gap-2 shadow-sm"><Plus className="w-4 h-4" /> Add Member</Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[620px] flex flex-col max-h-[90vh] p-0 gap-0 overflow-hidden">
-              {/* Dialog Header */}
-              <div className="flex items-center gap-4 px-6 py-5 border-b bg-muted/30 flex-shrink-0">
-                <div className="w-10 h-10 rounded-sm border-2 border-primary/40 bg-primary/10 flex items-center justify-center flex-shrink-0">
-                  {editingMember ? <Pencil className="w-5 h-5 text-primary" /> : <Plus className="w-5 h-5 text-primary" />}
+        <div className="flex gap-2">
+          <ViewReportButton request={{ kind: "member-register" }} label="Register of Members" size="default" />
+          {isAdmin && (
+            <Dialog open={open} onOpenChange={handleDialogClose}>
+              <DialogTrigger asChild>
+                <Button className="gap-2 shadow-sm"><Plus className="w-4 h-4" /> Add Member</Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[620px] flex flex-col max-h-[90vh] p-0 gap-0 overflow-hidden">
+                {/* Dialog Header */}
+                <div className="flex items-center gap-4 px-6 py-5 border-b bg-muted/30 flex-shrink-0">
+                  <div className="w-10 h-10 rounded-sm border-2 border-primary/40 bg-primary/10 flex items-center justify-center flex-shrink-0">
+                    {editingMember ? <Pencil className="w-5 h-5 text-primary" /> : <Plus className="w-5 h-5 text-primary" />}
+                  </div>
+                  <div>
+                    <h2 className="text-base font-bold text-foreground">{editingMember ? "Edit Member" : "Add New Member"}</h2>
+                    <p className="text-xs text-muted-foreground">{editingMember ? "Update member information" : "Create a new member profile"}</p>
+                  </div>
                 </div>
-                <div>
-                  <h2 className="text-base font-bold text-foreground">{editingMember ? "Edit Member" : "Add New Member"}</h2>
-                  <p className="text-xs text-muted-foreground">{editingMember ? "Update member information" : "Create a new member profile"}</p>
-                </div>
-              </div>
-              <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col min-h-0 flex-1">
-                  <div className="overflow-y-auto flex-1 px-6 py-5 space-y-5">
-                    {/* Personal Info */}
-                    <div className="space-y-3">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Personal Information</p>
-                      <div className="grid grid-cols-2 gap-3">
-                        <FormField control={form.control} name="name" render={({ field }) => (
-                          <FormItem><FormLabel className="text-xs font-medium">Full Name</FormLabel><FormControl><Input placeholder="Enter member name" {...field} className="h-9" /></FormControl><FormMessage className="text-xs" /></FormItem>
-                        )} />
-                        <FormField control={form.control} name="fatherName" render={({ field }) => (
-                          <FormItem><FormLabel className="text-xs font-medium">Father Name</FormLabel><FormControl><Input placeholder="Enter father name" {...field} className="h-9" /></FormControl><FormMessage className="text-xs" /></FormItem>
-                        )} />
+                <Form {...form}>
+                  <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col min-h-0 flex-1">
+                    <div className="overflow-y-auto flex-1 px-6 py-5 space-y-5">
+                      {/* Personal Info */}
+                      <div className="space-y-3">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Personal Information</p>
+                        <div className="grid grid-cols-2 gap-3">
+                          <FormField control={form.control} name="name" render={({ field }) => (
+                            <FormItem><FormLabel className="text-xs font-medium">Full Name</FormLabel><FormControl><Input placeholder="Enter member name" {...field} className="h-9" /></FormControl><FormMessage className="text-xs" /></FormItem>
+                          )} />
+                          <FormField control={form.control} name="fatherName" render={({ field }) => (
+                            <FormItem><FormLabel className="text-xs font-medium">Father Name</FormLabel><FormControl><Input placeholder="Enter father name" {...field} className="h-9" /></FormControl><FormMessage className="text-xs" /></FormItem>
+                          )} />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <FormField control={form.control} name="dob" render={({ field }) => (
+                            <FormItem><FormLabel className="text-xs font-medium">Date of Birth</FormLabel><FormControl><DatePicker date={field.value} onDateChange={field.onChange} placeholder="Select DOB" /></FormControl><FormMessage className="text-xs" /></FormItem>
+                          )} />
+                          <FormField control={form.control} name="joinDate" render={({ field }) => (
+                            <FormItem><FormLabel className="text-xs font-medium">Joining Date</FormLabel><FormControl><DatePicker date={field.value} onDateChange={field.onChange} placeholder="Select join date" /></FormControl><FormMessage className="text-xs" /></FormItem>
+                          )} />
+                        </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <FormField control={form.control} name="dob" render={({ field }) => (
-                          <FormItem><FormLabel className="text-xs font-medium">Date of Birth</FormLabel><FormControl><DatePicker date={field.value} onDateChange={field.onChange} placeholder="Select DOB" /></FormControl><FormMessage className="text-xs" /></FormItem>
-                        )} />
-                        <FormField control={form.control} name="joinDate" render={({ field }) => (
-                          <FormItem><FormLabel className="text-xs font-medium">Joining Date</FormLabel><FormControl><DatePicker date={field.value} onDateChange={field.onChange} placeholder="Select join date" /></FormControl><FormMessage className="text-xs" /></FormItem>
-                        )} />
+                      {/* Contact Info */}
+                      <div className="space-y-3">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Contact Details</p>
+                        <div className="grid grid-cols-2 gap-3">
+                          <FormField control={form.control} name="email" render={({ field }) => (
+                            <FormItem><FormLabel className="text-xs font-medium">Email</FormLabel><FormControl><Input placeholder="email@example.com" {...field} className="h-9" /></FormControl><FormMessage className="text-xs" /></FormItem>
+                          )} />
+                          <FormField control={form.control} name="phone" render={({ field }) => (
+                            <FormItem><FormLabel className="text-xs font-medium">Phone</FormLabel><FormControl><Input placeholder="0300 1234567" {...field} className="h-9" /></FormControl><FormMessage className="text-xs" /></FormItem>
+                          )} />
+                        </div>
                       </div>
-                    </div>
-                    {/* Contact Info */}
-                    <div className="space-y-3">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Contact Details</p>
-                      <div className="grid grid-cols-2 gap-3">
-                        <FormField control={form.control} name="email" render={({ field }) => (
-                          <FormItem><FormLabel className="text-xs font-medium">Email</FormLabel><FormControl><Input placeholder="email@example.com" {...field} className="h-9" /></FormControl><FormMessage className="text-xs" /></FormItem>
-                        )} />
-                        <FormField control={form.control} name="phone" render={({ field }) => (
-                          <FormItem><FormLabel className="text-xs font-medium">Phone</FormLabel><FormControl><Input placeholder="0300 1234567" {...field} className="h-9" /></FormControl><FormMessage className="text-xs" /></FormItem>
-                        )} />
-                      </div>
-                    </div>
-                    {/* Profile Picture */}
-                    <div className="space-y-3">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Profile Picture</p>
-                      <div className="flex items-center gap-4 p-3 rounded-sm bg-muted/40 border border-border/60">
-                        <Avatar className="h-14 w-14 flex-shrink-0 rounded-sm">
-                          <AvatarImage src={profilePicturePreview || editingMember?.profile_picture || undefined} />
-                          <AvatarFallback className="rounded-sm bg-primary/10 border border-primary/40"><Upload className="w-5 h-5 text-primary" /></AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1">
-                          <Input type="file" accept="image/*" onChange={handleProfilePictureChange} className="cursor-pointer h-9 text-xs" />
-                          <p className="text-xs text-muted-foreground mt-1">JPG, PNG or GIF up to 5MB</p>
+                      {/* Profile Picture */}
+                      <div className="space-y-3">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Profile Picture</p>
+                        <div className="flex items-center gap-4 p-3 rounded-sm bg-muted/40 border border-border/60">
+                          <Avatar className="h-14 w-14 flex-shrink-0 rounded-sm">
+                            <AvatarImage src={profilePicturePreview || editingMember?.profile_picture || undefined} />
+                            <AvatarFallback className="rounded-sm bg-primary/10 border border-primary/40"><Upload className="w-5 h-5 text-primary" /></AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1">
+                            <Input type="file" accept="image/*" onChange={handleProfilePictureChange} className="cursor-pointer h-9 text-xs" />
+                            <p className="text-xs text-muted-foreground mt-1">JPG, PNG or GIF up to 5MB</p>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                  <div className="flex-shrink-0 flex justify-end gap-3 px-6 py-4 border-t bg-muted/20">
-                    <Button type="button" variant="outline" size="sm" onClick={() => handleDialogClose(false)}>Cancel</Button>
-                    <Button type="submit" size="sm" disabled={isSubmitting}>
-                      {isSubmitting ? <><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />{editingMember ? "Updating…" : "Adding…"}</> : editingMember ? "Update Member" : "Add Member"}
-                    </Button>
-                  </div>
-                </form>
-              </Form>
-            </DialogContent>
-          </Dialog>
-        )}
+                    <div className="flex-shrink-0 flex justify-end gap-3 px-6 py-4 border-t bg-muted/20">
+                      <Button type="button" variant="outline" size="sm" onClick={() => handleDialogClose(false)}>Cancel</Button>
+                      <Button type="submit" size="sm" disabled={isSubmitting}>
+                        {isSubmitting ? <><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />{editingMember ? "Updating…" : "Adding…"}</> : editingMember ? "Update Member" : "Add Member"}
+                      </Button>
+                    </div>
+                  </form>
+                </Form>
+              </DialogContent>
+            </Dialog>
+          )}
+        </div>
       </div>
 
       {/* Stat cards */}

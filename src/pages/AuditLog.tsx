@@ -20,12 +20,14 @@ import { format } from "date-fns";
 import { useSettings } from "@/contexts/SettingsContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAuditLog, AuditLogEntry } from "@/hooks/useAuditLog";
+import { timePattern } from "@/lib/utils";
 
 const AUDITED_TABLES = [
   { value: "all", label: "All Tables" },
   { value: "loans", label: "Loans" },
   { value: "loan_installments", label: "Loan Installments" },
   { value: "loan_schedule", label: "Loan Schedule" },
+  { value: "loan_penalties", label: "Loan Penalties" },
   { value: "monthly_contributions", label: "Contributions" },
   { value: "reserve_transactions", label: "Reserve Transactions" },
   { value: "profit_distributions", label: "Profit Distributions" },
@@ -110,7 +112,7 @@ export default function AuditLog() {
                   {entries.map((entry) => (
                     <TableRow key={entry.id} className="hover:bg-muted/30">
                       <TableCell className="figure text-sm text-muted-foreground">
-                        {format(new Date(entry.changed_at), `${settings.dateFormat} HH:mm`)}
+                        {format(new Date(entry.changed_at), `${settings.dateFormat} ${timePattern(settings.timeFormat)}`)}
                       </TableCell>
                       <TableCell className="text-sm font-medium">{entry.table_name}</TableCell>
                       <TableCell>
@@ -162,7 +164,7 @@ export default function AuditLog() {
             <div>
               <h2 className="text-base font-bold text-foreground capitalize">{selectedEntry?.action} on {selectedEntry?.table_name}</h2>
               <p className="figure text-xs text-muted-foreground">
-                {selectedEntry && format(new Date(selectedEntry.changed_at), `${settings.dateFormat} HH:mm`)} · {selectedEntry?.changed_by || "unknown"}
+                {selectedEntry && format(new Date(selectedEntry.changed_at), `${settings.dateFormat} ${timePattern(settings.timeFormat)}`)} · {selectedEntry?.changed_by || "unknown"}
               </p>
             </div>
           </div>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { dbQuery } from "@/lib/db";
 import { useToast } from "@/hooks/use-toast";
+import { useSettings } from "@/contexts/SettingsContext";
 
 export interface AuditLogEntry {
   id: string;
@@ -13,8 +14,6 @@ export interface AuditLogEntry {
   new_data: Record<string, any> | null;
 }
 
-const PAGE_SIZE = 25;
-
 export function useAuditLog() {
   const [entries, setEntries] = useState<AuditLogEntry[]>([]);
   const [tableFilter, setTableFilter] = useState<string>("all");
@@ -22,29 +21,31 @@ export function useAuditLog() {
   const [hasMore, setHasMore] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+  // Rows per page follows Settings → "Rows per page elsewhere".
+  const pageSize = Math.max(1, useSettings().settings.itemsPerPage || 10);
 
   const fetchAuditLog = async (filter: string, pageIndex: number) => {
     setIsLoading(true);
     try {
-      const offset = pageIndex * PAGE_SIZE;
+      const offset = pageIndex * pageSize;
       const rows = filter === "all"
         ? await dbQuery<AuditLogEntry>(
             'SELECT * FROM public.audit_log ORDER BY changed_at DESC LIMIT $1 OFFSET $2',
-            [PAGE_SIZE + 1, offset]
+            [pageSize + 1, offset]
           )
         : await dbQuery<AuditLogEntry>(
             'SELECT * FROM public.audit_log WHERE table_name=$1 ORDER BY changed_at DESC LIMIT $2 OFFSET $3',
-            [filter, PAGE_SIZE + 1, offset]
+            [filter, pageSize + 1, offset]
           );
-      setHasMore(rows.length > PAGE_SIZE);
-      setEntries(rows.slice(0, PAGE_SIZE));
+      setHasMore(rows.length > pageSize);
+      setEntries(rows.slice(0, pageSize));
     } catch (err: any) {
       toast({ title: "Error", description: "Failed to load audit log", variant: "destructive" });
     }
     setIsLoading(false);
   };
 
-  useEffect(() => { fetchAuditLog(tableFilter, page); }, [tableFilter, page]);
+  useEffect(() => { fetchAuditLog(tableFilter, page); }, [tableFilter, page, pageSize]);
 
   const changeTableFilter = (filter: string) => { setTableFilter(filter); setPage(0); };
 

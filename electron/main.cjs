@@ -54,7 +54,7 @@ ipcMain.handle('db-query', async (_, { sql, params, actor }) => {
 // Tables that participate in JSON backup/restore, in FK-safe (parent-first) order.
 const BACKUP_TABLES = [
   'users', 'user_roles', 'members', 'meetings', 'upcoming_meetings',
-  'loans', 'loan_schedule', 'loan_installments', 'monthly_contributions',
+  'loans', 'loan_schedule', 'loan_installments', 'loan_penalties', 'monthly_contributions',
   'attendance', 'reserve_transactions', 'profit_distributions', 'profit_allocations',
   'audit_log',
 ];
@@ -172,6 +172,18 @@ async function ensureSchema() {
       ALTER TABLE public.loans ADD COLUMN IF NOT EXISTS total_payable DECIMAL(12,2);
       UPDATE public.loans SET total_payable = amount WHERE total_payable IS NULL;
       ALTER TABLE public.loans ALTER COLUMN total_payable SET NOT NULL;
+      ALTER TABLE public.loans ADD COLUMN IF NOT EXISTS penalty_per_month DECIMAL(12,2) NOT NULL DEFAULT 500;
+
+      -- Late penalties charged after a loan's one-year period ends; remaining_amount includes them.
+      CREATE TABLE IF NOT EXISTS public.loan_penalties (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        loan_id UUID REFERENCES public.loans(id) ON DELETE CASCADE NOT NULL,
+        penalty_month INTEGER NOT NULL,
+        charge_date DATE NOT NULL,
+        amount DECIMAL(12,2) NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+        UNIQUE (loan_id, penalty_month)
+      );
 
       ALTER TABLE public.monthly_contributions ADD COLUMN IF NOT EXISTS notes TEXT;
 
@@ -236,7 +248,7 @@ async function ensureSchema() {
     `);
 
     const auditedTables = [
-      'loans', 'loan_installments', 'loan_schedule',
+      'loans', 'loan_installments', 'loan_schedule', 'loan_penalties',
       'monthly_contributions', 'reserve_transactions',
       'profit_distributions', 'profit_allocations',
     ];
@@ -323,6 +335,8 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
+      // Enables Chromium's built-in PDF viewer, used by the in-app report viewer.
+      plugins: true,
     },
   });
 

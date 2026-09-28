@@ -14,8 +14,8 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { format } from "date-fns";
 import { useSettings } from "@/contexts/SettingsContext";
-import { formatTimeTo12Hour } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
+import ViewReportButton from "@/components/ViewReportButton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { DatePicker } from "@/components/ui/date-picker";
 import { useMeetings, DbMeeting, DbUpcomingMeeting } from "@/hooks/useMeetings";
@@ -72,7 +72,7 @@ export default function Meetings() {
     if (newMeeting) {
       await bulkRecordAttendance(newMeeting.id, memberContributions.map(mc => ({ memberId: mc.memberId, present: mc.present })));
       await bulkAddContributions(newMeeting.id, memberContributions.map(mc => ({ memberId: mc.memberId, amount: mc.amount })), dateString);
-      toast.success(`Meeting added! Total: PKR ${memberContributions.reduce((s, c) => s + c.amount, 0).toLocaleString()}`);
+      toast.success(`Meeting added! Total: ${settings.currency} ${memberContributions.reduce((s, c) => s + c.amount, 0).toLocaleString()}`);
       emitMeetingSaved();
     }
     setIsSubmitting(false); setIsAddOpen(false); form.reset(); setMemberContributions([]);
@@ -139,6 +139,7 @@ export default function Meetings() {
         </div>
         {isAdmin && (
           <div className="flex gap-2">
+            <ViewReportButton request={{ kind: "meetings-register" }} label="Meetings Register" size="default" />
             <Button variant="secondary" className="gap-2" onClick={shareLatestMeeting} disabled={isSharing}>
               {isSharing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Share2 className="w-4 h-4" />} Share Latest Meeting
             </Button>
@@ -218,7 +219,7 @@ export default function Meetings() {
                         <div className="grid grid-cols-12 px-3 py-2 bg-muted/50 rounded-sm">
                           <span className="col-span-5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Member</span>
                           <span className="col-span-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Present</span>
-                          <span className="col-span-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Amount (PKR)</span>
+                          <span className="col-span-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Amount ({settings.currency})</span>
                         </div>
                         <div className="space-y-1.5">
                           {memberContributions.map((mc) => (
@@ -275,7 +276,7 @@ export default function Meetings() {
                     <div>
                       <p className="figure text-sm font-bold text-primary">
                         {format(new Date(meeting.meeting_date), settings.dateFormat)}
-                        {meeting.meeting_time && <span className="text-muted-foreground font-normal"> at {formatTimeTo12Hour(meeting.meeting_time)}</span>}
+                        {meeting.meeting_time && <span className="text-muted-foreground font-normal"> at {formatTime(meeting.meeting_time, settings)}</span>}
                       </p>
                       <p className="text-xs text-muted-foreground mt-0.5">{meeting.venue}</p>
                     </div>

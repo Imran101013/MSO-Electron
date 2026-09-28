@@ -3,19 +3,32 @@ import { addMonths, format } from "date-fns";
 import { dbQuery } from "@/lib/db";
 import { useToast } from "@/hooks/use-toast";
 import { useSettings } from "@/contexts/SettingsContext";
+import { ORGANIZATION_CONFIG } from "@/config/organization";
+import { loanDueDate, penaltiesDue, type PenaltyInput } from "@/utils/loanPenalty";
 
 export interface DbLoan {
   id: string;
   member_id: string;
   amount: number;
+  /** Everything still owed: principal + profit + late penalties charged, less repayments. */
   remaining_amount: number;
   loan_date: string;
   status: string;
   term_months: number;
   interest_rate: number;
   total_payable: number;
+  penalty_per_month: number;
   created_at: string;
   updated_at: string;
+}
+
+export interface DbLoanPenalty {
+  id: string;
+  loan_id: string;
+  penalty_month: number;
+  charge_date: string;
+  amount: number;
+  created_at: string;
 }
 
 export interface DbLoanInstallment {
@@ -39,13 +52,13 @@ export interface DbLoanScheduleEntry {
 
 export interface LoanWithMember extends DbLoan {
   member_name?: string;
+  penalty_total: number;
 }
 
 export interface LoanFormData {
   member_id: string;
   amount: number;
   loan_date: string;
-  term_months: number;
 }
 
 export interface InstallmentFormData {
@@ -61,21 +74,108 @@ export function parseLocalDate(dateStr: string): Date {
   return new Date(y, m - 1, d);
 }
 
+const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+const todayKey = () => format(new Date(), "yyyy-MM-dd");
+
+// A loan with its charged penalties and payments, read in one statement so a concurrent
+// payment or penalty sync is never half-seen.
+interface PenaltySnapshot {
+  id: string;
+  loan_date: string;
+  total_payable: number;
+  remaining_amount: number;
+  penalty_per_month: number;
+  penalties: { month: number; amount: number }[];
+  payments: { date: string; amount: number }[];
+}
+
+const SNAPSHOT_SQL = `SELECT l.id, l.loan_date, l.total_payable, l.remaining_amount, l.penalty_per_month,
+  COALESCE((SELECT json_agg(json_build_object('month', p.penalty_month, 'amount', p.amount)) FROM public.loan_penalties p WHERE p.loan_id = l.id), '[]') AS penalties,
+  COALESCE((SELECT json_agg(json_build_object('date', i.payment_date, 'amount', i.amount)) FROM public.loan_installments i WHERE i.loan_id = l.id), '[]') AS payments
+  FROM public.loans l`;
+
+function penaltyInput(s: PenaltySnapshot): PenaltyInput {
+  const charged = s.penalties.reduce((sum, p) => sum + Number(p.amount), 0);
+  const itemised = s.payments.reduce((sum, p) => sum + Number(p.amount), 0);
+  const paidEver = Number(s.total_payable) + charged - Number(s.remaining_amount);
+  return {
+    loanDate: s.loan_date,
+    totalPayable: Number(s.total_payable),
+    penaltyPerMonth: Number(s.penalty_per_month),
+    paidUndated: Math.max(0, r2(paidEver - itemised)),
+    payments: s.payments,
+  };
+}
+
+// Brings stored late penalties in line with penaltiesDue() for every unpaid loan (or just one).
+// Charges are added as months pass and removed if a back-dated payment means they no longer
+// apply. Each loan is updated in one statement that changes the charges and remaining_amount
+// together, and only if remaining_amount still matches what was read, so two screens syncing
+// at once can't apply a charge twice.
+export async function syncLoanPenalties(loanId?: string) {
+  try {
+    const today = todayKey();
+    const snapshots = await dbQuery<PenaltySnapshot>(
+      loanId ? `${SNAPSHOT_SQL} WHERE l.id = $1` : `${SNAPSHOT_SQL} WHERE l.status <> 'paid'`,
+      loanId ? [loanId] : []
+    );
+    for (const s of snapshots) {
+      const expected = penaltiesDue(penaltyInput(s), today);
+      const charged = new Set(s.penalties.map((p) => p.month));
+      const missing = expected.filter((c) => !charged.has(c.month));
+      const hasExtra = s.penalties.some((p) => p.month > expected.length);
+      if (!missing.length && !hasExtra) continue;
+      await dbQuery(
+        `WITH cur AS (SELECT 1 FROM public.loans WHERE id = $1 AND remaining_amount = $2),
+         del AS (
+           DELETE FROM public.loan_penalties
+           WHERE loan_id = $1 AND penalty_month > $3 AND EXISTS (SELECT 1 FROM cur)
+           RETURNING -amount AS change
+         ),
+         ins AS (
+           INSERT INTO public.loan_penalties (loan_id, penalty_month, charge_date, amount)
+           SELECT $1, t.month, t.charge_date, t.amount
+           FROM unnest($4::int[], $5::date[], $6::numeric[]) AS t(month, charge_date, amount)
+           WHERE EXISTS (SELECT 1 FROM cur)
+           ON CONFLICT (loan_id, penalty_month) DO NOTHING
+           RETURNING amount AS change
+         ),
+         delta AS (SELECT COALESCE(SUM(change), 0) AS change FROM (SELECT change FROM del UNION ALL SELECT change FROM ins) c)
+         UPDATE public.loans l
+         SET remaining_amount = l.remaining_amount + delta.change,
+             status = CASE WHEN l.remaining_amount + delta.change <= 0.005 THEN 'paid' ELSE l.status END
+         FROM delta WHERE l.id = $1 AND delta.change <> 0`,
+        [s.id, s.remaining_amount, expected.length, missing.map((c) => c.month), missing.map((c) => c.chargeDate), missing.map((c) => c.amount)]
+      );
+    }
+  } catch (err) {
+    console.error("Error updating loan penalties:", err);
+  }
+}
+
 export function useLoans() {
   const [loans, setLoans] = useState<LoanWithMember[]>([]);
   const [installments, setInstallments] = useState<DbLoanInstallment[]>([]);
   const [schedule, setSchedule] = useState<DbLoanScheduleEntry[]>([]);
+  const [penalties, setPenalties] = useState<DbLoanPenalty[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
   const { settings } = useSettings();
 
   const fetchLoans = async () => {
     setIsLoading(true);
+    await syncLoanPenalties();
     try {
-      const data = await dbQuery<LoanWithMember>(
-        'SELECT l.*, m.name as member_name FROM public.loans l LEFT JOIN public.members m ON m.id = l.member_id ORDER BY l.created_at DESC'
-      );
+      const [data, penaltyRows] = await Promise.all([
+        dbQuery<LoanWithMember>(
+          `SELECT l.*, m.name as member_name,
+             COALESCE((SELECT SUM(p.amount) FROM public.loan_penalties p WHERE p.loan_id = l.id), 0) AS penalty_total
+           FROM public.loans l LEFT JOIN public.members m ON m.id = l.member_id ORDER BY l.created_at DESC`
+        ),
+        dbQuery<DbLoanPenalty>('SELECT * FROM public.loan_penalties ORDER BY loan_id, penalty_month'),
+      ]);
       setLoans(data);
+      setPenalties(penaltyRows);
     } catch (err: any) {
       toast({ title: "Error", description: "Failed to load loans", variant: "destructive" });
     }
@@ -112,13 +212,16 @@ export function useLoans() {
 
   const issueLoan = async (formData: LoanFormData) => {
     try {
-      const termMonths = Math.max(1, Math.round(formData.term_months || 1));
+      // Every loan runs for the full loan period. The schedule below is a monthly plan for members
+      // who repay in instalments; a lump sum any time before the due date is equally fine.
+      const termMonths = ORGANIZATION_CONFIG.LOAN_PERIOD_MONTHS;
       const rate = settings.applyLoanInterest ? settings.loanInterestRate : 0;
       const totalPayable = Math.round(formData.amount * (1 + rate / 100) * 100) / 100;
+      const penaltyPerMonth = Math.max(0, Number(settings.latePenaltyPerMonth) || 0);
 
       const rows = await dbQuery<DbLoan>(
-        'INSERT INTO public.loans (member_id, amount, remaining_amount, loan_date, status, term_months, interest_rate, total_payable) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *',
-        [formData.member_id, formData.amount, totalPayable, formData.loan_date, 'active', termMonths, rate, totalPayable]
+        'INSERT INTO public.loans (member_id, amount, remaining_amount, loan_date, status, term_months, interest_rate, total_payable, penalty_per_month) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *',
+        [formData.member_id, formData.amount, totalPayable, formData.loan_date, 'active', termMonths, rate, totalPayable, penaltyPerMonth]
       );
       const loan = rows[0];
 
@@ -137,7 +240,7 @@ export function useLoans() {
         }
       }
 
-      toast({ title: "Loan Issued", description: `Loan of PKR ${formData.amount.toLocaleString()} has been issued.` });
+      toast({ title: "Loan Issued", description: `Loan of ${settings.currency} ${formData.amount.toLocaleString()} has been issued.` });
       await fetchLoans();
       await fetchSchedule();
       return loan;
@@ -149,10 +252,21 @@ export function useLoans() {
 
   const recordPayment = async (formData: InstallmentFormData) => {
     try {
-      const loanRows = await dbQuery<DbLoan>('SELECT remaining_amount FROM public.loans WHERE id=$1', [formData.loan_id]);
-      const loan = loanRows[0];
-      if (!loan) { toast({ title: "Error", description: "Loan not found", variant: "destructive" }); return false; }
-      if (formData.amount > loan.remaining_amount) { toast({ title: "Error", description: "Payment exceeds remaining balance", variant: "destructive" }); return false; }
+      const [snapshot] = await dbQuery<PenaltySnapshot>(`${SNAPSHOT_SQL} WHERE l.id = $1`, [formData.loan_id]);
+      if (!snapshot) { toast({ title: "Error", description: "Loan not found", variant: "destructive" }); return false; }
+      // A payment dated before a penalty was charged can cancel that penalty, so check it against
+      // what is owed once penalties are recalculated with this payment included.
+      const input = penaltyInput(snapshot);
+      const chargedNow = snapshot.penalties.reduce((s, p) => s + Number(p.amount), 0);
+      const chargedAfter = penaltiesDue(
+        { ...input, payments: [...input.payments, { date: formData.payment_date, amount: formData.amount }] },
+        todayKey()
+      ).reduce((s, c) => s + c.amount, 0);
+      const owed = r2(Number(snapshot.remaining_amount) - chargedNow + chargedAfter);
+      if (formData.amount > owed + 0.005) {
+        toast({ title: "Error", description: `Payment exceeds the balance owed (${settings.currency} ${owed.toLocaleString()})`, variant: "destructive" });
+        return false;
+      }
 
       await dbQuery('INSERT INTO public.loan_installments (loan_id, amount, payment_date) VALUES ($1,$2,$3)', [formData.loan_id, formData.amount, formData.payment_date]);
 
@@ -172,11 +286,14 @@ export function useLoans() {
         remainingPayment -= applied;
       }
 
-      const newRemaining = loan.remaining_amount - formData.amount;
-      const newStatus = newRemaining <= 0 ? 'paid' : 'active';
-      await dbQuery('UPDATE public.loans SET remaining_amount=$1, status=$2 WHERE id=$3', [newRemaining, newStatus, formData.loan_id]);
+      // Anything left after the schedule is covered pays off late penalties.
+      await dbQuery(
+        "UPDATE public.loans SET remaining_amount = remaining_amount - $1, status = CASE WHEN remaining_amount - $1 <= 0.005 THEN 'paid' ELSE 'active' END WHERE id = $2",
+        [formData.amount, formData.loan_id]
+      );
+      await syncLoanPenalties(formData.loan_id);
 
-      toast({ title: "Payment Recorded", description: `Payment of PKR ${formData.amount.toLocaleString()} has been recorded.` });
+      toast({ title: "Payment Recorded", description: `Payment of ${settings.currency} ${formData.amount.toLocaleString()} has been recorded.` });
       await fetchLoans();
       await fetchInstallments(formData.loan_id);
       await fetchSchedule();
@@ -207,17 +324,16 @@ export function useLoans() {
 
   const getActiveLoans = () => loans.filter(l => l.status === 'active');
 
+  // A loan is overdue only once its one-year period has ended with money still owed. Missed
+  // monthly instalments within the year don't count: the member may repay as a lump sum instead.
+  const isOverdue = (loan: DbLoan) =>
+    loan.status === 'active' && Number(loan.remaining_amount) > 0.005 && loanDueDate(loan.loan_date) < todayKey();
+
   const getOverdueStats = () => {
-    const todayStr = format(new Date(), "yyyy-MM-dd");
-    const activeIds = new Set(loans.filter(l => l.status === 'active').map(l => l.id));
-    const overdueRows = schedule.filter(s =>
-      s.status === 'pending' && s.due_date < todayStr && activeIds.has(s.loan_id)
-    );
-    const overdueLoanIds = new Set(overdueRows.map(s => s.loan_id));
+    const overdue = loans.filter(isOverdue);
     return {
-      overdueCount: overdueLoanIds.size,
-      overdueAmount: overdueRows.reduce((sum, s) => sum + (Number(s.due_amount) - Number(s.paid_amount)), 0),
-      overdueLoanIds,
+      overdueCount: overdue.length,
+      overdueAmount: r2(overdue.reduce((sum, l) => sum + Number(l.remaining_amount), 0)),
     };
   };
 
@@ -234,7 +350,7 @@ export function useLoans() {
     return {
       totalOutstanding: activeLoans.reduce((s, l) => s + Number(l.remaining_amount), 0),
       totalIssued: loans.reduce((s, l) => s + Number(l.amount), 0),
-      totalRecovered: loans.reduce((s, l) => s + (Number(l.amount) - Number(l.remaining_amount)), 0),
+      totalRecovered: r2(loans.reduce((s, l) => s + (Number(l.total_payable) + Number(l.penalty_total) - Number(l.remaining_amount)), 0)),
       activeLoansCount: activeLoans.length,
       membersWithLoans: new Set(activeLoans.map(l => l.member_id)).size,
       overdueCount: overdue.overdueCount,
@@ -245,9 +361,9 @@ export function useLoans() {
   useEffect(() => { fetchLoans(); fetchInstallments(); fetchSchedule(); }, []);
 
   return {
-    loans, installments, schedule, isLoading,
+    loans, installments, schedule, penalties, isLoading,
     fetchLoans, fetchInstallments, fetchSchedule,
     issueLoan, recordPayment, markDefaulted,
-    getLoansByMember, getActiveLoans, getLoanStats, getNextDueDate,
+    getLoansByMember, getActiveLoans, getLoanStats, getNextDueDate, isOverdue,
   };
 }

@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode, useEffect } from "react";
+import { createContext, useContext, useState, ReactNode, useEffect, useRef } from "react";
 import { ORGANIZATION_CONFIG, LoanStatus } from "@/config/organization";
 import { useSettings } from "./SettingsContext";
 import { useMembers, DbMember } from "@/hooks/useMembers";
@@ -38,19 +38,29 @@ export interface LoanScheduleEntry {
   status: "pending" | "paid";
 }
 
+export interface LoanPenalty {
+  month: number;
+  chargeDate: string;
+  amount: number;
+}
+
 export interface Loan {
   id: number;
   dbId: string;
   amount: number;
   date: string;
   status: LoanStatus;
+  /** Includes late penalties charged. */
   remainingAmount: number;
   installments: LoanInstallment[];
   // Terms as recorded on the loan when it was issued (not the current global setting)
   interestRate: number;
   totalPayable: number;
   termMonths: number;
+  penaltyPerMonth: number;
   schedule: LoanScheduleEntry[];
+  /** Late penalties charged after the loan period ended, oldest first. */
+  penalties: LoanPenalty[];
 }
 
 export interface MeetingContribution {
@@ -211,12 +221,25 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
 
   // Load data from Postgres via the Electron IPC bridge
   const { members: dbMembers, fetchMembers: refetchMembers } = useMembers();
-  const { loans: dbLoans, installments: dbInstallments, schedule: dbSchedule, fetchLoans, fetchInstallments, fetchSchedule } = useLoans();
+  const { loans: dbLoans, installments: dbInstallments, schedule: dbSchedule, penalties: dbPenalties, fetchLoans, fetchInstallments, fetchSchedule } = useLoans();
   const { contributions: dbContributions, fetchContributions: refetchContributions } = useContributions();
   const { attendance: dbAttendance, fetchAttendance } = useAttendance();
   const { meetings: dbMeetings, upcomingMeetings: dbUpcomingMeetings, fetchMeetings } = useMeetings();
   const { transactions: dbReserveTransactions, addTransaction: dbAddReserveTransaction, fetchTransactions } = useReserveTransactions();
   const { distributions: dbDistributions, allocations: dbAllocations, recordDistribution, fetchDistributions } = useProfitDistributions();
+
+  // Resolves pending refreshData() calls. The reloaded rows reach state on one render and are
+  // turned into members/meetings/etc. by the effects below, which set state again — so waiting
+  // for a render after the rows land (refreshSettled) means the derived state is current too.
+  const [refreshRequest, setRefreshRequest] = useState(0);
+  const [refreshSettled, setRefreshSettled] = useState(0);
+  const refreshWaiters = useRef<Array<() => void>>([]);
+  useEffect(() => {
+    if (refreshRequest) setRefreshSettled(refreshRequest);
+  }, [refreshRequest]);
+  useEffect(() => {
+    refreshWaiters.current.splice(0).forEach((resolve) => resolve());
+  }, [refreshSettled]);
 
   // These hook instances load once when the provider mounts, while other pages write through
   // their own instances — reports call this first so they are built from current records.
@@ -232,6 +255,10 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       fetchTransactions(),
       fetchDistributions(),
     ]);
+    await new Promise<void>((resolve) => {
+      refreshWaiters.current.push(resolve);
+      setRefreshRequest((n) => n + 1);
+    });
   };
 
   // Transform database data to context format
@@ -272,7 +299,11 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
               interestRate: Number(loan.interest_rate) || 0,
               totalPayable: Number(loan.total_payable) || loan.amount,
               termMonths: loan.term_months || 1,
+              penaltyPerMonth: Number(loan.penalty_per_month) || 0,
               schedule: loanSchedule,
+              penalties: dbPenalties
+                .filter((p) => p.loan_id === loan.id)
+                .map((p) => ({ month: p.penalty_month, chargeDate: p.charge_date, amount: Number(p.amount) })),
             };
           });
 
@@ -317,7 +348,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
 
       setMembers(transformedMembers);
     }
-  }, [dbMembers, dbLoans, dbInstallments, dbSchedule, dbContributions, dbAttendance]);
+  }, [dbMembers, dbLoans, dbInstallments, dbSchedule, dbPenalties, dbContributions, dbAttendance]);
 
   // Transform meetings data
   useEffect(() => {
@@ -427,7 +458,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   }, 0);
 
   // Reserve transactions (donations/expenses) - computed before totals so budget includes them.
-  // "profit_allocation" rows (the reserve's 10% cut from a profit distribution) count as
+  // "profit_allocation" rows (the reserve's cut from a profit distribution) count as
   // money coming into the reserve, same as a donation.
   const transactionDonations = reserveTransactions
     .filter((t) => t.type === "donation" || t.type === "profit_allocation")
@@ -632,8 +663,10 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       installments: [],
       interestRate: effectiveInterestRate,
       totalPayable: loanWithInterest,
-      termMonths: ORGANIZATION_CONFIG.DEFAULT_LOAN_TERM_MONTHS,
+      termMonths: ORGANIZATION_CONFIG.LOAN_PERIOD_MONTHS,
+      penaltyPerMonth: settings.latePenaltyPerMonth,
       schedule: [],
+      penalties: [],
     };
 
     const updatedMembers = members.map((m) =>
@@ -712,8 +745,10 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       installments: [],
       interestRate: 0,
       totalPayable: Math.max(amount, remainingAmount),
-      termMonths: ORGANIZATION_CONFIG.DEFAULT_LOAN_TERM_MONTHS,
+      termMonths: ORGANIZATION_CONFIG.LOAN_PERIOD_MONTHS,
+      penaltyPerMonth: settings.latePenaltyPerMonth,
       schedule: [],
+      penalties: [],
     };
 
     const updatedMembers = members.map((m) =>
@@ -776,11 +811,11 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     const budgetRatios = calculateBudgetRatios();
     if (budgetRatios.length === 0) return false;
 
-    // Calculate reserve allocation (10%)
-    const reserveAllocation = totalProfit * 0.1;
-
-    // Calculate member allocations (90% distributed by budget ratio)
-    const distributableAmount = totalProfit * 0.9;
+    // The reserve fund takes its share (Settings → Reserve fund share of profit); members share
+    // the rest by budget ratio.
+    const reserveShare = Math.min(100, Math.max(0, settings.reserveSharePercent)) / 100;
+    const reserveAllocation = Math.round(totalProfit * reserveShare * 100) / 100;
+    const distributableAmount = totalProfit - reserveAllocation;
     const memberAllocations = budgetRatios.map((ratio) => ({
       memberId: ratio.memberId,
       amount: Math.round(distributableAmount * ratio.ratio * 100) / 100, // Round to 2 decimal places

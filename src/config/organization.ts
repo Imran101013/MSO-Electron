@@ -1,14 +1,16 @@
 export const ORGANIZATION_CONFIG = {
   // Finance settings
   LOAN_INTEREST_RATE: 10, // Loan interest rate in percentage
+  RESERVE_SHARE_PERCENT: 10, // Share of each profit distribution credited to the reserve fund
 
   // Pagination settings
   MEMBERS_PER_PAGE: 5,
 
-  // Validation rules
+  // Remind the admin to back up once the last backup is this many days old (0 = never).
+  BACKUP_REMINDER_DAYS: 7,
+
+  // Validation rules (fixed; not user settings)
   MINIMUM_NAME_LENGTH: 2,
-  MINIMUM_PHONE_LENGTH: 10,
-  MINIMUM_ADDRESS_LENGTH: 5,
 
   // Phone number validation patterns
   PHONE_PATTERNS: {
@@ -40,8 +42,11 @@ export const ORGANIZATION_CONFIG = {
     DEFAULTED: "Defaulted",
   } as const,
 
-  // Loan repayment schedule
-  DEFAULT_LOAN_TERM_MONTHS: 1,
+  // Loans run for a fixed period and may be repaid in monthly instalments or as a lump sum
+  // at any point within it.
+  LOAN_PERIOD_MONTHS: 12,
+  // Charged for each full month a loan is still unpaid after its period ends (see utils/loanPenalty.ts).
+  LATE_PENALTY_PER_MONTH: 500,
 } as const;
 
 export type LoanStatus =

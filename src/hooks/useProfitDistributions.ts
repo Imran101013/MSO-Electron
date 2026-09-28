@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { dbQuery } from "@/lib/db";
 import { useToast } from "@/hooks/use-toast";
+import { useSettings } from "@/contexts/SettingsContext";
 
 export interface DbProfitDistribution {
   id: string;
@@ -30,6 +31,7 @@ export function useProfitDistributions() {
   const [allocations, setAllocations] = useState<DbProfitAllocation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+  const { settings } = useSettings();
 
   const fetchDistributions = async () => {
     setIsLoading(true);
@@ -90,14 +92,14 @@ export function useProfitDistributions() {
           'profit_allocation',
           reserveAllocation,
           'Yearly Profit Distribution',
-          `10% allocation from yearly profit of PKR ${totalProfit.toLocaleString()}`,
+          `${totalProfit > 0 ? Math.round((reserveAllocation / totalProfit) * 10000) / 100 : 0}% allocation from yearly profit of ${settings.currency} ${totalProfit.toLocaleString()}`,
           distributionDate,
         ]
       );
 
       toast({
         title: "Profit Distributed",
-        description: `PKR ${totalProfit.toLocaleString()} distributed across ${memberAllocations.length} member(s).`,
+        description: `${settings.currency} ${totalProfit.toLocaleString()} distributed across ${memberAllocations.length} member(s).`,
       });
       await fetchDistributions();
       return distribution;

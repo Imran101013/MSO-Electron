@@ -12,6 +12,7 @@ import { useSettings } from "@/contexts/SettingsContext";
 import { dbQuery } from "@/lib/db";
 import { cn } from "@/lib/utils";
 import { parseLocalDate } from "@/hooks/useLoans";
+import ViewReportButton from "@/components/ViewReportButton";
 import { supabase } from "@/integrations/supabase/client";
 import { ageFrom, durationSince, formatMemberSummary, getMemberRecord, type LoanState, type MemberRecord } from "@/utils/memberRecord";
 
@@ -29,7 +30,7 @@ interface MemberDetailsDialogProps {
   onChanged?: () => void;
 }
 
-/** Member Details: profile, account summary, savings account, loans and attendance. */
+/** Member Details: profile, account summary, savings account (with meeting attendance) and loans. */
 export default function MemberDetailsDialog({ memberId, open, onOpenChange, onChanged }: MemberDetailsDialogProps) {
   const { isAdmin } = useAuth();
   const { settings } = useSettings();
@@ -139,6 +140,7 @@ export default function MemberDetailsDialog({ memberId, open, onOpenChange, onCh
                 </div>
                 {isAdmin && (
                   <div className="flex flex-col gap-2 flex-shrink-0">
+                    <ViewReportButton request={{ kind: "member-statement", memberId: record.member.id }} label="Account statement" className="h-8 justify-start" />
                     <Button variant="outline" size="sm" className="gap-2 h-8 rounded-sm justify-start" onClick={sendSummary} disabled={sharing}>
                       {sharing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <MessageCircle className="w-3.5 h-3.5" />} WhatsApp summary
                     </Button>
@@ -200,10 +202,9 @@ export default function MemberDetailsDialog({ memberId, open, onOpenChange, onCh
 
               {/* Records */}
               <Tabs defaultValue="savings">
-                <TabsList className="grid w-full grid-cols-3 rounded-sm">
+                <TabsList className="grid w-full grid-cols-2 rounded-sm">
                   <TabsTrigger value="savings" className="rounded-sm">Savings account ({record.savings.length})</TabsTrigger>
                   <TabsTrigger value="loans" className="rounded-sm">Loans ({record.loans.length})</TabsTrigger>
-                  <TabsTrigger value="attendance" className="rounded-sm">Attendance ({record.attendance.length})</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="savings" className="mt-3">
@@ -244,21 +245,22 @@ export default function MemberDetailsDialog({ memberId, open, onOpenChange, onCh
                     <Empty>No loans taken.</Empty>
                   ) : (
                     record.loans.map((l) => {
-                      const progress = l.totalPayable > 0 ? Math.min(100, (l.repaid / l.totalPayable) * 100) : 0;
+                      const owedInAll = l.totalPayable + l.penaltyTotal;
+                      const progress = owedInAll > 0 ? Math.min(100, (l.repaid / owedInAll) * 100) : 0;
                       return (
                         <div key={l.id} className="rounded-sm border border-border/60 overflow-hidden">
                           <div className="flex items-center justify-between gap-3 px-4 py-3 bg-muted/40">
                             <div>
                               <p className="text-sm font-semibold text-foreground">Loan of {money(l.principal)}</p>
                               <p className="figure text-xs text-muted-foreground">
-                                Issued {day(l.date)} · {l.termMonths} month{l.termMonths === 1 ? "" : "s"} · {l.interestRate}% interest
+                                Issued {day(l.date)} · due by {day(l.dueDate)} · {l.interestRate}% interest
                               </p>
                             </div>
                             <StateBadge state={l.state} />
                           </div>
                           <div className="px-4 py-3 space-y-3">
                             <div className="grid grid-cols-3 gap-3">
-                              <Figure label="Total payable" value={money(l.totalPayable)} />
+                              <Figure label={l.penaltyTotal > 0 ? "Payable + penalty" : "Total payable"} value={money(owedInAll)} />
                               <Figure label="Repaid" value={money(l.repaid)} tone="good" />
                               <Figure label="Remaining" value={money(l.remaining)} tone={l.remaining > 0 ? "bad" : undefined} />
                             </div>
@@ -270,11 +272,12 @@ export default function MemberDetailsDialog({ memberId, open, onOpenChange, onCh
                             </div>
                             {l.state === "Overdue" && (
                               <p className="text-xs font-semibold text-destructive">
-                                Overdue: {money(l.arrears)} · {l.daysOverdue} day{l.daysOverdue === 1 ? "" : "s"} past due
+                                Overdue: {money(l.arrears)} · {l.daysOverdue} day{l.daysOverdue === 1 ? "" : "s"} past the due date
+                                {l.penaltyTotal > 0 && <> · incl. {money(l.penaltyTotal)} late penalty</>}
                               </p>
                             )}
                             {l.nextDue && (
-                              <p className="figure text-xs text-foreground">Next instalment: {day(l.nextDue.date)} · {money(l.nextDue.amount)}</p>
+                              <p className="figure text-xs text-foreground">{l.nextDue.date === l.dueDate ? "Due" : "Next instalment"}: {day(l.nextDue.date)} · {money(l.nextDue.amount)}</p>
                             )}
                             <div>
                               <p className="text-xs font-semibold text-muted-foreground mb-1.5">Repayments</p>
@@ -294,29 +297,6 @@ export default function MemberDetailsDialog({ memberId, open, onOpenChange, onCh
                         </div>
                       );
                     })
-                  )}
-                </TabsContent>
-
-                <TabsContent value="attendance" className="mt-3">
-                  {record.attendance.length === 0 ? (
-                    <Empty>No meetings held since this member joined.</Empty>
-                  ) : (
-                    <div className="rounded-sm border border-border/60 overflow-hidden">
-                      <div className="px-4 py-2.5 bg-muted/40 text-xs text-muted-foreground">
-                        {record.recordedMeetings
-                          ? `Present at ${record.attended} of ${record.recordedMeetings} recorded meetings (${Math.round((record.attended / record.recordedMeetings) * 100)}%)`
-                          : "Attendance has not been recorded for these meetings."}
-                      </div>
-                      <div className="divide-y divide-border/60">
-                        {record.attendance.map((a) => (
-                          <div key={a.meetingId} className="flex items-center gap-4 px-4 py-2.5 hover:bg-muted/30 transition-colors">
-                            <span className="figure text-sm w-24 flex-shrink-0">{day(a.date)}</span>
-                            <span className="text-sm text-muted-foreground truncate flex-1">{a.agenda}</span>
-                            {a.present === null ? <span className="text-xs text-muted-foreground">Not recorded</span> : <PresenceBadge present={a.present} />}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
                   )}
                 </TabsContent>
               </Tabs>

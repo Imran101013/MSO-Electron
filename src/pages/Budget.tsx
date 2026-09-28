@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { DollarSign, Building2, HandCoins, BarChart3, ChevronLeft, ChevronRight } from "lucide-react";
 import { useMemo, useState, useEffect } from "react";
 import StatCard from "@/components/StatCard";
+import ViewReportButton from "@/components/ViewReportButton";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import {
@@ -15,8 +16,6 @@ import { useMeetings } from "@/hooks/useMeetings";
 import { useLoans } from "@/hooks/useLoans";
 import { onMeetingSaved } from "@/lib/events";
 import { useLocation } from "react-router-dom";
-
-const MEMBERS_PER_PAGE = 7;
 
 export default function Budget() {
   const { members, isLoading: membersLoading } = useMembers();
@@ -64,13 +63,14 @@ export default function Budget() {
     [latestMeetingContributions]
   );
 
-  const totalPages = Math.max(1, Math.ceil(latestMeetingContributions.length / MEMBERS_PER_PAGE));
+  const pageSize = Math.max(1, settings.itemsPerPage || 10);
+  const totalPages = Math.max(1, Math.ceil(latestMeetingContributions.length / pageSize));
   const paginatedContributions = useMemo(
-    () => latestMeetingContributions.slice((currentPage - 1) * MEMBERS_PER_PAGE, currentPage * MEMBERS_PER_PAGE),
-    [latestMeetingContributions, currentPage]
+    () => latestMeetingContributions.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [latestMeetingContributions, currentPage, pageSize]
   );
 
-  useEffect(() => { setCurrentPage(1); }, [latestMeeting?.id]);
+  useEffect(() => { setCurrentPage(1); }, [latestMeeting?.id, pageSize]);
 
   // Loan installments have no meeting_id, only a payment date — members pay both their
   // contribution and any loan installment on meeting day, so same-date installments are
@@ -107,6 +107,7 @@ export default function Budget() {
           <h2 className="text-2xl font-bold text-foreground mt-1">Monthly Budget</h2>
           <p className="text-sm text-muted-foreground mt-0.5">The fund's running total and the latest meeting's collection</p>
         </div>
+        <ViewReportButton request={{ kind: "contribution-register" }} label="Contribution Register" size="default" />
       </div>
 
       {/* Stat cards */}

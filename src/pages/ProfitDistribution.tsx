@@ -9,6 +9,7 @@ import { format } from "date-fns";
 import { DollarSign, PieChart, Users, PiggyBank, Loader2, AlertTriangle, History, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
 import StatCard from "@/components/StatCard";
+import ViewReportButton from "@/components/ViewReportButton";
 
 export default function ProfitDistribution() {
   const [profitAmount, setProfitAmount] = useState<string>("");
@@ -19,8 +20,10 @@ export default function ProfitDistribution() {
 
   const budgetRatios = calculateBudgetRatios();
   const totalProfit = parseFloat(profitAmount) || 0;
-  const reserveAllocation = totalProfit * 0.1;
-  const distributableAmount = totalProfit * 0.9;
+  const reserveShare = Math.min(100, Math.max(0, settings.reserveSharePercent));
+  const reserveAllocation = Math.round(totalProfit * reserveShare) / 100;
+  const distributableAmount = totalProfit - reserveAllocation;
+  const pct = (n: number) => `${Math.round(n * 100) / 100}%`;
 
   // Latest completed distribution (most recent by date)
   const latestDist = profitDistributions.length > 0
@@ -31,6 +34,8 @@ export default function ProfitDistribution() {
   const cardProfit = totalProfit > 0 ? totalProfit : latestDist?.totalProfit ?? 0;
   const cardReserve = totalProfit > 0 ? reserveAllocation : latestDist?.reserveAllocation ?? 0;
   const cardMembers = totalProfit > 0 ? distributableAmount : latestDist ? latestDist.totalProfit - latestDist.reserveAllocation : 0;
+  // The last distribution keeps the share it was made with, which may differ from today's setting.
+  const lastShare = latestDist && latestDist.totalProfit > 0 ? (latestDist.reserveAllocation / latestDist.totalProfit) * 100 : reserveShare;
   const hasCardData = cardProfit > 0;
 
   const memberAllocations = budgetRatios.map((ratio) => ({
@@ -67,6 +72,12 @@ export default function ProfitDistribution() {
           <h2 className="text-2xl font-bold text-foreground mt-1">Profit Distribution</h2>
           <p className="text-sm text-muted-foreground mt-0.5">Distribute yearly profits to members and reserve fund</p>
         </div>
+        <ViewReportButton
+          request={{ kind: "profit-distribution", distributionId: latestDist?.id }}
+          label="Latest Distribution Statement"
+          size="default"
+          disabled={!latestDist}
+        />
       </div>
 
       {/* Input + Summary row */}
@@ -122,13 +133,13 @@ export default function ProfitDistribution() {
           />
           <StatCard
             icon={PiggyBank}
-            title={totalProfit > 0 ? "Reserve Fund (10%)" : latestDist ? "Last Reserve (10%)" : "Reserve Fund (10%)"}
+            title={totalProfit > 0 ? `Reserve Fund (${pct(reserveShare)})` : latestDist ? `Last Reserve (${pct(lastShare)})` : `Reserve Fund (${pct(reserveShare)})`}
             value={hasCardData ? `${settings.currency} ${cardReserve.toLocaleString()}` : "—"}
             iconColor="border-accent/50 bg-accent/15 text-accent-foreground"
           />
           <StatCard
             icon={Users}
-            title={totalProfit > 0 ? "Members Share (90%)" : latestDist ? "Last Members Share" : "Members Share (90%)"}
+            title={totalProfit > 0 ? `Members Share (${pct(100 - reserveShare)})` : latestDist ? "Last Members Share" : `Members Share (${pct(100 - reserveShare)})`}
             value={hasCardData ? `${settings.currency} ${cardMembers.toLocaleString()}` : "—"}
             iconColor="border-secondary/40 bg-secondary/10 text-secondary"
           />
@@ -273,9 +284,12 @@ export default function ProfitDistribution() {
                     {/* Expanded member allocations */}
                     {isExpanded && (
                       <div className="px-5 pb-4 bg-muted/20">
-                        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-                          Member Allocations
-                        </p>
+                        <div className="flex items-center justify-between gap-3 mb-3">
+                          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                            Member Allocations
+                          </p>
+                          <ViewReportButton request={{ kind: "profit-distribution", distributionId: dist.id }} label="Distribution Statement" />
+                        </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                           {dist.memberAllocations.map((a) => (
                             <div

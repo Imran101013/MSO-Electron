@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { DatePicker } from "@/components/ui/date-picker";
 import StatCard from "@/components/StatCard";
+import ViewReportButton from "@/components/ViewReportButton";
 import { Badge } from "@/components/ui/badge";
 import { useSettings } from "@/contexts/SettingsContext";
 
@@ -79,75 +80,78 @@ export default function Reserve() {
           </div>
         </div>
 
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button className="gap-2 shadow-sm rounded-sm">
-              <Plus className="w-4 h-4" /> Add Transaction
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[480px] flex flex-col max-h-[90vh] p-0 gap-0 overflow-hidden rounded-sm">
-            {/* Header */}
-            <div className="flex items-center gap-4 px-6 py-5 border-b bg-muted/30 flex-shrink-0">
-              <div className="w-10 h-10 rounded-sm border-2 border-primary/40 bg-primary/10 flex items-center justify-center flex-shrink-0">
-                <Plus className="w-5 h-5 text-primary" />
-              </div>
-              <div>
-                <h2 className="text-base font-bold text-foreground">Add Transaction</h2>
-                <p className="text-xs text-muted-foreground">Record a deposit or expense</p>
-              </div>
-            </div>
-
-            <form onSubmit={handleSubmit} className="flex flex-col min-h-0 flex-1">
-              <div className="overflow-y-auto flex-1 px-6 py-5 space-y-4">
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-medium">Transaction Type</Label>
-                  <Select value={formData.type} onValueChange={(v) => setFormData((p) => ({ ...p, type: v }))}>
-                    <SelectTrigger className="h-9"><SelectValue placeholder="Select type" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="donation">Deposit / Donation</SelectItem>
-                      <SelectItem value="expense">Expense</SelectItem>
-                    </SelectContent>
-                  </Select>
+        <div className="flex gap-2">
+          <ViewReportButton request={{ kind: "reserve-ledger" }} label="Reserve Fund Ledger" size="default" />
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button className="gap-2 shadow-sm rounded-sm">
+                <Plus className="w-4 h-4" /> Add Transaction
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[480px] flex flex-col max-h-[90vh] p-0 gap-0 overflow-hidden rounded-sm">
+              {/* Header */}
+              <div className="flex items-center gap-4 px-6 py-5 border-b bg-muted/30 flex-shrink-0">
+                <div className="w-10 h-10 rounded-sm border-2 border-primary/40 bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  <Plus className="w-5 h-5 text-primary" />
                 </div>
-
-                <div className="space-y-1.5">
-                  <Label htmlFor="amount" className="text-xs font-medium">Amount ({settings.currency})</Label>
-                  <Input id="amount" name="amount" type="number" min="0" step="0.01" placeholder="Enter amount" className="h-9"
-                    value={formData.amount} onChange={handleInputChange} required />
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-medium">Date</Label>
-                  <DatePicker
-                    date={formData.date}
-                    onDateChange={(date) => setFormData((p) => ({ ...p, date: date || new Date() }))}
-                    placeholder="Pick a date"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label htmlFor="donorName" className="text-xs font-medium">
-                    {formData.type === "donation" ? "Source" : "Spent At"}
-                  </Label>
-                  <Input id="donorName" name="donorName" className="h-9"
-                    placeholder={formData.type === "donation" ? "Enter source name" : "Enter expense details"}
-                    value={formData.donorName} onChange={handleInputChange} />
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label htmlFor="notes" className="text-xs font-medium">Notes</Label>
-                  <Textarea id="notes" name="notes" placeholder="Add any additional notes"
-                    value={formData.notes} onChange={handleInputChange} rows={3} className="resize-none" />
+                <div>
+                  <h2 className="text-base font-bold text-foreground">Add Transaction</h2>
+                  <p className="text-xs text-muted-foreground">Record a deposit or expense</p>
                 </div>
               </div>
-
-              <div className="flex-shrink-0 flex justify-end gap-3 px-6 py-4 border-t bg-muted/20">
-                <Button type="button" variant="outline" size="sm" onClick={() => setOpen(false)}>Cancel</Button>
-                <Button type="submit" size="sm" disabled={isSubmitting}>{isSubmitting ? "Adding…" : "Add Transaction"}</Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
+  
+              <form onSubmit={handleSubmit} className="flex flex-col min-h-0 flex-1">
+                <div className="overflow-y-auto flex-1 px-6 py-5 space-y-4">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium">Transaction Type</Label>
+                    <Select value={formData.type} onValueChange={(v) => setFormData((p) => ({ ...p, type: v }))}>
+                      <SelectTrigger className="h-9"><SelectValue placeholder="Select type" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="donation">Deposit / Donation</SelectItem>
+                        <SelectItem value="expense">Expense</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+  
+                  <div className="space-y-1.5">
+                    <Label htmlFor="amount" className="text-xs font-medium">Amount ({settings.currency})</Label>
+                    <Input id="amount" name="amount" type="number" min="0" step="0.01" placeholder="Enter amount" className="h-9"
+                      value={formData.amount} onChange={handleInputChange} required />
+                  </div>
+  
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium">Date</Label>
+                    <DatePicker
+                      date={formData.date}
+                      onDateChange={(date) => setFormData((p) => ({ ...p, date: date || new Date() }))}
+                      placeholder="Pick a date"
+                    />
+                  </div>
+  
+                  <div className="space-y-1.5">
+                    <Label htmlFor="donorName" className="text-xs font-medium">
+                      {formData.type === "donation" ? "Source" : "Spent At"}
+                    </Label>
+                    <Input id="donorName" name="donorName" className="h-9"
+                      placeholder={formData.type === "donation" ? "Enter source name" : "Enter expense details"}
+                      value={formData.donorName} onChange={handleInputChange} />
+                  </div>
+  
+                  <div className="space-y-1.5">
+                    <Label htmlFor="notes" className="text-xs font-medium">Notes</Label>
+                    <Textarea id="notes" name="notes" placeholder="Add any additional notes"
+                      value={formData.notes} onChange={handleInputChange} rows={3} className="resize-none" />
+                  </div>
+                </div>
+  
+                <div className="flex-shrink-0 flex justify-end gap-3 px-6 py-4 border-t bg-muted/20">
+                  <Button type="button" variant="outline" size="sm" onClick={() => setOpen(false)}>Cancel</Button>
+                  <Button type="submit" size="sm" disabled={isSubmitting}>{isSubmitting ? "Adding…" : "Add Transaction"}</Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {/* Stat Cards */}

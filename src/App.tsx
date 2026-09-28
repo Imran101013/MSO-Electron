@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
 import { OrganizationProvider } from "./contexts/OrganizationContext";
+import { ReportViewerProvider } from "./contexts/ReportViewerContext";
 import { SettingsProvider } from "./contexts/SettingsContext";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import Layout from "./components/Layout";
@@ -15,7 +16,7 @@ import Budget from "./pages/Budget";
 import Loans from "./pages/Loans";
 import Reserve from "./pages/Reserve";
 import Meetings from "./pages/Meetings";
-import PDFsPage from "./pages/PDFs";
+import ReportsPage from "./pages/Reports";
 import NotFound from "./pages/NotFound";
 import Settings from "./pages/Settings";
 import ProfitDistribution from "./pages/ProfitDistribution";
@@ -109,10 +110,10 @@ const AppRoutes = () => {
               }
             />
             <Route
-              path="/pdfs"
+              path="/reports"
               element={
                 <ProtectedRoute>
-                  <PDFsPage />
+                  <ReportsPage />
                 </ProtectedRoute>
               }
             />
@@ -176,7 +177,9 @@ const App = () => (
           <OrganizationProvider>
             <Toaster />
             <Sonner />
-            <AppRoutes />
+            <ReportViewerProvider>
+              <AppRoutes />
+            </ReportViewerProvider>
           </OrganizationProvider>
         </SettingsProvider>
       </AuthProvider>
