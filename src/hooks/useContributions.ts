@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { dbQuery } from "@/lib/db";
 import { useToast } from "@/hooks/use-toast";
+import { useSettings } from "@/contexts/SettingsContext";
+import { cutoverBlock } from "@/lib/books";
 
 export interface DbContribution {
   id: string;
@@ -9,6 +11,8 @@ export interface DbContribution {
   amount: number;
   contribution_date: string;
   notes: string | null;
+  /** The savings balance brought forward from the paper registers at the cut-over date. */
+  is_opening?: boolean;
   created_at: string;
 }
 
@@ -23,6 +27,7 @@ export function useContributions() {
   const [contributions, setContributions] = useState<DbContribution[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+  const { settings } = useSettings();
 
   const fetchContributions = async () => {
     setIsLoading(true);
@@ -37,6 +42,8 @@ export function useContributions() {
 
   const addContribution = async (formData: ContributionFormData) => {
     try {
+      const block = await cutoverBlock(formData.contribution_date, settings.dateFormat);
+      if (block) { toast({ title: "Date is before the cut-over", description: block, variant: "destructive" }); return null; }
       const rows = await dbQuery<DbContribution>(
         'INSERT INTO public.monthly_contributions (member_id, meeting_id, amount, contribution_date) VALUES ($1,$2,$3,$4) RETURNING *',
         [formData.member_id, formData.meeting_id || null, formData.amount, formData.contribution_date]
@@ -54,6 +61,8 @@ export function useContributions() {
     const records = contributionsList.filter(c => c.amount > 0);
     if (records.length === 0) return true;
     try {
+      const block = await cutoverBlock(date, settings.dateFormat);
+      if (block) { toast({ title: "Date is before the cut-over", description: block, variant: "destructive" }); return false; }
       for (const item of records) {
         await dbQuery(
           'INSERT INTO public.monthly_contributions (member_id, meeting_id, amount, contribution_date) VALUES ($1,$2,$3,$4)',

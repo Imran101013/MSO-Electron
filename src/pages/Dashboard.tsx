@@ -7,18 +7,19 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   Users,
   Wallet,
   HandCoins,
   PiggyBank,
   Calendar,
-  TrendingUp,
-  Clock,
   AlertTriangle,
+  ArrowRight,
 } from "lucide-react";
 import { useSettings } from "@/contexts/SettingsContext";
-import { format, parseISO, isFuture, isToday } from "date-fns";
+import { format, parseISO, isFuture, isToday, differenceInCalendarDays } from "date-fns";
 import { formatTime } from "@/lib/utils";
 import { useMemo } from "react";
 import {
@@ -28,29 +29,48 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
+  type TooltipProps,
 } from "recharts";
 import { useMembers } from "@/hooks/useMembers";
 import { useMeetings } from "@/hooks/useMeetings";
-import { useLoans } from "@/hooks/useLoans";
+import { parseLocalDate, useLoans } from "@/hooks/useLoans";
 import { useContributions } from "@/hooks/useContributions";
 import { useReserveTransactions } from "@/hooks/useReserveTransactions";
+import { useTotalBudget } from "@/hooks/useTotalBudget";
+import { loanDueDate } from "@/utils/loanPenalty";
 import { Link } from "react-router-dom";
+
+const LOAN_ROWS = 5;
+const MEETING_ROWS = 3;
+
+const compact = new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 });
+const localDate = (date: string) => parseLocalDate(String(date).slice(0, 10));
+
+/** Round axis steps (0, 10K, 20K…) instead of whatever evenly divides the tallest bar. */
+function niceTicks(max: number, count = 4) {
+  if (!(max > 0)) return [0];
+  const raw = max / count;
+  const magnitude = 10 ** Math.floor(Math.log10(raw));
+  const step = [1, 2, 2.5, 5, 10].map((m) => m * magnitude).find((s) => s >= raw) ?? raw;
+  return Array.from({ length: Math.ceil(max / step) + 1 }, (_, i) => i * step);
+}
+
+const axisTick = { fontSize: 11, fontFamily: "IBM Plex Mono", fill: "hsl(var(--muted-foreground))" };
 
 export default function Dashboard() {
   const { settings } = useSettings();
   const { members, isLoading: membersLoading } = useMembers();
   const { meetings, upcomingMeetings, isLoading: meetingsLoading } = useMeetings();
-  const { loans, installments, getLoanStats, isLoading: loansLoading } = useLoans();
+  const { loans, installments, getLoanStats, isOverdue, isLoading: loansLoading } = useLoans();
   const { contributions, isLoading: contributionsLoading } = useContributions();
   const { getReserveFundTotal, isLoading: reserveLoading } = useReserveTransactions();
 
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+
   // Get future meetings from both tables
   const allUpcomingMeetings = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
     // Future meetings from meetings table (with agenda)
     const futureMeetings = meetings
       .filter(m => {
@@ -80,17 +100,24 @@ export default function Dashboard() {
     );
   }, [meetings, upcomingMeetings]);
 
+  // Meetings already held, newest first. They fill the card under the upcoming list, so it
+  // shows up to MEETING_ROWS meetings in all (at least one recent one when there is history).
+  const recentMeetings = useMemo(() => {
+    return meetings
+      .filter(m => localDate(m.meeting_date) < todayStart)
+      .sort((a, b) => b.meeting_date.localeCompare(a.meeting_date));
+    // todayStart only changes with the calendar day, which a remount picks up.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [meetings]);
+  const recentToShow = recentMeetings.slice(0, Math.max(1, MEETING_ROWS - allUpcomingMeetings.length));
+
   // Calculate total members
   const totalMembers = useMemo(() => {
     return members.length;
   }, [members]);
 
-  // Each member's total_budget already includes both their monthly contributions and
-  // their ratio share of any past profit distribution, so summing it here — rather than
-  // summing contributions alone — is what actually reflects the organization's total fund.
-  const totalBudget = useMemo(() => {
-    return members.reduce((sum, m) => sum + m.total_budget, 0);
-  }, [members]);
+  // Total Budget: the money in the bank account (see hooks/useTotalBudget.ts).
+  const { totalBudget, isLoading: budgetLoading } = useTotalBudget();
 
   // Calculate active loans (remaining amount)
   const activeLoans = useMemo(() => {
@@ -106,28 +133,36 @@ export default function Dashboard() {
 
   const loanStats = useMemo(() => getLoanStats(), [getLoanStats, loans]);
 
+  // Active loans for the register: overdue ones first, then by the date they fall due.
+  const activeLoanRows = loans
+    .filter(loan => loan.status === "active")
+    .map(loan => ({ ...loan, due: loanDueDate(loan.loan_date), overdue: isOverdue(loan) }))
+    .sort((a, b) => (a.overdue === b.overdue ? a.due.localeCompare(b.due) : a.overdue ? -1 : 1));
+
   // Aggregate budget contributions by month-year
   const budgetData = useMemo(() => {
     const monthlyData: { [key: string]: number } = {};
-    contributions.forEach((contribution) => {
+    // Balances brought forward from the paper registers are not a month's contributions.
+    contributions.filter((c) => !c.is_opening).forEach((contribution) => {
       const date = new Date(contribution.contribution_date);
       const monthKey = format(date, "yyyy-MM");
       monthlyData[monthKey] = (monthlyData[monthKey] || 0) + contribution.amount;
     });
     return Object.entries(monthlyData)
-      .map(([month, budget]) => ({
-        month: format(new Date(month + "-01"), "MMM yyyy"),
+      .map(([key, budget]) => ({
+        key,
+        month: format(new Date(key + "-01"), "MMM yy"),
         budget,
       }))
-      .sort(
-        (a, b) => new Date(a.month).getTime() - new Date(b.month).getTime()
-      );
+      .sort((a, b) => a.key.localeCompare(b.key));
   }, [contributions]);
 
   // Aggregate loan issued by month-year
   const loanIssuedData = useMemo(() => {
     const monthlyData: { [key: string]: number } = {};
-    loans.forEach((loan) => {
+    // Loans brought in from the paper registers were lent before the cut-over; their repayments up
+    // to then are in the registers too, so neither side belongs on the app's monthly trend.
+    loans.filter((loan) => !loan.opening_as_at).forEach((loan) => {
       const date = new Date(loan.loan_date);
       const monthKey = format(date, "yyyy-MM");
       monthlyData[monthKey] = (monthlyData[monthKey] || 0) + loan.amount;
@@ -153,35 +188,46 @@ export default function Dashboard() {
       ...Object.keys(loanRecoveredData),
     ]);
     return Array.from(allMonths)
-      .map((month) => ({
-        month: format(new Date(month + "-01"), "MMM yyyy"),
-        issued: loanIssuedData[month] || 0,
-        recovered: loanRecoveredData[month] || 0,
+      .map((key) => ({
+        key,
+        month: format(new Date(key + "-01"), "MMM yy"),
+        issued: loanIssuedData[key] || 0,
+        recovered: loanRecoveredData[key] || 0,
       }))
-      .sort(
-        (a, b) => new Date(a.month).getTime() - new Date(b.month).getTime()
-      );
+      .sort((a, b) => a.key.localeCompare(b.key));
   }, [loanIssuedData, loanRecoveredData]);
+
+  const budgetTicks = niceTicks(Math.max(0, ...budgetData.map(d => d.budget)));
+  const loansTicks = niceTicks(Math.max(0, ...loansData.map(d => Math.max(d.issued, d.recovered))));
 
   const isLoading = membersLoading || meetingsLoading || loansLoading || contributionsLoading || reserveLoading;
 
   const today = useMemo(() => format(new Date(), "EEEE, dd MMMM yyyy"), []);
+  const cur = (n: number) => `${settings.currency} ${Number(n).toLocaleString()}`;
+
+  const whenLabel = (date: string) => {
+    const days = differenceInCalendarDays(localDate(date), todayStart);
+    return days <= 0 ? "Today" : days === 1 ? "Tomorrow" : `In ${days} days`;
+  };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Page Header — statement letterhead */}
-      <div className="flex items-center justify-between border-b-2 border-primary/40 pb-4">
+      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-1 border-b-2 border-primary/40 pb-3">
         <div>
           <p className="tracked-label text-[10px] font-semibold text-primary uppercase">Daily Statement</p>
           <h2 className="text-2xl font-bold text-foreground mt-1">Dashboard</h2>
-          <p className="text-sm text-muted-foreground mt-0.5">{today} · Mogh Students Organisation</p>
         </div>
+        <p className="text-sm text-muted-foreground sm:text-right">
+          {today}
+          <span className="block text-xs">Mogh Students Organisation</span>
+        </p>
       </div>
 
       <BackupReminder />
 
       {/* Stats Grid — printed summary slips */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)_minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1.3fr)] gap-4">
         <StatCard
           title="Total Members"
           value={isLoading ? "—" : totalMembers.toString()}
@@ -190,12 +236,13 @@ export default function Dashboard() {
         />
         <StatCard
           title="Total Budget"
-          value={isLoading ? "—" : `${settings.currency} ${totalBudget.toLocaleString()}`}
+          value={isLoading || budgetLoading ? "—" : `${settings.currency} ${totalBudget.toLocaleString()}`}
+          note="In the bank account"
           icon={Wallet}
           iconColor="border-secondary/40 bg-secondary/10 text-secondary"
         />
         <StatCard
-          title="Active Loans"
+          title="Loans Outstanding"
           value={isLoading ? "—" : `${settings.currency} ${activeLoans.toLocaleString()}`}
           icon={HandCoins}
           iconColor="border-destructive/40 bg-destructive/10 text-destructive"
@@ -208,110 +255,215 @@ export default function Dashboard() {
         />
         <StatCard
           title="Overdue Loans"
-          value={isLoading ? "—" : `${loanStats.overdueCount} · ${settings.currency} ${loanStats.overdueAmount.toLocaleString()}`}
+          value={isLoading ? "—" : `${loanStats.overdueCount} loan${loanStats.overdueCount === 1 ? "" : "s"} · ${settings.currency} ${loanStats.overdueAmount.toLocaleString()}`}
           icon={AlertTriangle}
           iconColor="border-destructive/40 bg-destructive/10 text-destructive"
         />
       </div>
 
-      {/* Quick Info */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card className="shadow-sm rounded-sm">
-          <CardHeader className="pb-3 border-b border-border">
+      {/* Quick Info — the active loan book beside the meeting calendar */}
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-4">
+        <Card className="shadow-sm rounded-sm flex flex-col">
+          <CardHeader className="flex-row items-center justify-between space-y-0 gap-3 px-5 py-3 border-b border-border">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <div className="w-7 h-7 rounded-sm border-2 border-destructive/40 bg-destructive/10 flex items-center justify-center">
+                <HandCoins className="w-4 h-4 text-destructive" />
+              </div>
+              Active Loans
+              {!loansLoading && activeLoanRows.length > 0 && (
+                <span className="figure text-xs font-normal text-muted-foreground">{activeLoanRows.length}</span>
+              )}
+            </CardTitle>
+            <Link
+              to="/loans"
+              className="flex items-center gap-1 rounded-sm text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+            >
+              View all <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </CardHeader>
+          <CardContent className="p-0 flex-1">
+            {loansLoading ? (
+              <p className="px-5 py-6 text-sm text-muted-foreground">Loading loans…</p>
+            ) : activeLoanRows.length > 0 ? (
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="h-9 px-5">Member</TableHead>
+                    <TableHead className="h-9 px-3">Issued</TableHead>
+                    <TableHead className="h-9 px-3">Due by</TableHead>
+                    <TableHead className="h-9 px-5 text-right">Outstanding</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {activeLoanRows.slice(0, LOAN_ROWS).map((loan) => (
+                    <TableRow key={loan.id}>
+                      <TableCell className="px-3 py-2">
+                        <p className="font-medium text-foreground truncate">{loan.member_name || "Unknown member"}</p>
+                        <p className="figure text-xs text-muted-foreground">{cur(loan.amount)}</p>
+                      </TableCell>
+                      <TableCell className="figure px-3 py-2 text-muted-foreground">
+                        {format(localDate(loan.loan_date), settings.dateFormat)}
+                      </TableCell>
+                      <TableCell className="px-3 py-2">
+                        <span className={`figure ${loan.overdue ? "text-destructive font-semibold" : "text-foreground"}`}>
+                          {format(parseLocalDate(loan.due), settings.dateFormat)}
+                        </span>
+                        {loan.overdue && <Badge variant="destructive" className="ml-2">Overdue</Badge>}
+                      </TableCell>
+                      <TableCell className="px-3 py-2 text-right">
+                        <p className="figure font-semibold text-foreground whitespace-nowrap">{cur(loan.remaining_amount)}</p>
+                        {Number(loan.penalty_total) > 0 && (
+                          <p className="figure text-xs text-muted-foreground whitespace-nowrap">incl. {cur(loan.penalty_total)} penalty</p>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            ) : (
+              <div className="flex items-center gap-3 px-5 py-5">
+                <div className="w-9 h-9 rounded-sm border-2 border-border bg-muted flex items-center justify-center flex-shrink-0">
+                  <HandCoins className="w-4 h-4 text-muted-foreground" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-foreground">No active loans</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    <Link to="/loans" className="text-primary underline underline-offset-4 hover:text-primary/80 transition-colors">
+                      Issue a loan from the Loans page
+                    </Link>
+                  </p>
+                </div>
+              </div>
+            )}
+          </CardContent>
+          {activeLoanRows.length > LOAN_ROWS && (
+            <p className="border-t border-border px-5 py-2.5 text-xs text-muted-foreground">
+              {activeLoanRows.length - LOAN_ROWS} more on the{" "}
+              <Link to="/loans" className="text-primary underline underline-offset-4 hover:text-primary/80">Loans page</Link>
+            </p>
+          )}
+        </Card>
+
+        <Card className="shadow-sm rounded-sm flex flex-col">
+          <CardHeader className="flex-row items-center justify-between space-y-0 gap-3 px-5 py-3 border-b border-border">
             <CardTitle className="flex items-center gap-2 text-base">
               <div className="w-7 h-7 rounded-sm border-2 border-primary/40 bg-primary/10 flex items-center justify-center">
                 <Calendar className="w-4 h-4 text-primary" />
               </div>
-              Upcoming Meetings
+              Meetings
             </CardTitle>
+            <Link
+              to="/meetings"
+              className="flex items-center gap-1 rounded-sm text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+            >
+              View all <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
           </CardHeader>
-          <CardContent className="pt-4">
-            {allUpcomingMeetings.length > 0 ? (
-              <div className="space-y-0 divide-y divide-border">
-                {allUpcomingMeetings.map((meeting) => (
-                  <div key={meeting.id} className="flex items-start gap-3 py-3 first:pt-0 last:pb-0">
-                    <div className="w-8 h-8 rounded-sm border-2 border-primary/30 bg-primary/5 flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <Clock className="w-4 h-4 text-primary" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-sm text-foreground truncate">{meeting.venue || "TBD"}</p>
-                      <p className="figure text-sm font-bold text-primary mt-0.5">
-                        {format(parseISO(meeting.date), settings.dateFormat)}
-                        {meeting.time && ` at ${formatTime(meeting.time, settings.timeFormat)}`}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
+          <CardContent className="p-0">
+            {!meetingsLoading && <p className="px-5 pt-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Upcoming</p>}
+            {meetingsLoading ? (
+              <p className="px-5 py-6 text-sm text-muted-foreground">Loading meetings…</p>
+            ) : allUpcomingMeetings.length > 0 ? (
+              <ul className="divide-y divide-border">
+                {allUpcomingMeetings.slice(0, MEETING_ROWS).map((meeting) => {
+                  const d = localDate(meeting.date);
+                  const when = whenLabel(meeting.date);
+                  return (
+                    <li key={meeting.id} className="flex items-center gap-3 px-5 py-2.5">
+                      <div className="w-10 h-10 rounded-sm border-2 border-primary/30 bg-primary/5 flex flex-col items-center justify-center flex-shrink-0">
+                        <span className="figure text-sm font-semibold leading-none text-foreground">{format(d, "dd")}</span>
+                        <span className="tracked-label mt-0.5 text-[9px] font-semibold uppercase leading-none text-primary">{format(d, "MMM")}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-sm text-foreground truncate">{meeting.venue || "TBD"}</p>
+                        <p className="figure flex flex-wrap gap-x-2 text-xs text-muted-foreground mt-0.5">
+                          <span className="whitespace-nowrap">{format(d, "EEE")} {format(d, settings.dateFormat)}</span>
+                          {meeting.time && <span className="whitespace-nowrap">{formatTime(meeting.time, settings.timeFormat)}</span>}
+                        </p>
+                      </div>
+                      {when === "Today" ? (
+                        <Badge className="flex-shrink-0">Today</Badge>
+                      ) : (
+                        <span className="flex-shrink-0 text-xs text-muted-foreground">{when}</span>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
             ) : (
-              <div className="text-center py-8">
-                <div className="w-12 h-12 rounded-sm border-2 border-border bg-muted flex items-center justify-center mx-auto mb-3">
-                  <Calendar className="w-6 h-6 text-muted-foreground" />
+              <div className="flex items-center gap-3 px-5 py-5">
+                <div className="w-9 h-9 rounded-sm border-2 border-border bg-muted flex items-center justify-center flex-shrink-0">
+                  <Calendar className="w-4 h-4 text-muted-foreground" />
                 </div>
-                <p className="text-sm font-medium text-muted-foreground">No upcoming meetings</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  <Link to="/meetings" className="text-primary underline underline-offset-4 hover:text-primary/80 transition-colors">
-                    Schedule one from the Meetings page
-                  </Link>
-                </p>
+                <div>
+                  <p className="text-sm font-medium text-foreground">No upcoming meetings</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    <Link to="/meetings" className="text-primary underline underline-offset-4 hover:text-primary/80 transition-colors">
+                      Schedule one from the Meetings page
+                    </Link>
+                  </p>
+                </div>
               </div>
             )}
           </CardContent>
-        </Card>
-
-        <Card className="shadow-sm rounded-sm">
-          <CardHeader className="pb-3 border-b border-border">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <div className="w-7 h-7 rounded-sm border-2 border-secondary/40 bg-secondary/10 flex items-center justify-center">
-                <TrendingUp className="w-4 h-4 text-secondary" />
-              </div>
-              Quick Stats
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-4">
-            <div className="divide-y divide-border">
-              {[
-                { label: "Total Members", value: isLoading ? "—" : totalMembers },
-                { label: "Total Budget", value: isLoading ? "—" : `${settings.currency} ${totalBudget.toLocaleString()}` },
-                { label: "Active Loans", value: isLoading ? "—" : `${settings.currency} ${activeLoans.toLocaleString()}` },
-                { label: "Reserve Fund", value: isLoading ? "—" : `${settings.currency} ${reserveFund.toLocaleString()}` },
-              ].map(({ label, value }) => (
-                <div key={label} className="flex justify-between items-center py-2.5 first:pt-0 last:pb-0">
-                  <span className="text-sm text-muted-foreground">{label}</span>
-                  <span className="figure text-sm font-semibold text-foreground">{value}</span>
-                </div>
-              ))}
+          {!meetingsLoading && recentToShow.length > 0 && (
+            <div className="border-t border-border">
+              <p className="px-5 pt-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Recently held</p>
+              <ul className="divide-y divide-border">
+                {recentToShow.map((m) => {
+                  const d = localDate(m.meeting_date);
+                  return (
+                    <li key={m.id} className="flex items-center gap-3 px-5 py-2">
+                      <div className="w-10 h-10 rounded-sm border-2 border-border bg-muted/50 flex flex-col items-center justify-center flex-shrink-0">
+                        <span className="figure text-sm font-semibold leading-none text-muted-foreground">{format(d, "dd")}</span>
+                        <span className="tracked-label mt-0.5 text-[9px] font-semibold uppercase leading-none text-muted-foreground">{format(d, "MMM")}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-foreground truncate" title={m.agenda || undefined}>{m.agenda || "No agenda recorded"}</p>
+                        <p className="figure text-xs text-muted-foreground mt-0.5">{format(d, "EEE")} {format(d, settings.dateFormat)}</p>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
             </div>
-          </CardContent>
+          )}
         </Card>
       </div>
 
       {/* Trend Graphs */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card className="shadow-sm rounded-sm">
-          <CardHeader className="pb-3 border-b border-border">
+          <CardHeader className="px-5 py-3 border-b border-border space-y-0">
             <CardTitle className="flex items-center gap-2 text-base">
               <div className="w-7 h-7 rounded-sm border-2 border-primary/40 bg-primary/10 flex items-center justify-center">
                 <Wallet className="w-4 h-4 text-primary" />
               </div>
-              Monthly Budget Trend
+              Monthly Contributions
             </CardTitle>
-            <CardDescription className="text-xs">Organization's total budget over time</CardDescription>
+            <CardDescription className="text-xs mt-1">Contributions collected each month</CardDescription>
           </CardHeader>
-          <CardContent className="pt-4">
+          <CardContent className="px-3 pt-3 pb-3">
             {budgetData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={260}>
-                <BarChart data={budgetData} barSize={28}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="month" tick={{ fontSize: 11, fontFamily: "IBM Plex Mono" }} />
-                  <YAxis tick={{ fontSize: 11, fontFamily: "IBM Plex Mono" }} />
-                  <Tooltip formatter={(value) => `${settings.currency} ${Number(value).toLocaleString()}`} />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Bar dataKey="budget" fill="hsl(var(--primary))" name="Budget Contributions" radius={[2, 2, 0, 0]} />
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={budgetData} margin={{ top: 6, right: 8, bottom: 0, left: 0 }}>
+                  <CartesianGrid vertical={false} stroke="hsl(var(--border))" />
+                  <XAxis dataKey="month" tick={axisTick} tickLine={false} axisLine={{ stroke: "hsl(var(--border))" }} interval="preserveStartEnd" minTickGap={18} />
+                  <YAxis
+                    ticks={budgetTicks}
+                    domain={[0, budgetTicks[budgetTicks.length - 1] || 1]}
+                    tickFormatter={(v: number) => compact.format(v)}
+                    tick={axisTick}
+                    tickLine={false}
+                    axisLine={false}
+                    width={44}
+                  />
+                  <Tooltip cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.6 }} content={<ChartTooltip currency={settings.currency} />} />
+                  <Bar dataKey="budget" fill="hsl(var(--primary))" name="Contributions" radius={[2, 2, 0, 0]} maxBarSize={28} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="text-center py-12">
+              <div className="text-center py-8">
                 <p className="text-sm text-muted-foreground">No data available yet</p>
                 <p className="text-xs text-muted-foreground mt-1">
                   <Link to="/meetings" className="text-primary underline underline-offset-4 hover:text-primary/80 transition-colors">
@@ -324,30 +476,49 @@ export default function Dashboard() {
         </Card>
 
         <Card className="shadow-sm rounded-sm">
-          <CardHeader className="pb-3 border-b border-border">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <div className="w-7 h-7 rounded-sm border-2 border-secondary/40 bg-secondary/10 flex items-center justify-center">
-                <HandCoins className="w-4 h-4 text-secondary" />
-              </div>
-              Monthly Loans Trend
-            </CardTitle>
-            <CardDescription className="text-xs">Loans issued and recovered trends</CardDescription>
+          <CardHeader className="flex-row items-start justify-between gap-3 px-5 py-3 border-b border-border space-y-0">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <div className="w-7 h-7 rounded-sm border-2 border-secondary/40 bg-secondary/10 flex items-center justify-center">
+                  <HandCoins className="w-4 h-4 text-secondary" />
+                </div>
+                Monthly Loans
+              </CardTitle>
+              <CardDescription className="text-xs mt-1">Loans issued and repayments received each month</CardDescription>
+            </div>
+            {loansData.length > 0 && (
+              <ul className="flex flex-wrap justify-end gap-x-3 gap-y-1 pt-1 text-xs text-muted-foreground" aria-label="Chart legend">
+                <li className="flex items-center gap-1.5 whitespace-nowrap">
+                  <span className="w-2.5 h-2.5 rounded-[2px] bg-[hsl(var(--chart-issued))]" aria-hidden /> Issued
+                </li>
+                <li className="flex items-center gap-1.5 whitespace-nowrap">
+                  <span className="w-2.5 h-2.5 rounded-[2px] bg-[hsl(var(--chart-recovered))]" aria-hidden /> Recovered
+                </li>
+              </ul>
+            )}
           </CardHeader>
-          <CardContent className="pt-4">
+          <CardContent className="px-3 pt-3 pb-3">
             {loansData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={260}>
-                <BarChart data={loansData} barSize={20}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="month" tick={{ fontSize: 11, fontFamily: "IBM Plex Mono" }} />
-                  <YAxis tick={{ fontSize: 11, fontFamily: "IBM Plex Mono" }} />
-                  <Tooltip formatter={(value) => `${settings.currency} ${Number(value).toLocaleString()}`} />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Bar dataKey="issued" fill="hsl(var(--destructive))" name="Loans Issued" radius={[2, 2, 0, 0]} />
-                  <Bar dataKey="recovered" fill="hsl(var(--secondary))" name="Loans Recovered" radius={[2, 2, 0, 0]} />
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={loansData} barGap={2} margin={{ top: 6, right: 8, bottom: 0, left: 0 }}>
+                  <CartesianGrid vertical={false} stroke="hsl(var(--border))" />
+                  <XAxis dataKey="month" tick={axisTick} tickLine={false} axisLine={{ stroke: "hsl(var(--border))" }} interval="preserveStartEnd" minTickGap={18} />
+                  <YAxis
+                    ticks={loansTicks}
+                    domain={[0, loansTicks[loansTicks.length - 1] || 1]}
+                    tickFormatter={(v: number) => compact.format(v)}
+                    tick={axisTick}
+                    tickLine={false}
+                    axisLine={false}
+                    width={44}
+                  />
+                  <Tooltip cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.6 }} content={<ChartTooltip currency={settings.currency} />} />
+                  <Bar dataKey="issued" fill="hsl(var(--chart-issued))" name="Loans issued" radius={[2, 2, 0, 0]} maxBarSize={20} />
+                  <Bar dataKey="recovered" fill="hsl(var(--chart-recovered))" name="Recovered" radius={[2, 2, 0, 0]} maxBarSize={20} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="text-center py-12">
+              <div className="text-center py-8">
                 <p className="text-sm text-muted-foreground">No data available yet</p>
                 <p className="text-xs text-muted-foreground mt-1">
                   <Link to="/loans" className="text-primary underline underline-offset-4 hover:text-primary/80 transition-colors">
@@ -359,6 +530,27 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+    </div>
+  );
+}
+
+/** Chart hover card in the statement style: month, then each series with its figure. */
+function ChartTooltip({ active, payload, label, currency }: TooltipProps<number, string> & { currency: string }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded-sm border border-border bg-popover px-3 py-2 text-xs shadow-md">
+      <p className="font-semibold text-foreground">
+        {payload[0]?.payload?.key ? format(new Date(payload[0].payload.key + "-01"), "MMMM yyyy") : label}
+      </p>
+      {payload.map((p) => (
+        <p key={String(p.dataKey)} className="mt-1 flex items-center gap-2 text-muted-foreground">
+          <span className="w-2 h-2 rounded-[1px]" style={{ background: p.color }} aria-hidden />
+          {p.name}
+          <span className="figure ml-auto pl-4 font-semibold text-foreground">
+            {currency} {Number(p.value).toLocaleString()}
+          </span>
+        </p>
+      ))}
     </div>
   );
 }

@@ -8,6 +8,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { useSettings } from "@/contexts/SettingsContext";
 import { buildBooks } from "@/utils/accounting";
 import { buildReport, reportTitle, type ReportRequest } from "@/utils/pdfReports";
+import { cutoverMessage, fetchBooksConfig, firstBookDay } from "@/lib/books";
 
 interface ReportViewerContextType {
   /** Reloads the records, builds the report and shows it, with a Download button. */
@@ -22,7 +23,7 @@ type Viewing =
   | { request: ReportRequest; stage: "error"; error: string };
 
 export function ReportViewerProvider({ children }: { children: ReactNode }) {
-  const { members, meetings, reserveTransactions, profitDistributions, refreshData } = useOrganization();
+  const { members, meetings, reserveTransactions, profitDistributions, bankProfits, openingProfit, refreshData } = useOrganization();
   const { settings } = useSettings();
   const [viewing, setViewing] = useState<Viewing | null>(null);
   const [refreshed, setRefreshed] = useState<{ id: number; request: ReportRequest } | null>(null);
@@ -30,8 +31,26 @@ export function ReportViewerProvider({ children }: { children: ReactNode }) {
   // another report is opened is discarded.
   const requestId = useRef(0);
 
-  const openReport = async (request: ReportRequest) => {
+  const openReport = async (asked: ReportRequest) => {
     const id = ++requestId.current;
+    // Records up to the cut-over are in the paper registers, so a report's period starts the day
+    // after it; a report as at the cut-over date itself shows the opening balances.
+    let request = asked;
+    try {
+      const { cutoverDate } = await fetchBooksConfig();
+      if (cutoverDate) {
+        const p = asked.period;
+        if (p.to < cutoverDate) {
+          setViewing({ request: asked, stage: "error", error: cutoverMessage(cutoverDate, settings.dateFormat).replace("Choose a date", "Choose a report date") });
+          return;
+        }
+        const first = firstBookDay(cutoverDate);
+        const from = p.to === cutoverDate ? null : !p.from || p.from < first ? first : p.from;
+        request = { ...asked, period: { from, to: p.to } };
+      }
+    } catch {
+      // No cut-over could be read: report on everything recorded.
+    }
     setViewing({ request, stage: "loading" });
     try {
       await refreshData();
@@ -49,7 +68,7 @@ export function ReportViewerProvider({ children }: { children: ReactNode }) {
     setRefreshed(null);
     (async () => {
       try {
-        const books = buildBooks({ members, meetings, reserveTransactions, profitDistributions });
+        const books = buildBooks({ members, meetings, reserveTransactions, profitDistributions, bankProfits, openingProfit });
         const { doc, filename } = await buildReport(books, request, settings);
         if (requestId.current !== id) return;
         setViewing({ request, stage: "ready", doc, filename, url: URL.createObjectURL(doc.output("blob")) });

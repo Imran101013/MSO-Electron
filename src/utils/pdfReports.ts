@@ -54,7 +54,8 @@ export interface ReportSettings {
   dateFormat?: string;
   timeFormat?: string;
   currency?: string;
-  reserveSharePercent?: number;
+  /** Taken from a member's year-end dividend for each meeting missed. */
+  absencePenaltyPerMeeting?: number;
 }
 
 // ───────────────────────── Formatting ─────────────────────────
@@ -142,8 +143,8 @@ interface ReportContext {
   dateFormat: string;
   timeFormat: string;
   currency: string;
-  /** Reserve share of profit (%) as currently set. */
-  reserveSharePercent: number;
+  /** Absence penalty per meeting as currently set. */
+  absenceFine: number;
   logo: string | null;
   generatedAt: Date;
 }
@@ -604,20 +605,6 @@ const shareOf = (d: { totalProfit: number; reserveAllocation: number }) =>
   d.totalProfit > 0 ? Math.round((Number(d.reserveAllocation) / Number(d.totalProfit)) * 1000) / 10 : 0;
 const pctText = (n: number) => `${Math.round(n * 10) / 10}%`;
 
-/** How the reserve's share of bank profit reads in the policy notes: one figure while every
- *  distribution used the same share, otherwise the share set at each (with today's setting). */
-function reserveShareWords(books: Books, current: number) {
-  const shares = [...new Set(books.distributions.map(shareOf))];
-  if (shares.length <= 1) {
-    const s = shares[0] ?? current;
-    return { credited: pctText(s), split: `${pctText(s)} to the reserve fund and ${pctText(100 - s)} to members` };
-  }
-  const now = `currently ${pctText(current)}`;
-  return {
-    credited: `a share, set when each distribution is made (${now}),`,
-    split: `a share set when each distribution is made (${now}) to the reserve fund and the rest to members`,
-  };
-}
 
 const loanStatus = (pos: LoanPosition) =>
   pos.state === "paid" ? "Repaid" : pos.state === "defaulted" ? "Defaulted" : pos.daysPastDue > 0 ? "Overdue" : "Current";
@@ -664,29 +651,33 @@ function agingTable(r: Report, pf: ReturnType<typeof portfolio>, cur: string) {
 }
 
 const INTEREST_RULE_NOTE =
-  "Interest is charged once, when a loan is issued, and after the due date a late penalty is added to the balance for each full month until the loan is paid in full, penalties included. Repayments only reduce the balance; they are not split between the amount lent, interest and penalties. A loan's interest and penalties are therefore recorded as received together, on the date the loan is repaid in full, and are outstanding until then.";
+  "Interest is charged once, when a loan is issued, and after the due date a late penalty is added to the balance for each full month until the loan is paid in full, penalties included, or is marked defaulted. Both are part of the loan's outstanding balance, not an amount owed on top of it. Repayments only reduce the balance; they are not split between the amount lent, interest and penalties. A loan's interest and penalties are therefore collected together, on the date the loan is repaid in full; until then they are still to collect, within the balance.";
 
-/** Per-loan interest and late penalties: charged, received (when the loan is repaid in full) and outstanding. */
+/**
+ * Per-loan interest and late penalties: what was charged, when it was collected (the loan was
+ * repaid in full) and what is still to collect. "Still to collect" is already inside the loan's
+ * outstanding balance, so it is never labelled "outstanding" here.
+ */
 function interestPenaltyTable(r: Report, positions: LoanPosition[], cur: string, o: { borrower: boolean }) {
   const rows = positions.filter((x) => x.loan.interest > EPS || x.penaltiesCharged > EPS);
-  const receivedOn = (x: LoanPosition) => (x.loan.paidInFullOn && x.loan.paidInFullOn <= x.asAt ? r.d(x.loan.paidInFullOn) : "-");
+  const collectedOn = (x: LoanPosition) => (x.loan.paidInFullOn && x.loan.paidInFullOn <= x.asAt ? r.d(x.loan.paidInFullOn) : "-");
+  const collected = (x: LoanPosition) => r2(x.interestReceived + x.penaltyReceived);
+  const toCollect = (x: LoanPosition) => r2(x.interestOutstanding + x.penaltyOutstanding);
   const lead = (x: LoanPosition) => (o.borrower ? [x.loan.loanNo, `${x.loan.memberNo} ${x.loan.memberName}`] : [x.loan.loanNo]);
   const blank = o.borrower ? ["", `${rows.length} loans`] : ["Total"];
   r.table({
-    head: [...(o.borrower ? ["Loan no.", "Borrower"] : ["Loan no."]), "Rate", "Interest charged", "Penalties charged", "Received on (paid in full)", "Interest received", "Penalties received", "Interest outstanding", "Penalties outstanding"],
-    align: [...(o.borrower ? ["l", "l"] : ["l"]) as Align[], "r", "r", "r", "l", "r", "r", "r", "r"],
-    widths: o.borrower ? [17, "auto", 11, 25, 25, 22, 25, 25, 25, 25] : [17, 10, 20, 20, 19, 20, 20, 21, "auto"],
+    head: [...(o.borrower ? ["Loan no.", "Borrower"] : ["Loan no."]), "Rate", "Interest charged", "Penalties charged", "Collected on (paid in full)", "Collected", "Still to collect (in balance)"],
+    align: [...(o.borrower ? ["l", "l"] : ["l"]) as Align[], "r", "r", "r", "l", "r", "r"],
+    widths: o.borrower ? [17, "auto", 11, 26, 26, 28, 26, 30] : [17, 10, 24, 24, 28, 24, "auto"],
     fontSize: o.borrower ? 7.3 : 7,
     body: rows.map((x) => [
       ...lead(x),
       `${x.loan.interestRate}%`,
       money(x.loan.interest),
       money(x.penaltiesCharged),
-      receivedOn(x),
-      money(x.interestReceived),
-      money(x.penaltyReceived),
-      money(x.interestOutstanding),
-      money(x.penaltyOutstanding),
+      collectedOn(x),
+      money(collected(x)),
+      money(toCollect(x)),
     ]),
     foot: [[
       ...blank,
@@ -694,10 +685,8 @@ function interestPenaltyTable(r: Report, positions: LoanPosition[], cur: string,
       money(sumOf(rows, (x) => x.loan.interest)),
       money(sumOf(rows, (x) => x.penaltiesCharged)),
       "",
-      money(sumOf(rows, (x) => x.interestReceived)),
-      money(sumOf(rows, (x) => x.penaltyReceived)),
-      money(sumOf(rows, (x) => x.interestOutstanding)),
-      money(sumOf(rows, (x) => x.penaltyOutstanding)),
+      money(sumOf(rows, collected)),
+      money(sumOf(rows, toCollect)),
     ]],
     empty: "No interest or late penalties charged as at this date.",
   });
@@ -745,7 +734,7 @@ function financialStatements(r: Report, books: Books, p: ReportPeriod) {
   r.newPage();
   r.statementTitle("Statement of Income and Expenditure", periodLong(r, p));
   const loanIncome = r2(mv.interestIncome + mv.penaltyIncome);
-  const genSurplus = r2(loanIncome + mv.bankProfit - mv.impairment);
+  const genSurplus = r2(loanIncome + mv.bankProfit + mv.openingProfit - mv.impairment);
   const resSurplus = r2(mv.donations - mv.expenses);
   r.statement(
     [
@@ -753,8 +742,9 @@ function financialStatements(r: Report, books: Books, p: ReportPeriod) {
       { t: "item", label: "Interest on loans to members", note: "5", v: [mv.interestIncome, null, mv.interestIncome] },
       { t: "item", label: "Late payment penalties on loans", note: "5", v: [mv.penaltyIncome, null, mv.penaltyIncome] },
       { t: "item", label: "Bank profit on funds held in the account", note: "2.5", v: [mv.bankProfit, null, mv.bankProfit] },
+      ...(mv.openingProfit > EPS ? [{ t: "item" as const, label: "Interest and penalties collected before the cut-over, not yet shared", note: "2.5", v: [mv.openingProfit, null, mv.openingProfit] }] : []),
       { t: "item", label: "Donations received", note: "7", v: [null, mv.donations, mv.donations] },
-      { t: "sub", label: "Total income", v: [r2(loanIncome + mv.bankProfit), mv.donations, r2(loanIncome + mv.bankProfit + mv.donations)] },
+      { t: "sub", label: "Total income", v: [r2(loanIncome + mv.bankProfit + mv.openingProfit), mv.donations, r2(loanIncome + mv.bankProfit + mv.openingProfit + mv.donations)] },
       { t: "section", label: "Expenditure" },
       { t: "item", label: "Expenses charged to reserve fund", note: "7", v: [null, mv.expenses, mv.expenses] },
       { t: "item", label: mv.impairment < 0 ? "Reversal of impairment on loans" : "Impairment loss on loans", note: "4", v: [mv.impairment, null, mv.impairment] },
@@ -766,7 +756,7 @@ function financialStatements(r: Report, books: Books, p: ReportPeriod) {
     { note: true },
   );
   r.note(
-    "Bank profit shared with members and the reserve fund is an appropriation of surplus, not an expense. It is presented in the Statement of Changes in Members' Funds and Reserves.",
+    "The year's profit shared with members and the reserve fund (bank profit, and the loan interest and penalties collected) is an appropriation of surplus, not an expense. It is presented in the Statement of Changes in Members' Funds and Reserves.",
   );
 
   // Statement of Changes in Funds
@@ -781,8 +771,8 @@ function financialStatements(r: Report, books: Books, p: ReportPeriod) {
       row(openLabel, ob.savings, ob.reserve, ob.surplus, "item", true),
       row("Contributions received from members", mv.contributions, null, null),
       row("Surplus / (deficit) for the period", null, resSurplus, genSurplus),
-      row("Bank profit credited to members", mv.profitToMembers, null, -mv.profitToMembers),
-      row("Bank profit credited to reserve fund", null, mv.profitToReserve, -mv.profitToReserve),
+      row("Profit shared with members (dividends)", mv.profitToMembers, null, -mv.profitToMembers),
+      row("Profit shared with the reserve fund", null, mv.profitToReserve, -mv.profitToReserve),
       row(closeLabel, cb.savings, cb.reserve, cb.surplus, "total"),
     ],
     ["Members'\nsavings", "Reserve\nfund", "Accumulated\nsurplus", "Total"],
@@ -791,14 +781,16 @@ function financialStatements(r: Report, books: Books, p: ReportPeriod) {
   // Statement of Cash Flows
   r.newPage();
   r.statementTitle("Statement of Cash Flows", periodLong(r, p));
-  const opNet = r2(mv.repayments + mv.bankProfit + mv.donations - mv.expenses - mv.disbursements);
+  const opNet = r2(mv.repayments + mv.bankProfit + mv.openingProfit + mv.donations - mv.expenses - mv.disbursements - mv.bankCharges);
   const netChange = r2(opNet + mv.contributions);
   r.statement(
     [
       { t: "section", label: "Cash flows from operating activities" },
       { t: "item", label: "Loans disbursed to members", v: [-mv.disbursements] },
+      ...(mv.bankCharges > EPS ? [{ t: "item" as const, label: "Bank charges on loan withdrawals (repaid by the borrowers)", v: [-mv.bankCharges] }] : []),
       { t: "item", label: "Loan repayments received", v: [mv.repayments] },
       { t: "item", label: "Bank profit received", v: [mv.bankProfit] },
+      ...(mv.openingProfit > EPS ? [{ t: "item" as const, label: "Interest and penalties collected before the cut-over", v: [mv.openingProfit] }] : []),
       { t: "item", label: "Donations received for reserve fund", v: [mv.donations] },
       { t: "item", label: "Reserve fund expenses paid", v: [-mv.expenses] },
       { t: "sub", label: "Net cash from / (used in) operating activities", v: [opNet] },
@@ -825,13 +817,13 @@ function financialStatements(r: Report, books: Books, p: ReportPeriod) {
     `${r.ctx.orgName} ("MSO") operates a savings and loan scheme for its members. These financial statements are prepared from the transaction records maintained in MSO on a modified cash basis: receipts and payments are recognised when they occur, except that the flat interest on each loan is recognised in full when the loan is issued and late penalties when they are charged, and loans to members are carried at the balance still owed, net of an allowance for impairment. Fund accounting is applied, so members' savings, the restricted reserve fund and the general accumulated surplus are reported separately. Amounts are in ${cur === "PKR" ? "Pakistani Rupees (PKR)" : cur} under the historical cost convention.`,
   );
   r.subheading("2. Significant accounting policies");
-  const shareWords = reserveShareWords(books, r.ctx.reserveSharePercent);
+  const fineText = amt(cur, r.ctx.absenceFine);
   const policies: Array<[string, string]> = [
-    ["2.1 Interest and late penalties on loans", "Loans are issued for one year and may be repaid in monthly instalments or as a lump sum within the year. Interest is a flat charge calculated once, on the amount lent, when the loan is issued; it is recognised as income on the issue date. The amount lent plus that interest is the loan's total payable. A late payment penalty, fixed per month when the loan is issued, is added to the balance owed for each full month after the due date that the loan has not been paid in full, penalties already added included, and is recognised as income when charged. Repayments reduce the balance owed and are not split between the amount lent, interest and penalties; no interest is calculated on individual instalments. A loan's interest and penalties are recorded as received when the loan is repaid in full. Interest and penalties charged, received and outstanding are analysed in note 5."],
-    ["2.2 Loans to members and impairment", "Loans are stated at the balance still owed (the amount lent plus interest and penalties charged, less repayments) less an allowance for impairment. Loans flagged as defaulted are provided for in full, including the interest and penalties already recognised. Loans are aged by the number of days since their one-year due date; instalments missed within the year are not treated as arrears, as the loan may be repaid as a lump sum."],
+    ["2.1 Interest and late penalties on loans", "Loans are issued for one year and may be repaid in monthly instalments or as a lump sum within the year. Interest is a flat charge calculated once, on the amount lent, when the loan is issued; it is recognised as income on the issue date. The amount lent plus that interest is the loan's total payable. A late payment penalty, fixed per month when the loan is issued, is added to the balance owed for each full month after the due date that the loan has not been paid in full, penalties already added included, and is recognised as income when charged. No penalty is added after the date the committee marks a loan as defaulted. Repayments reduce the balance owed and are not split between the amount lent, interest and penalties; no interest is calculated on individual instalments. A loan's interest and penalties are collected when the loan is repaid in full; until then they are part of the balance owed, not an amount owed in addition to it. Interest and penalties charged, collected and still to collect are analysed in note 5."],
+    ["2.2 Loans to members and impairment", "Loans are stated at the balance still owed (the amount lent plus interest and penalties charged, less repayments) less an allowance for impairment. Loans marked defaulted by the committee are provided for in full from the date they were marked, including the interest and penalties already recognised. Loans are aged by the number of days since their one-year due date; instalments missed within the year are not treated as arrears, as the loan may be repaid as a lump sum."],
     ["2.3 Members' savings", "Members' savings comprise contributions received and profit shares credited to each member's account. Individual balances are set out in Schedule A."],
-    ["2.4 Reserve fund", `The reserve fund is a restricted fund. It is credited with donations and with ${shareWords.credited} of each year's bank profit, and charged with expenses approved against it.`],
-    ["2.5 Bank profit and its distribution", `The profit paid by the bank on the funds held in the organisation's account is recognised as income when it is distributed, and is shared in full: ${shareWords.split} in proportion to their total contributions. Interest on loans to members is not part of this distribution and remains in the accumulated surplus.`],
+    ["2.4 Reserve fund", "The reserve fund is a restricted fund. It is credited with donations and with its share of each year's profit, and charged with expenses approved against it."],
+    ["2.5 Annual profit and its distribution", `The profit for each year from January to December is shared out at the Annual General Meeting held in July of the following year. It is the bank's profit on the funds held in the account (recognised as income on the day the bank credits it, and recorded with the meeting at which it is reported), the interest and late penalties collected on loans repaid in full during the year, and the absence charges: ${fineText} for each meeting of the year a member was marked absent at. A fixed share of the total is credited to the reserve fund and the rest is shared among members in proportion to their savings on 31 December. Each member's absence charges are taken from their own share, never more than the share. The interest and penalties shared out were recognised as income when charged (policy 2.1), so their distribution is an appropriation of the accumulated surplus.`],
     ["2.6 Cash and cash equivalents", "Cash and cash equivalents represent the net of all recorded receipts and payments. The records do not separate cash in hand from bank balances, so this balance should be agreed to a physical cash count and bank statements at each reporting date."],
   ];
   for (const [h, body] of policies) {
@@ -858,7 +850,7 @@ function financialStatements(r: Report, books: Books, p: ReportPeriod) {
   const pfOpen = open ? portfolio(books, open) : null;
   r.statement(
     [
-      { t: "sub", label: "Balance owed on loans (amount lent plus interest and penalties, less repayments)", v: vals(cb.loansReceivable, ob.loansReceivable) },
+      { t: "sub", label: "Balance owed on loans (amount lent plus interest, bank charges and penalties, less repayments)", v: vals(cb.loansReceivable, ob.loansReceivable) },
       { t: "item", label: "Less: allowance for impairment on defaulted loans", v: vals(-cb.allowance, -ob.allowance) },
       { t: "total", label: "Loans to members - net", v: vals(cb.netLoans, ob.netLoans) },
     ],
@@ -877,15 +869,15 @@ function financialStatements(r: Report, books: Books, p: ReportPeriod) {
   const both = (a: number, b: number) => [a, b, r2(a + b)];
   r.statement(
     [
-      { t: "item", label: open ? `Outstanding as at ${r.d(open)}` : "Outstanding at inception", v: both(intOpen, penOpen) },
+      { t: "item", label: open ? `Still to collect as at ${r.d(open)}` : "Still to collect at inception", v: both(intOpen, penOpen) },
       { t: "item", label: "Charged in the period (income)", v: both(mv.interestIncome, mv.penaltyIncome) },
-      { t: "item", label: "Received on loans repaid in full in the period", v: both(-mv.interestReceived, -mv.penaltiesReceived) },
-      { t: "total", label: `Outstanding as at ${r.d(p.to)}`, v: both(intClose, penClose) },
+      { t: "item", label: "Collected on loans repaid in full in the period", v: both(-mv.interestReceived, -mv.penaltiesReceived) },
+      { t: "total", label: `Still to collect as at ${r.d(p.to)} (included in note 4)`, v: both(intClose, penClose) },
     ],
     ["Interest", "Late penalties", "Total"],
   );
   r.note(
-    "Interest is charged when a loan is issued and late penalties as each month passes after the due date; both are added to the balance owed and recognised as income when charged. Because repayments are not split between the amount lent, interest and penalties, a loan's interest and penalties are recorded as received when the loan is repaid in full; until then they are outstanding and form part of the balance owed in note 4. Each loan's interest and penalties are listed in the Loan Portfolio report.",
+    "Interest is charged when a loan is issued and late penalties as each month passes after the due date; both are added to the balance owed and recognised as income when charged. Because repayments are not split between the amount lent, interest and penalties, a loan's interest and penalties are collected when the loan is repaid in full. Until then they are still to collect: they form part of the balance owed in note 4 and are not an amount owed in addition to it. Each loan's interest and penalties are listed in the Loan Portfolio report.",
   );
 
   r.subheading("6. Members' savings accounts");
@@ -893,7 +885,7 @@ function financialStatements(r: Report, books: Books, p: ReportPeriod) {
     [
       { t: "item", label: openLabel, v: [ob.savings] },
       { t: "item", label: "Contributions received", v: [mv.contributions] },
-      { t: "item", label: "Bank profit shares credited", v: [mv.profitToMembers] },
+      { t: "item", label: "Profit shares (dividends) credited", v: [mv.profitToMembers] },
       { t: "total", label: `${closeLabel} (Schedule A)`, v: [cb.savings] },
     ],
     [cur],
@@ -904,7 +896,7 @@ function financialStatements(r: Report, books: Books, p: ReportPeriod) {
     [
       { t: "item", label: openLabel, v: [ob.reserve] },
       { t: "item", label: "Donations received", v: [mv.donations] },
-      { t: "item", label: "Share of bank profit", v: [mv.profitToReserve] },
+      { t: "item", label: "Share of the year's profit", v: [mv.profitToReserve] },
       { t: "item", label: "Expenses charged to the fund", v: [-mv.expenses] },
       { t: "total", label: closeLabel, v: [cb.reserve] },
     ],
@@ -919,8 +911,9 @@ function financialStatements(r: Report, books: Books, p: ReportPeriod) {
       { t: "item", label: "Late payment penalties charged", v: [mv.penaltyIncome] },
       { t: "item", label: "Impairment (loss) / reversal on loans", v: [-mv.impairment] },
       { t: "item", label: "Bank profit received", v: [mv.bankProfit] },
-      { t: "item", label: "Bank profit credited to members", v: [-mv.profitToMembers] },
-      { t: "item", label: "Bank profit credited to reserve fund", v: [-mv.profitToReserve] },
+      ...(mv.openingProfit > EPS ? [{ t: "item" as const, label: "Interest and penalties collected before the cut-over", v: [mv.openingProfit] }] : []),
+      { t: "item", label: "Profit shared with members (dividends)", v: [-mv.profitToMembers] },
+      { t: "item", label: "Profit shared with the reserve fund", v: [-mv.profitToReserve] },
       { t: "total", label: closeLabel, v: [cb.surplus] },
     ],
     [cur],
@@ -928,7 +921,7 @@ function financialStatements(r: Report, books: Books, p: ReportPeriod) {
   if (cb.surplus < -EPS) {
     const life = books.movements(allTo);
     r.note(
-      `The accumulated deficit arises because the impairment allowance on defaulted loans (${amt(cur, cb.allowance)}) exceeds the income retained to date (${amt(cur, r2(life.interestIncome + life.penaltyIncome + life.bankProfit - life.profitToMembers - life.profitToReserve))}), being interest and late penalties charged on loans plus any bank profit not distributed.`,
+      `The accumulated deficit arises because the impairment allowance on defaulted loans (${amt(cur, cb.allowance)}) exceeds the income retained to date (${amt(cur, r2(life.interestIncome + life.penaltyIncome + life.bankProfit + life.openingProfit - life.profitToMembers - life.profitToReserve))}), being interest and late penalties charged on loans plus any bank profit not distributed.`,
     );
   }
 
@@ -989,16 +982,17 @@ function trialBalance(r: Report, books: Books, p: ReportPeriod) {
     { code: "1190", name: "Allowance for loan impairment", side: "Cr", v: cb.allowance },
     { code: "2000", name: "Members' savings accounts (closing)", side: "Cr", v: cb.savings },
     { code: "3000", name: open ? `Reserve fund - balance b/f at ${r.d(open)}` : "Reserve fund - balance b/f", side: "Cr", v: ob.reserve },
-    { code: "3010", name: "Reserve fund - share of bank profit", side: "Cr", v: mv.profitToReserve },
+    { code: "3010", name: "Reserve fund - share of the year's profit", side: "Cr", v: mv.profitToReserve },
     { code: "3100", name: open ? `Accumulated surplus - balance b/f at ${r.d(open)}` : "Accumulated surplus - balance b/f", side: "Cr", v: ob.surplus },
     { code: "4000", name: "Interest income on loans (charged at issue)", side: "Cr", v: mv.interestIncome },
     { code: "4010", name: "Late payment penalties on loans (charged monthly after due date)", side: "Cr", v: mv.penaltyIncome },
     { code: "4100", name: "Donations received (reserve fund)", side: "Cr", v: mv.donations },
     { code: "4200", name: "Bank profit received", side: "Cr", v: mv.bankProfit },
+    ...(mv.openingProfit > EPS ? [{ code: "4300", name: "Interest and penalties collected before the cut-over", side: "Cr" as const, v: mv.openingProfit }] : []),
     { code: "5000", name: "Reserve fund expenses", side: "Dr", v: mv.expenses },
     { code: "5100", name: "Impairment loss on loans", side: "Dr", v: mv.impairment },
-    { code: "6000", name: "Bank profit credited to members", side: "Dr", v: mv.profitToMembers },
-    { code: "6010", name: "Bank profit credited to reserve fund", side: "Dr", v: mv.profitToReserve },
+    { code: "6000", name: "Profit shared with members (dividends)", side: "Dr", v: mv.profitToMembers },
+    { code: "6010", name: "Profit shared with the reserve fund", side: "Dr", v: mv.profitToReserve },
   ];
   const rows = accounts.map((a) => {
     // A negative balance sits on the opposite side (e.g. an accumulated deficit is a debit).
@@ -1067,14 +1061,16 @@ function cashBook(r: Report, books: Books, p: ReportPeriod) {
       [KIND_LABELS.repayment, String(es.filter((e) => e.kind === "repayment").length), money(by("repayment")), "-"],
       [KIND_LABELS.donation, String(es.filter((e) => e.kind === "donation").length), money(by("donation")), "-"],
       [KIND_LABELS.bank_profit, String(es.filter((e) => e.kind === "bank_profit").length), money(by("bank_profit")), "-"],
+      ...(es.some((e) => e.kind === "opening_profit") ? [[KIND_LABELS.opening_profit, String(es.filter((e) => e.kind === "opening_profit").length), money(by("opening_profit")), "-"]] : []),
       [KIND_LABELS.disbursement, String(es.filter((e) => e.kind === "disbursement").length), "-", money(by("disbursement"))],
+      ...(es.some((e) => e.kind === "bank_charge") ? [[KIND_LABELS.bank_charge, String(es.filter((e) => e.kind === "bank_charge").length), "-", money(by("bank_charge"))]] : []),
       [KIND_LABELS.expense, String(es.filter((e) => e.kind === "expense").length), "-", money(by("expense"))],
     ],
     foot: [["Total", String(es.length), money(rec), money(pay)]],
   });
   r.ensure(50);
   r.note(
-    "Voucher series: RV = receipt voucher, PV = payment voucher. Bank profit is shown as received when it is distributed; crediting it to members and the reserve fund is a journal entry (JV) and does not appear here. Reconcile the closing balance with cash in hand and bank statements before approval.",
+    "Voucher series: RV = receipt voucher, PV = payment voucher. Bank profit is shown as received on the day the bank credited it; sharing the year's profit with members and the reserve fund is a journal entry (JV) and does not appear here. A bank charge on a loan withdrawal is a payment, owed back by the borrower with the loan. Reconcile the closing balance with cash in hand and bank statements before approval.",
   );
   r.signatures(["Prepared by - Treasurer", "Verified by"]);
 }
@@ -1181,7 +1177,7 @@ function memberStatement(r: Report, books: Books, p: ReportPeriod, memberId: str
     if (positions.some((x) => x.loan.interest > EPS || x.penaltiesCharged > EPS)) {
       r.subheading("Interest and late penalties");
       interestPenaltyTable(r, positions, cur, { borrower: false });
-      r.note("After its due date, a late penalty is added to a loan's balance for each full month until it is paid in full, penalties included. A loan's interest and penalties are recorded as received when the loan is repaid in full; repayments are not split between the amount lent, interest and penalties.");
+      r.note("After its due date, a late penalty is added to a loan's balance for each full month until it is paid in full, penalties included, or marked defaulted. Interest and penalties are part of the outstanding balance, not an amount owed on top of it, and are collected when the loan is repaid in full; repayments are not split between the amount lent, interest and penalties.");
     }
   }
 
@@ -1242,18 +1238,18 @@ function loanPortfolio(r: Report, books: Books, p: ReportPeriod) {
         { content: r.d(x.loan.maturityDate), styles: late ? { fontStyle: "bold", textColor: C.bad } : {} },
         money(x.loan.principal),
         `${x.loan.interestRate}%`,
-        money(x.loan.totalPayable),
+        money(r2(x.loan.totalPayable + x.loan.bankCharge)),
         money(x.penaltiesCharged),
         money(x.repaid),
         money(x.outstanding),
         { content: loanStatus(x), styles: { fontStyle: "bold", textColor: x.state === "defaulted" || late ? C.bad : x.state === "paid" ? C.muted : C.good } },
       ];
     }),
-    foot: [["", `${pf.positions.length} loans`, "", "", money(sumOf(pf.positions, (x) => x.loan.principal)), "", money(sumOf(pf.positions, (x) => x.loan.totalPayable)), money(sumOf(pf.positions, (x) => x.penaltiesCharged)), money(sumOf(pf.positions, (x) => x.repaid)), money(sumOf(pf.positions, (x) => x.outstanding)), ""]],
+    foot: [["", `${pf.positions.length} loans`, "", "", money(sumOf(pf.positions, (x) => x.loan.principal)), "", money(sumOf(pf.positions, (x) => x.loan.totalPayable + x.loan.bankCharge)), money(sumOf(pf.positions, (x) => x.penaltiesCharged)), money(sumOf(pf.positions, (x) => x.repaid)), money(sumOf(pf.positions, (x) => x.outstanding)), ""]],
     empty: "No loans issued as at this date.",
   });
   r.note(
-    "Each loan is due one year after it is disbursed and may be repaid in instalments or as a lump sum by then; due dates already passed with money still owing are shown in red. After the due date a late penalty is added to the balance for each full month until the loan is paid in full, penalties included (Penalties column), so Outstanding = total payable + penalties - repaid. Defaulted loans are provided for in full.",
+    "Each loan is due one year after it is disbursed and may be repaid in instalments or as a lump sum by then; due dates already passed with money still owing are shown in red. After the due date a late penalty is added to the balance for each full month until the loan is paid in full, penalties included (Penalties column), so Outstanding = total payable + penalties - repaid. Total payable is the amount lent plus interest, plus the bank's charge on the withdrawal where there is one (repaid with the loan; no interest is charged on it). No penalty is added after a loan is marked defaulted; defaulted loans are provided for in full.",
   );
 
   r.heading("Interest and late penalties", 60);
@@ -1275,38 +1271,47 @@ function loanStatement(r: Report, books: Books, p: ReportPeriod, loanId: string)
     ["Principal", amt(cur, loan.principal)],
     ["Interest (flat, charged at issue)", `${loan.interestRate}% = ${amt(cur, loan.interest)}`],
     ["Total payable", amt(cur, loan.totalPayable)],
+    ...(loan.bankCharge > EPS ? [["Bank charge on the withdrawal", `${amt(cur, loan.bankCharge)}, repaid with the loan (no interest on it)`] as [string, string]] : []),
     ["Due date", r.d(loan.maturityDate)],
-    ["Late penalty", loan.penaltyPerMonth > EPS ? `${amt(cur, loan.penaltyPerMonth)} per full month unpaid after the due date` : "None"],
+    ["Late penalty", loan.penaltyPerMonth > EPS ? `${amt(cur, loan.penaltyPerMonth)} per full month unpaid after the due date${pos.state === "defaulted" && loan.defaultedOn ? `; stopped ${r.d(loan.defaultedOn)}, when marked defaulted` : ""}` : "None"],
     ["Status", `${loanStatus(pos)}${pos.daysPastDue > 0 ? ` - ${pos.daysPastDue} days past due` : ""}`],
   ], 2);
-  const owedInAll = r2(loan.totalPayable + pos.penaltiesCharged);
+  const owedInAll = r2(loan.totalPayable + loan.bankCharge + pos.penaltiesCharged);
+  const paidInFull = loan.paidInFullOn !== null && loan.paidInFullOn <= asAt;
   r.kpis([
     { label: "Repaid to date", value: amt(cur, pos.repaid), sub: `of ${plain(owedInAll)} owed in all`, tone: "good" },
     { label: "Outstanding", value: amt(cur, pos.outstanding), sub: pos.penaltiesCharged > EPS ? `total payable + ${plain(pos.penaltiesCharged)} penalties, less repayments` : "total payable less repayments" },
-    { label: "Interest & penalties", value: amt(cur, r2(pos.interestOutstanding + pos.penaltyOutstanding)), sub: pos.interestOutstanding + pos.penaltyOutstanding > EPS ? "outstanding, received when repaid in full" : "none outstanding" },
+    paidInFull
+      ? { label: "Interest & penalties", value: amt(cur, r2(pos.interestReceived + pos.penaltyReceived)), sub: `collected ${r.d(loan.paidInFullOn!)}, when repaid in full`, tone: "good" }
+      : { label: "Interest & penalties", value: amt(cur, r2(pos.interestOutstanding + pos.penaltyOutstanding)), sub: "part of the outstanding balance; collected when repaid in full" },
     { label: "Overdue", value: pos.daysPastDue > 0 ? `${pos.daysPastDue} days` : "-", sub: pos.daysPastDue > 0 ? `past due ${r.d(loan.maturityDate)}` : "not past due date", tone: pos.daysPastDue > 0 ? "bad" : undefined },
   ]);
 
-  r.heading("Interest and late penalties");
-  const paidInFull = loan.paidInFullOn !== null && loan.paidInFullOn <= asAt;
-  const received = paidInFull ? `received ${r.d(loan.paidInFullOn!)}, when the loan was repaid in full` : "received when the loan is repaid in full";
-  const interestBasis = loan.interest <= EPS ? "No interest charged" : `${loan.interestRate}% flat, charged ${r.d(loan.date)}; ${received}`;
+  // The balance built up line by line: interest and penalties are part of it, never extra.
+  r.heading("How the balance is made up");
+  const collected = paidInFull ? `collected ${r.d(loan.paidInFullOn!)}, when the loan was repaid in full` : "collected when the loan is repaid in full";
+  const interestBasis = loan.interest <= EPS ? "No interest charged" : `${loan.interestRate}% flat, charged ${r.d(loan.date)}; ${collected}`;
   const penaltyBasis =
     loan.penaltyPerMonth <= EPS
       ? "No late penalty on this loan"
+      : pos.state === "defaulted" && loan.defaultedOn
+        ? `${amt(cur, loan.penaltyPerMonth)} added each full month unpaid after ${r.d(loan.maturityDate)} until the loan was marked defaulted on ${r.d(loan.defaultedOn)}; ${collected}`
       : pos.penaltiesCharged > EPS
-        ? `${amt(cur, loan.penaltyPerMonth)} added each full month unpaid after ${r.d(loan.maturityDate)}; ${received}`
+        ? `${amt(cur, loan.penaltyPerMonth)} added each full month unpaid after ${r.d(loan.maturityDate)}; ${collected}`
         : `${amt(cur, loan.penaltyPerMonth)} will be added each full month the loan is unpaid after ${r.d(loan.maturityDate)}`;
   r.table({
-    head: ["", `Charged (${cur})`, `Received (${cur})`, `Outstanding (${cur})`, "Basis"],
-    align: ["l", "r", "r", "r", "l"],
-    widths: [26, 24, 24, 26, "auto"],
+    head: ["", `Amount (${cur})`, "Basis"],
+    align: ["l", "r", "l"],
+    widths: [34, 30, "auto"],
     fontSize: 7.4,
     body: [
-      ["Interest", money(loan.interest), money(pos.interestReceived), money(pos.interestOutstanding), interestBasis],
-      ["Late penalties", money(pos.penaltiesCharged), money(pos.penaltyReceived), money(pos.penaltyOutstanding), penaltyBasis],
+      ["Amount lent", money(loan.principal), `Disbursed ${r.d(loan.date)}`],
+      ["Add: interest", money(loan.interest), interestBasis],
+      ...(loan.bankCharge > EPS ? [["Add: bank charge", money(loan.bankCharge), "The bank's charge on the cheque withdrawal; no interest on it"]] : []),
+      ["Add: late penalties", money(pos.penaltiesCharged), penaltyBasis],
+      ["Less: repaid", money(-pos.repaid), `Repayments up to ${r.d(asAt)}`],
     ],
-    foot: [["Total", money(r2(loan.interest + pos.penaltiesCharged)), money(r2(pos.interestReceived + pos.penaltyReceived)), money(r2(pos.interestOutstanding + pos.penaltyOutstanding)), ""]],
+    foot: [["Outstanding", money(pos.outstanding), pos.outstanding > EPS ? "Interest and penalties are part of this balance, not owed on top of it" : "Repaid in full"]],
   });
 
   r.heading("Repayment schedule");
@@ -1338,7 +1343,11 @@ function loanStatement(r: Report, books: Books, p: ReportPeriod, loanId: string)
   ].sort((a, b) => a.date.localeCompare(b.date) || a.order - b.order);
   const body: RowInput[] = [[r.d(loan.date), loan.disbursementVoucher, "Principal disbursed", money(loan.principal), "-", money(loan.principal)]];
   if (loan.interest > EPS) body.push([r.d(loan.date), loan.loanNo, `Interest charged once @ ${loan.interestRate}% flat on the amount lent`, money(loan.interest), "-", money(loan.totalPayable)]);
-  let bal = loan.totalPayable;
+  if (loan.bankCharge > EPS) {
+    const chargeVoucher = books.entries.find((e) => e.kind === "bank_charge" && e.loanId === loan.dbId)?.voucher ?? "";
+    body.push([r.d(loan.date), chargeVoucher, "Bank charge on the cheque withdrawal, owed with the loan", money(loan.bankCharge), "-", money(r2(loan.totalPayable + loan.bankCharge))]);
+  }
+  let bal = r2(loan.totalPayable + loan.bankCharge);
   for (const mvmt of moves) {
     bal = r2(bal + mvmt.dr - mvmt.cr);
     body.push(mvmt.cells(bal));
@@ -1432,7 +1441,7 @@ function reserveLedger(r: Report, books: Books, p: ReportPeriod) {
   const open = openingDate(p);
   const opening = books.balancesAt(open).reserve;
   const es = entriesInPeriod(books, p).filter((e) => e.kind === "donation" || e.kind === "expense" || e.kind === "profit_reserve");
-  const category = (e: LedgerEntry) => (e.kind === "donation" ? "Donation" : e.kind === "expense" ? "Expense" : "Bank profit share");
+  const category = (e: LedgerEntry) => (e.kind === "donation" ? "Donation" : e.kind === "expense" ? "Expense" : "Profit share");
   let bal = opening;
   const body: RowInput[] = [bfRow(7, open ? "Balance brought forward" : "Opening balance (inception)", r.d(p.from ?? es[0]?.date ?? p.to), opening, 6)];
   for (const e of es) {
@@ -1447,7 +1456,7 @@ function reserveLedger(r: Report, books: Books, p: ReportPeriod) {
   r.kpis([
     { label: "Opening balance", value: amt(cur, opening) },
     { label: "Donations", value: amt(cur, donations), tone: "good" },
-    { label: "Bank profit share", value: amt(cur, allocations), tone: "good" },
+    { label: "Profit share", value: amt(cur, allocations), tone: "good" },
     { label: "Expenses", value: amt(cur, expenses), tone: "bad" },
     { label: "Closing balance", value: amt(cur, bal) },
   ]);
@@ -1471,7 +1480,7 @@ function reserveLedger(r: Report, books: Books, p: ReportPeriod) {
     [cur],
   );
   r.ensure(52);
-  r.note("The reserve fund is a restricted fund. Donations and profit allocations are credited to it; expenses may be charged only with the approval of the Executive Committee. The 10% share of bank profit is credited by journal voucher (JV) when the profit is distributed.");
+  r.note("The reserve fund is a restricted fund. Donations and profit allocations are credited to it; expenses may be charged only with the approval of the Executive Committee. The reserve's share of each year's profit is credited by journal voucher (JV) when the profit is distributed at the AGM.");
   r.signatures(["Prepared by - Treasurer", "Approved by - President"]);
 }
 
@@ -1480,6 +1489,7 @@ function profitDistribution(r: Report, books: Books, distributionId?: string) {
   const dists = books.distributions;
   if (!dists.length) throw new Error("No profit distributions have been recorded yet");
   const d = (distributionId && dists.find((x) => x.id === distributionId)) || dists[dists.length - 1];
+  if (d.profitYear) return yearEndStatement(r, books, d);
   const bankProfit = r2(Number(d.totalProfit) || 0);
   const reserveShare = r2(Number(d.reserveAllocation) || 0);
   const membersShare = r2(bankProfit - reserveShare);
@@ -1542,6 +1552,89 @@ function profitDistribution(r: Report, books: Books, distributionId?: string) {
   }
 
   r.signatures(["Prepared by - Treasurer", "Approved by - President"], "Approved for distribution by the Executive Committee.");
+}
+
+/** Statement of an annual (AGM) distribution: how the year's profit is made up and each member's dividend. */
+function yearEndStatement(r: Report, books: Books, d: Books["distributions"][number]) {
+  const cur = r.ctx.currency;
+  const year = d.profitYear as number;
+  const bank = r2(Number(d.bankProfit) || 0);
+  const interest = r2(Number(d.loanInterest) || 0);
+  const penalties = r2(Number(d.loanPenalties) || 0);
+  const total = r2(Number(d.totalProfit) || 0);
+  const reserve = r2(Number(d.reserveAllocation) || 0);
+  const pool = r2(total - reserve);
+  const absence = r2(Number(d.absencePenalties) || 0);
+  const reservePct = total > 0 ? Math.round((reserve / total) * 1000) / 10 : 0;
+  const fine = r2(Number(d.absenceFine ?? r.ctx.absenceFine) || 0);
+  const rows = d.memberAllocations
+    .map((a) => {
+      const mr = books.memberById.get(a.memberId);
+      const gross = r2(Number(a.grossAmount ?? a.amount) || 0);
+      const taken = r2(Number(a.absencePenalty) || 0);
+      const absences = Number(a.absences) || 0;
+      return {
+        no: mr?.memberNo ?? "-",
+        name: mr?.name ?? a.memberName,
+        savings: r2(Number(a.savingsBasis) || 0),
+        ratio: Number(a.ratio) || 0,
+        gross,
+        absences,
+        taken,
+        waived: r2(Math.max(0, absences * fine - taken)),
+        dividend: r2(Number(a.amount) || 0),
+      };
+    })
+    .sort((x, y) => x.no.localeCompare(y.no, undefined, { numeric: true }));
+  const dividends = sumOf(rows, (x) => x.dividend);
+  const totalSavings = sumOf(rows, (x) => x.savings);
+  const waived = sumOf(rows, (x) => x.waived);
+
+  r.infoGrid([
+    ["Profit for the year", String(year)],
+    ["Date of distribution", r.d(String(d.date).slice(0, 10))],
+    ["Reference no.", d.voucher],
+  ]);
+  r.kpis([
+    { label: "Total profit", value: amt(cur, total) },
+    { label: `To reserve fund (${pctText(reservePct)})`, value: amt(cur, reserve) },
+    { label: "Dividends to members", value: amt(cur, dividends), sub: `${rows.length} members, after absence charges`, tone: "good" },
+  ]);
+
+  r.heading("How the year's profit is made up");
+  r.statement(
+    [
+      { t: "item", label: `Bank profit for ${year}`, v: [bank] },
+      { t: "item", label: `Loan interest collected in ${year} (loans repaid in full)`, v: [interest] },
+      { t: "item", label: `Late penalties collected in ${year}`, v: [penalties] },
+      { t: "item", label: `Absence charges for ${year} (taken from members' dividends)`, v: [absence] },
+      { t: "sub", label: "Total profit", v: [total] },
+      { t: "item", label: `Less: reserve fund (${pctText(reservePct)})`, v: [-reserve] },
+      { t: "sub", label: `For members (${pctText(100 - reservePct)})`, v: [pool] },
+      { t: "item", label: "Less: absence charges taken from absent members' dividends", v: [-absence] },
+      { t: "total", label: "Dividends credited to members' savings", v: [dividends] },
+    ],
+    [cur],
+  );
+
+  r.heading("How each member's dividend is worked out");
+  r.paragraph(
+    `The members' ${amt(cur, pool)} is divided in proportion to each member's savings on 31/12/${year} (${amt(cur, totalSavings)} in all). An absence charge of ${amt(cur, fine)} for each meeting a member was marked absent at during ${year} is then taken from their share, never more than the share. The charges are part of the year's total profit above.`,
+    { size: 8.6 },
+  );
+  r.table({
+    head: ["No.", "Member", `Savings 31/12/${year} (${cur})`, "Share", `Share (${cur})`, "Absences", `Absence charge (${cur})`, `Dividend (${cur})`],
+    align: ["l", "l", "r", "r", "r", "r", "r", "r"],
+    widths: [14, "auto", 29, 15, 25, 16, 22, 26],
+    fontSize: 7.8,
+    body: rows.map((x) => [x.no, x.name, money(x.savings), pct(x.ratio), money(x.gross), x.absences ? String(x.absences) : "-", money(x.taken ? -x.taken : 0), money(x.dividend)]),
+    foot: [["", `Total (${rows.length} members)`, money(totalSavings), "100.00%", money(pool), String(rows.reduce((s, x) => s + x.absences, 0)), money(absence ? -absence : 0), money(dividends)]],
+    empty: "No member shares were recorded for this distribution.",
+  });
+  if (waived > EPS) {
+    r.note(`${amt(cur, waived)} of absence charges was waived, because a charge is never more than the member's share.`);
+  }
+  r.signatures(["Prepared by - Treasurer", "Approved by - President"], "Approved for distribution at the Annual General Meeting.");
 }
 
 function meetingsRegister(r: Report, books: Books, p: ReportPeriod) {
@@ -1613,7 +1706,7 @@ export async function buildReport(books: Books, req: ReportRequest, settings: Re
     orgName: resolveOrgName(settings.organizationName),
     dateFormat: settings.dateFormat || "dd/MM/yyyy",
     timeFormat: settings.timeFormat || "12",
-    reserveSharePercent: settings.reserveSharePercent ?? 10,
+    absenceFine: settings.absencePenaltyPerMeeting ?? 50,
     currency: settings.currency || "PKR",
     logo: await loadLogo(),
     generatedAt: now,
@@ -1639,8 +1732,10 @@ export async function buildReport(books: Books, req: ReportRequest, settings: Re
   if (req.kind === "profit-distribution") {
     const dist = (req.distributionId && books.distributions.find((x) => x.id === req.distributionId)) || books.distributions[books.distributions.length - 1];
     if (!dist) throw new Error("No profit distributions have been recorded yet");
-    subtitle = `Bank profit distributed on ${d(dist.date.slice(0, 10))}  |  Ref. ${dist.voucher}`;
-    tag = `${dist.date.slice(0, 4)}_${dist.voucher}`;
+    subtitle = dist.profitYear
+      ? `Profit for ${dist.profitYear}, distributed at the AGM on ${d(dist.date.slice(0, 10))}  |  Ref. ${dist.voucher}`
+      : `Bank profit distributed on ${d(dist.date.slice(0, 10))}  |  Ref. ${dist.voucher}`;
+    tag = dist.profitYear ? `${dist.profitYear}_${dist.voucher}` : `${dist.date.slice(0, 4)}_${dist.voucher}`;
   }
 
   const r = new Report({ code: meta.code, title: meta.title, subtitle, landscape: meta.landscape, confidential: meta.confidential }, ctx);

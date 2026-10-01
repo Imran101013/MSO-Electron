@@ -51,6 +51,8 @@ export interface LoanIncomeInput {
   /** Amount lent. */
   amount: number;
   totalPayable: number;
+  /** The bank's charge on the withdrawal, repaid with the loan; not interest. */
+  bankCharge?: number;
   /** remaining_amount as stored: everything still owed, penalties included. */
   remaining: number;
   penaltiesCharged: number;
@@ -62,7 +64,7 @@ export function loanIncome(loan: LoanIncomeInput): LoanIncome {
   const totalPayable = Number(loan.totalPayable) || Number(loan.amount) || 0;
   const interest = r2(Math.max(0, totalPayable - (Number(loan.amount) || 0)));
   const penaltiesCharged = r2(Number(loan.penaltiesCharged) || 0);
-  const owed = r2(totalPayable + penaltiesCharged);
+  const owed = r2(totalPayable + (Number(loan.bankCharge) || 0) + penaltiesCharged);
   const repaid = r2(owed - (Number(loan.remaining) || 0));
   const itemised = loan.payments.reduce((s, p) => s + Number(p.amount), 0);
   const receivedOn =

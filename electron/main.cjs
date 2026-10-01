@@ -53,10 +53,10 @@ ipcMain.handle('db-query', async (_, { sql, params, actor }) => {
 
 // Tables that participate in JSON backup/restore, in FK-safe (parent-first) order.
 const BACKUP_TABLES = [
-  'users', 'user_roles', 'members', 'meetings', 'upcoming_meetings',
+  'users', 'user_roles', 'members', 'meetings', 'upcoming_meetings', 'bank_profits',
   'loans', 'loan_schedule', 'loan_installments', 'loan_penalties', 'monthly_contributions',
   'attendance', 'reserve_transactions', 'profit_distributions', 'profit_allocations',
-  'audit_log',
+  'audit_log', 'app_config',
 ];
 
 // Backup: export every table to a single JSON file the user picks.
@@ -134,6 +134,10 @@ ipcMain.handle('db-restore', async () => {
   }
 });
 
+// Cut-over from the paper registers: opening-balances template, import, removal, and clearing
+// all records (for test data).
+require('./openingBalances.cjs').register({ ipcMain, dialog, pool });
+
 // Share text through WhatsApp: the desktop app if one is registered for whatsapp:// links,
 // otherwise WhatsApp Web. With a phone number the chat with that number opens; without one
 // the user picks the recipient. The renderer supplies only the message and number; the URL
@@ -186,6 +190,65 @@ async function ensureSchema() {
       );
 
       ALTER TABLE public.monthly_contributions ADD COLUMN IF NOT EXISTS notes TEXT;
+
+      -- Settings that belong to the books rather than to one computer (e.g. the cut-over date
+      -- from the paper registers), so backups and restores carry them.
+      CREATE TABLE IF NOT EXISTS public.app_config (
+        key TEXT PRIMARY KEY,
+        value TEXT,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL
+      );
+      -- Opening balances brought forward from the paper registers at the cut-over date
+      -- (electron/openingBalances.cjs): the member's paper-register number, a flagged opening
+      -- savings row, and loans that were already open at the cut-over.
+      ALTER TABLE public.members ADD COLUMN IF NOT EXISTS register_no TEXT;
+      CREATE UNIQUE INDEX IF NOT EXISTS members_register_no_key ON public.members (register_no) WHERE register_no IS NOT NULL;
+      ALTER TABLE public.monthly_contributions ADD COLUMN IF NOT EXISTS is_opening BOOLEAN NOT NULL DEFAULT false;
+      ALTER TABLE public.loans ADD COLUMN IF NOT EXISTS opening_as_at DATE;
+      -- The day the committee marked a loan defaulted: late penalties stop then (utils/loanPenalty.ts)
+      -- and the accounts provide for it from then. Loans marked before the date was kept get the
+      -- cut-over date if they came from the registers, otherwise the day this first runs, so no
+      -- penalty already charged is removed and none is added.
+      ALTER TABLE public.loans ADD COLUMN IF NOT EXISTS defaulted_on DATE;
+      -- The bank's charge on the cheque withdrawal for a loan above the limit in Settings: taken from
+      -- the account on the loan date and repaid by the member with the loan (no interest on it).
+      ALTER TABLE public.loans ADD COLUMN IF NOT EXISTS bank_charge DECIMAL(12,2) NOT NULL DEFAULT 0;
+      UPDATE public.loans SET defaulted_on = COALESCE(opening_as_at, CURRENT_DATE) WHERE status = 'defaulted' AND defaulted_on IS NULL;
+      -- Year-end profit distribution (utils/yearEndProfit.ts): the year it is for and how its
+      -- total is made up; per member, the savings it was shared on and the absence penalty taken.
+      -- Rows without profit_year are earlier bank-profit-only distributions.
+      ALTER TABLE public.profit_distributions ADD COLUMN IF NOT EXISTS profit_year INTEGER;
+      ALTER TABLE public.profit_distributions ADD COLUMN IF NOT EXISTS bank_profit DECIMAL(12,2);
+      ALTER TABLE public.profit_distributions ADD COLUMN IF NOT EXISTS loan_interest DECIMAL(12,2) NOT NULL DEFAULT 0;
+      ALTER TABLE public.profit_distributions ADD COLUMN IF NOT EXISTS loan_penalties DECIMAL(12,2) NOT NULL DEFAULT 0;
+      ALTER TABLE public.profit_distributions ADD COLUMN IF NOT EXISTS absence_penalties DECIMAL(12,2) NOT NULL DEFAULT 0;
+      ALTER TABLE public.profit_distributions ADD COLUMN IF NOT EXISTS absence_fine DECIMAL(12,2);
+      ALTER TABLE public.profit_allocations ADD COLUMN IF NOT EXISTS gross_amount DECIMAL(12,2);
+      ALTER TABLE public.profit_allocations ADD COLUMN IF NOT EXISTS absences INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE public.profit_allocations ADD COLUMN IF NOT EXISTS absence_penalty DECIMAL(12,2) NOT NULL DEFAULT 0;
+      ALTER TABLE public.profit_allocations ADD COLUMN IF NOT EXISTS savings_basis DECIMAL(12,2);
+      CREATE UNIQUE INDEX IF NOT EXISTS profit_distributions_year_key ON public.profit_distributions (profit_year) WHERE profit_year IS NOT NULL;
+
+      -- The bank's profit on the account, recorded with the meeting at which it is reported, dated
+      -- the day the bank credited it, and shared out at the next July AGM (profit_year). An opening
+      -- row (is_opening) is the paper registers' bank profit for the year not yet shared at the
+      -- cut-over. A distribution whose bank profit came from these rows has bank_profit_recorded set,
+      -- so the books don't count that money a second time on the AGM date.
+      CREATE TABLE IF NOT EXISTS public.bank_profits (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        meeting_id UUID REFERENCES public.meetings(id) ON DELETE SET NULL,
+        amount DECIMAL(12,2) NOT NULL CHECK (amount > 0),
+        credited_on DATE NOT NULL,
+        profit_year INTEGER NOT NULL,
+        is_opening BOOLEAN NOT NULL DEFAULT false,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS bank_profits_year_idx ON public.bank_profits (profit_year);
+      ALTER TABLE public.profit_distributions ADD COLUMN IF NOT EXISTS bank_profit_recorded BOOLEAN NOT NULL DEFAULT false;
+
+      ALTER TABLE public.reserve_transactions DROP CONSTRAINT IF EXISTS reserve_transactions_transaction_type_check;
+      ALTER TABLE public.reserve_transactions ADD CONSTRAINT reserve_transactions_transaction_type_check
+        CHECK (transaction_type IN ('donation', 'expense', 'profit_allocation', 'opening'));
 
       CREATE TABLE IF NOT EXISTS public.loan_schedule (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -258,7 +321,7 @@ async function ensureSchema() {
     const auditedTables = [
       'loans', 'loan_installments', 'loan_schedule', 'loan_penalties',
       'monthly_contributions', 'reserve_transactions',
-      'profit_distributions', 'profit_allocations',
+      'profit_distributions', 'profit_allocations', 'bank_profits',
     ];
     for (const table of auditedTables) {
       await client.query(`DROP TRIGGER IF EXISTS audit_${table} ON public.${table};`);

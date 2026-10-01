@@ -10,7 +10,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { format } from "date-fns";
 import { useSettings } from "@/contexts/SettingsContext";
@@ -25,7 +24,11 @@ import { useContributions } from "@/hooks/useContributions";
 import { buildMeetingShareMessage, getMeetingRecord, formatAmount, formatDay, formatTime, reserveLabel, type AmountRow, type MeetingRecord } from "@/utils/meetingShare";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
+import { useBooksConfig } from "@/lib/books";
 import { emitMeetingSaved } from "@/lib/events";
+import { TablePager, usePaged } from "@/components/TablePager";
+import { addBankProfit, bankProfitProblem } from "@/hooks/useBankProfits";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const meetingSchema = z.object({ date: z.date(), agenda: z.string().min(1, "Agenda is required"), decisions: z.string().optional() });
 const upcomingMeetingSchema = z.object({ date: z.date(), time: z.string().min(1, "Time is required"), venue: z.string().min(1, "Venue is required") });
@@ -41,6 +44,7 @@ export default function Meetings() {
   const { bulkRecordAttendance } = useAttendance();
   const { bulkAddContributions } = useContributions();
   const { settings } = useSettings();
+  const { config: books } = useBooksConfig();
   const { isAdmin } = useAuth();
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isScheduleOpen, setIsScheduleOpen] = useState(false);
@@ -52,6 +56,13 @@ export default function Meetings() {
   const [isSharing, setIsSharing] = useState(false);
   const [memberContributions, setMemberContributions] = useState<MemberContribution[]>([]);
   const [viewRecord, setViewRecord] = useState<MeetingRecord | null>(null);
+  // The bank's profit reported at this meeting (optional): the amount, the day the bank credited it
+  // (the meeting date unless set) and the year it is for (that day's year unless set).
+  const [bankAmount, setBankAmount] = useState("");
+  const [bankCreditedOn, setBankCreditedOn] = useState<Date | undefined>(undefined);
+  const [bankYear, setBankYear] = useState<number | null>(null);
+  const upcomingPaged = usePaged(upcomingMeetings);
+  const meetingsPaged = usePaged(meetings);
 
   const form = useForm<MeetingFormValues>({ resolver: zodResolver(meetingSchema), defaultValues: { date: undefined, agenda: "", decisions: "" } });
   const scheduleForm = useForm<UpcomingMeetingFormValues>({ resolver: zodResolver(upcomingMeetingSchema), defaultValues: { date: undefined, time: "", venue: "" } });
@@ -59,6 +70,9 @@ export default function Meetings() {
 
   const handleOpenAddDialog = () => {
     setMemberContributions(approvedMembers.map(m => ({ memberId: m.id, memberName: m.name, amount: 0, present: false })));
+    setBankAmount("");
+    setBankCreditedOn(undefined);
+    setBankYear(null);
     setIsAddOpen(true);
   };
 
@@ -66,12 +80,23 @@ export default function Meetings() {
     setMemberContributions(prev => prev.map(mc => mc.memberId === memberId ? { ...mc, [field]: value } : mc));
 
   const onSubmit = async (data: MeetingFormValues) => {
-    setIsSubmitting(true);
     const dateString = format(data.date, "yyyy-MM-dd");
+    // The bank profit is checked before anything is saved, so a wrong entry doesn't leave half a meeting.
+    const bankValue = bankAmount.trim() === "" ? 0 : Number(bankAmount.replace(/,/g, ""));
+    const creditedOn = bankCreditedOn ? format(bankCreditedOn, "yyyy-MM-dd") : dateString;
+    const bankInput = { amount: bankValue, creditedOn, profitYear: bankYear ?? Number(creditedOn.slice(0, 4)), meetingDate: dateString };
+    if (bankAmount.trim() !== "") {
+      const problem = await bankProfitProblem(bankInput, settings.dateFormat);
+      if (problem) { toast.error("Bank profit not recorded", { description: problem }); return; }
+    }
+    setIsSubmitting(true);
     const newMeeting = await addMeeting({ meeting_date: dateString, agenda: data.agenda, decisions: data.decisions });
     if (newMeeting) {
       await bulkRecordAttendance(newMeeting.id, memberContributions.map(mc => ({ memberId: mc.memberId, present: mc.present })));
       await bulkAddContributions(newMeeting.id, memberContributions.map(mc => ({ memberId: mc.memberId, amount: mc.amount })), dateString);
+      if (bankValue > 0 && !(await addBankProfit(newMeeting.id, bankInput).catch(() => false))) {
+        toast.error("Bank profit not recorded", { description: `The ${bankInput.profitYear} profit has already been distributed.` });
+      }
       toast.success(`Meeting added! Total: ${settings.currency} ${memberContributions.reduce((s, c) => s + c.amount, 0).toLocaleString()}`);
       emitMeetingSaved();
     }
@@ -126,8 +151,8 @@ export default function Meetings() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between border-b-2 border-primary/40 pb-4">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b-2 border-primary/40 pb-4">
+        <div className="flex shrink-0 items-center gap-4">
           <div className="w-11 h-11 rounded-sm border-2 border-primary/40 bg-primary/10 flex items-center justify-center">
             <CalendarDays className="w-5 h-5 text-primary" />
           </div>
@@ -138,8 +163,8 @@ export default function Meetings() {
           </div>
         </div>
         {isAdmin && (
-          <div className="flex gap-2">
-            <ViewReportButton request={{ kind: "meetings-register" }} label="Meetings Register" size="default" />
+          <div className="flex flex-wrap gap-2">
+            <ViewReportButton request={{ kind: "meetings-register" }} label="Meetings & Attendance Register" size="default" />
             <Button variant="secondary" className="gap-2" onClick={shareLatestMeeting} disabled={isSharing}>
               {isSharing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Share2 className="w-4 h-4" />} Share Latest Meeting
             </Button>
@@ -155,7 +180,7 @@ export default function Meetings() {
                     <Clock className="w-5 h-5 text-primary" />
                   </div>
                   <div>
-                    <h2 className="text-base font-bold text-foreground">Schedule Upcoming Meeting</h2>
+                    <DialogTitle className="text-base font-bold text-foreground">Schedule Upcoming Meeting</DialogTitle>
                     <p className="text-xs text-muted-foreground">Set date, time and venue</p>
                   </div>
                 </div>
@@ -193,7 +218,7 @@ export default function Meetings() {
                     <Plus className="w-5 h-5 text-primary" />
                   </div>
                   <div>
-                    <h2 className="text-base font-bold text-foreground">Add New Meeting</h2>
+                    <DialogTitle className="text-base font-bold text-foreground">Add New Meeting</DialogTitle>
                     <p className="text-xs text-muted-foreground">Record meeting details and member contributions</p>
                   </div>
                 </div>
@@ -204,7 +229,7 @@ export default function Meetings() {
                       <div className="space-y-3">
                         <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Meeting Information</p>
                         <FormField control={form.control} name="date" render={({ field }) => (
-                          <FormItem><FormLabel className="text-xs font-medium">Meeting Date</FormLabel><FormControl><DatePicker date={field.value} onDateChange={field.onChange} placeholder="Select date" /></FormControl><FormMessage className="text-xs" /></FormItem>
+                          <FormItem><FormLabel className="text-xs font-medium">Meeting Date</FormLabel><FormControl><DatePicker date={field.value} onDateChange={field.onChange} placeholder="Select date" disabledThrough={books.cutoverDate} /></FormControl><FormMessage className="text-xs" /></FormItem>
                         )} />
                         <FormField control={form.control} name="agenda" render={({ field }) => (
                           <FormItem><FormLabel className="text-xs font-medium">Agenda</FormLabel><FormControl><Textarea {...field} placeholder="Meeting agenda…" className="resize-none" rows={2} /></FormControl><FormMessage className="text-xs" /></FormItem>
@@ -212,6 +237,44 @@ export default function Meetings() {
                         <FormField control={form.control} name="decisions" render={({ field }) => (
                           <FormItem><FormLabel className="text-xs font-medium">Decisions Made</FormLabel><FormControl><Textarea {...field} placeholder="Decisions made during the meeting…" className="resize-none" rows={2} /></FormControl><FormMessage className="text-xs" /></FormItem>
                         )} />
+                      </div>
+                      {/* Bank profit reported at this meeting (optional) */}
+                      <div className="space-y-3">
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Bank Profit</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">Only if the bank has credited its profit on the account since the last meeting. Leave blank otherwise.</p>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <div className="space-y-1.5">
+                            <p className="text-xs font-medium">Amount ({settings.currency})</p>
+                            <Input inputMode="decimal" placeholder="0" value={bankAmount} onChange={(e) => setBankAmount(e.target.value)} className="h-9 text-sm" id="bankProfitAmount" />
+                          </div>
+                          <div className="space-y-1.5">
+                            <p className="text-xs font-medium">Credited by the bank on</p>
+                            <DatePicker
+                              date={bankCreditedOn ?? form.watch("date")}
+                              onDateChange={(d) => { setBankCreditedOn(d); setBankYear(null); }}
+                              placeholder="The meeting date"
+                              disabledThrough={books.cutoverDate}
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <p className="text-xs font-medium">Profit for the year</p>
+                            {(() => {
+                              const credited = bankCreditedOn ?? form.watch("date");
+                              const y = credited ? credited.getFullYear() : new Date().getFullYear();
+                              return (
+                                <Select value={String(bankYear ?? y)} onValueChange={(v) => setBankYear(Number(v))}>
+                                  <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value={String(y)}>{y}</SelectItem>
+                                    <SelectItem value={String(y - 1)}>{y - 1}</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              );
+                            })()}
+                          </div>
+                        </div>
                       </div>
                       {/* Attendance */}
                       <div className="space-y-3">
@@ -267,8 +330,8 @@ export default function Meetings() {
           </CardHeader>
           <CardContent className="p-0">
             <div className="divide-y divide-border/60">
-              {upcomingMeetings.map((meeting) => (
-                <div key={meeting.id} className="flex items-center justify-between px-5 py-3.5 hover:bg-muted/30 transition-colors">
+              {upcomingPaged.rows.map((meeting) => (
+                <div key={meeting.id} className="flex items-center justify-between px-5 py-2 hover:bg-muted/30 transition-colors">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-sm border-2 border-primary/30 bg-primary/5 flex items-center justify-center flex-shrink-0">
                       <Calendar className="w-4 h-4 text-primary" />
@@ -289,6 +352,7 @@ export default function Meetings() {
                 </div>
               ))}
             </div>
+            <TablePager paged={upcomingPaged} noun="scheduled meetings" />
           </CardContent>
         </Card>
       )}
@@ -316,8 +380,8 @@ export default function Meetings() {
             </div>
           ) : (
             <div className="divide-y divide-border/60">
-              {meetings.map((meeting) => (
-                <div key={meeting.id} className="flex items-center justify-between px-5 py-3.5 hover:bg-muted/30 transition-colors">
+              {meetingsPaged.rows.map((meeting) => (
+                <div key={meeting.id} className="flex items-center justify-between px-5 py-2 hover:bg-muted/30 transition-colors">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-sm border-2 border-primary/30 bg-primary/5 flex items-center justify-center flex-shrink-0">
                       <Calendar className="w-4 h-4 text-primary" />
@@ -389,13 +453,7 @@ export default function Meetings() {
                                     {viewRecord.absent.length === 0 ? (
                                       <p className="text-sm text-muted-foreground">None - all members were present.</p>
                                     ) : (
-                                      <ol className="divide-y divide-border/60 rounded-sm border border-border/60 overflow-hidden">
-                                        {viewRecord.absent.map((name, i) => (
-                                          <li key={`${name}-${i}`} className="flex items-center gap-3 px-4 py-2 text-sm">
-                                            <span className="figure w-5 text-muted-foreground">{i + 1}.</span>{name}
-                                          </li>
-                                        ))}
-                                      </ol>
+                                      <AbsentList names={viewRecord.absent} resetKey={viewRecord.meeting.id} />
                                     )}
                                   </div>
                                 </div>
@@ -406,11 +464,12 @@ export default function Meetings() {
                             <div>
                               <SectionLabel>Savings</SectionLabel>
                               <AmountTable
-                                rows={viewRecord.savings}
+                                rows={viewRecord.savings.filter(
+                                  (r) => !(Number(r.amount) === 0 && viewRecord.attendance.find((a) => a.memberId === r.memberId)?.present === false)
+                                )}
                                 totalLabel="Total savings"
                                 currency={settings.currency}
-                                empty="No members recorded."
-                                status={(memberId) => viewRecord.attendance.find((a) => a.memberId === memberId)?.present}
+                                empty="No savings were collected."
                               />
                             </div>
 
@@ -448,6 +507,22 @@ export default function Meetings() {
                               </div>
                             )}
 
+                            {viewRecord.bankProfits.length > 0 && (
+                              <div>
+                                <SectionLabel>Bank profit</SectionLabel>
+                                <div className="divide-y divide-border/60 rounded-sm border border-border/60 overflow-hidden">
+                                  {viewRecord.bankProfits.map((b, i) => (
+                                    <div key={i} className="flex items-center justify-between gap-4 px-4 py-2.5">
+                                      <span className="text-sm">
+                                        Bank profit for {b.profit_year}, credited <span className="figure">{formatDay(b.credited_on, settings)}</span>
+                                      </span>
+                                      <span className="figure text-sm font-bold whitespace-nowrap text-secondary">+ {settings.currency} {formatAmount(b.amount)}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
                             {viewRecord.next && (
                               <div>
                                 <SectionLabel>Next meeting</SectionLabel>
@@ -473,6 +548,7 @@ export default function Meetings() {
               ))}
             </div>
           )}
+          <TablePager paged={meetingsPaged} noun="meetings" />
         </CardContent>
       </Card>
 
@@ -499,43 +575,49 @@ export default function Meetings() {
   );
 }
 
+/** Numbered list of the members absent at a meeting, paged like the other tables. */
+function AbsentList({ names, resetKey }: { names: string[]; resetKey: string }) {
+  const paged = usePaged(names, resetKey);
+  return (
+    <div className="rounded-sm border border-border/60 overflow-hidden">
+      <ol className="divide-y divide-border/60">
+        {paged.rows.map((name, i) => (
+          <li key={`${name}-${paged.offset + i}`} className="flex items-center gap-3 px-4 py-2 text-sm">
+            <span className="figure w-6 text-muted-foreground">{paged.offset + i + 1}.</span>{name}
+          </li>
+        ))}
+      </ol>
+      <TablePager paged={paged} noun="absent members" />
+    </div>
+  );
+}
+
 function SectionLabel({ children }: { children: ReactNode }) {
   return <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">{children}</p>;
 }
 
 /** Member / amount list with a total row, matching the lists in the WhatsApp message. */
-function AmountTable({ rows, totalLabel, currency, empty, status }: {
+function AmountTable({ rows, totalLabel, currency, empty }: {
   rows: AmountRow[];
   totalLabel: string;
   currency: string;
   empty: string;
-  /** When given, adds an attendance column: true = present, false = absent, undefined = not recorded. */
-  status?: (memberId: string) => boolean | undefined;
 }) {
+  const paged = usePaged(rows);
   if (rows.length === 0) return <p className="text-sm text-muted-foreground">{empty}</p>;
+  // The total is for every row, not just the page shown.
   const total = rows.reduce((s, r) => s + Number(r.amount), 0);
   return (
     <div className="divide-y divide-border/60 rounded-sm border border-border/60 overflow-hidden">
       <div className="grid grid-cols-12 px-4 py-2 bg-muted/50">
-        <span className={cn("text-xs font-semibold uppercase tracking-wider text-muted-foreground", status ? "col-span-6" : "col-span-8")}>Member</span>
-        {status && <span className="col-span-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Attendance</span>}
-        <span className={cn("text-xs font-semibold uppercase tracking-wider text-muted-foreground text-right", status ? "col-span-3" : "col-span-4")}>Amount</span>
+        <span className="col-span-8 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Member</span>
+        <span className="col-span-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground text-right">Amount</span>
       </div>
-      {rows.map((r, i) => {
-        const present = status?.(r.memberId);
+      {paged.rows.map((r, i) => {
         return (
           <div key={`${r.memberId}-${i}`} className="grid grid-cols-12 items-center px-4 py-2.5 hover:bg-muted/30 transition-colors">
-            <span className={cn("text-sm font-medium", status ? "col-span-6" : "col-span-8")}>{r.name}</span>
-            {status && (
-              <div className="col-span-3">
-                {present === undefined ? (
-                  <span className="text-xs text-muted-foreground">Not recorded</span>
-                ) : (
-                  <Badge variant={present ? "secondary" : "destructive"} className="text-xs">{present ? "Present" : "Absent"}</Badge>
-                )}
-              </div>
-            )}
-            <span className={cn("figure text-sm text-right", status ? "col-span-3" : "col-span-4", Number(r.amount) > 0 ? "font-bold text-foreground" : "text-muted-foreground")}>
+            <span className="col-span-8 text-sm font-medium">{r.name}</span>
+            <span className={cn("figure text-sm text-right col-span-4", Number(r.amount) > 0 ? "font-bold text-foreground" : "text-muted-foreground")}>
               {formatAmount(r.amount)}
             </span>
           </div>
@@ -545,6 +627,7 @@ function AmountTable({ rows, totalLabel, currency, empty, status }: {
         <span className="col-span-8 text-xs font-semibold text-muted-foreground">{totalLabel}</span>
         <span className="figure col-span-4 text-sm font-bold text-foreground text-right">{currency} {formatAmount(total)}</span>
       </div>
+      <TablePager paged={paged} noun="members" />
     </div>
   );
 }

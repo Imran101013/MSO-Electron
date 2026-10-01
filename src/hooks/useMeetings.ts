@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { dbQuery } from "@/lib/db";
 import { useToast } from "@/hooks/use-toast";
+import { useSettings } from "@/contexts/SettingsContext";
+import { cutoverBlock } from "@/lib/books";
 
 export interface DbMeeting {
   id: string;
@@ -36,6 +38,7 @@ export function useMeetings() {
   const [upcomingMeetings, setUpcomingMeetings] = useState<DbUpcomingMeeting[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+  const { settings } = useSettings();
 
   const fetchMeetings = async () => {
     setIsLoading(true);
@@ -61,6 +64,8 @@ export function useMeetings() {
 
   const addMeeting = async (formData: MeetingFormData) => {
     try {
+      const block = await cutoverBlock(formData.meeting_date, settings.dateFormat);
+      if (block) { toast({ title: "Date is before the cut-over", description: block, variant: "destructive" }); return null; }
       const rows = await dbQuery<DbMeeting>(
         'INSERT INTO public.meetings (meeting_date, agenda, decisions) VALUES ($1,$2,$3) RETURNING *',
         [formData.meeting_date, formData.agenda, formData.decisions || null]
@@ -76,6 +81,10 @@ export function useMeetings() {
 
   const updateMeeting = async (id: string, formData: Partial<MeetingFormData>) => {
     try {
+      if (formData.meeting_date) {
+        const block = await cutoverBlock(formData.meeting_date, settings.dateFormat);
+        if (block) { toast({ title: "Date is before the cut-over", description: block, variant: "destructive" }); return false; }
+      }
       await dbQuery(
         'UPDATE public.meetings SET meeting_date=$1, agenda=$2, decisions=$3 WHERE id=$4',
         [formData.meeting_date, formData.agenda, formData.decisions, id]

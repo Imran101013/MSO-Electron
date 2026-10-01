@@ -8,4 +8,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   backupDatabase: () => ipcRenderer.invoke('db-backup'),
   restoreDatabase: () => ipcRenderer.invoke('db-restore'),
   shareWhatsApp: (text, phone) => ipcRenderer.invoke('share-whatsapp', { text, phone }),
+  openingTemplate: (cutoverDate, currency) => ipcRenderer.invoke('opening-template', { cutoverDate, currency }),
+  openingRead: () => ipcRenderer.invoke('opening-read'),
+  openingImport: (payload) => ipcRenderer.invoke('opening-import', payload),
+  openingRemove: (actor) => ipcRenderer.invoke('opening-remove', { actor }),
+  clearRecords: (actor) => ipcRenderer.invoke('records-clear', { actor }),
 });

@@ -23,6 +23,8 @@ export interface MeetingRecord {
   /** Loans issued since the previous meeting, up to and including this one. */
   newLoans: AmountRow[];
   reserve: ReserveEntry[];
+  /** The bank's profit recorded with this meeting (hooks/useBankProfits.ts). */
+  bankProfits: { amount: number; credited_on: string; profit_year: number }[];
   next: { meeting_date: string; meeting_time: string | null; venue: string | null } | null;
   totals: { savings: number; collected: number; newLoans: number; totalCollected: number };
 }
@@ -38,8 +40,8 @@ export const formatTime = (t: string | null, settings: Pick<Settings, "timeForma
 
 export const reserveLabel = (t: ReserveEntry) => {
   const detail = [t.donor_name, t.notes].filter(Boolean).join(" - ");
-  const label = t.transaction_type === "expense" ? "Expense" : t.transaction_type === "profit_allocation" ? "Share of bank profit" : "Donation";
-  return `${label}${detail && t.transaction_type !== "profit_allocation" ? ` (${detail})` : ""}`;
+  const label = t.transaction_type === "expense" ? "Expense" : t.transaction_type === "profit_allocation" ? "Share of the year's profit" : t.transaction_type === "opening" ? "Balance brought forward from the paper registers" : "Donation";
+  return `${label}${detail && t.transaction_type !== "profit_allocation" && t.transaction_type !== "opening" ? ` (${detail})` : ""}`;
 };
 
 export async function getMeetingRecord(meeting: DbMeeting): Promise<MeetingRecord> {
@@ -55,7 +57,7 @@ export async function getMeetingRecord(meeting: DbMeeting): Promise<MeetingRecor
   const prev = prevRows[0]?.prev ?? null;
   const since = (col: string) => `${col} <= $1::date AND ($2::date IS NULL OR ${col} > $2::date)`;
 
-  const [attendance, savings, collected, newLoans, reserve, venueRows, nextRows] = await Promise.all([
+  const [attendance, savings, collected, newLoans, reserve, venueRows, nextRows, bankProfits] = await Promise.all([
     dbQuery<{ memberId: string; name: string; present: boolean }>(
       `SELECT m.id AS "memberId", m.name, a.present FROM public.attendance a JOIN public.members m ON m.id = a.member_id WHERE a.meeting_id = $1 ${byMember}`,
       [meeting.id],
@@ -92,6 +94,10 @@ export async function getMeetingRecord(meeting: DbMeeting): Promise<MeetingRecor
        WHERE meeting_date > $1::date AND meeting_date >= CURRENT_DATE ORDER BY meeting_date, meeting_time LIMIT 1`,
       [day],
     ),
+    dbQuery<{ amount: number; credited_on: string; profit_year: number }>(
+      "SELECT amount, credited_on::text AS credited_on, profit_year FROM public.bank_profits WHERE meeting_id = $1 ORDER BY credited_on, created_at",
+      [meeting.id],
+    ),
   ]);
 
   return {
@@ -103,6 +109,7 @@ export async function getMeetingRecord(meeting: DbMeeting): Promise<MeetingRecor
     collected,
     newLoans,
     reserve,
+    bankProfits,
     next: nextRows[0] ?? null,
     totals: {
       savings: sum(savings),
@@ -173,6 +180,11 @@ export function formatMeetingMessage(record: MeetingRecord, settings: ShareSetti
   if (reserve.length) {
     out.push("", "*Reserve fund*");
     for (const t of reserve) out.push(`${t.transaction_type === "expense" ? "-" : "+"} ${reserveLabel(t)}: ${money(t.amount)}`);
+  }
+
+  if (record.bankProfits.length) {
+    out.push("", "*Bank profit*");
+    for (const b of record.bankProfits) out.push(`+ Bank profit for ${b.profit_year}, credited ${date(b.credited_on)}: ${money(b.amount)}`);
   }
 
   if (next) out.push("", "*Next meeting*", [date(next.meeting_date), formatTime(next.meeting_time, settings), next.venue].filter(Boolean).join(" · "));

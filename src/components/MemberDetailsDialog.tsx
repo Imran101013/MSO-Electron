@@ -13,6 +13,7 @@ import { dbQuery } from "@/lib/db";
 import { cn } from "@/lib/utils";
 import { parseLocalDate } from "@/hooks/useLoans";
 import ViewReportButton from "@/components/ViewReportButton";
+import { TablePager, usePaged } from "@/components/TablePager";
 import { supabase } from "@/integrations/supabase/client";
 import { ageFrom, durationSince, formatMemberSummary, getMemberRecord, type LoanState, type MemberRecord } from "@/utils/memberRecord";
 
@@ -31,6 +32,8 @@ interface MemberDetailsDialogProps {
 }
 
 /** Member Details: profile, account summary, savings account (with meeting attendance) and loans. */
+const NO_SAVINGS: MemberRecord["savings"] = [];
+
 export default function MemberDetailsDialog({ memberId, open, onOpenChange, onChanged }: MemberDetailsDialogProps) {
   const { isAdmin } = useAuth();
   const { settings } = useSettings();
@@ -38,6 +41,8 @@ export default function MemberDetailsDialog({ memberId, open, onOpenChange, onCh
   const [loadError, setLoadError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [sharing, setSharing] = useState(false);
+  // Savings history, newest first, paged like the app's other tables.
+  const savingsPaged = usePaged(record?.savings ?? NO_SAVINGS, memberId ?? null);
 
   const load = async (id: string) => {
     setLoadError(null);
@@ -134,13 +139,10 @@ export default function MemberDetailsDialog({ memberId, open, onOpenChange, onCh
                   <DialogDescription className="text-sm text-muted-foreground mt-0.5">
                     {record.member.father_name ? `Father: ${record.member.father_name} · ` : ""}Member since {day(record.member.join_date)}
                   </DialogDescription>
-                  <div className="flex flex-wrap gap-1.5 mt-2">
-                    <LoanStatusBadge record={record} />
-                  </div>
                 </div>
                 {isAdmin && (
                   <div className="flex flex-col gap-2 flex-shrink-0">
-                    <ViewReportButton request={{ kind: "member-statement", memberId: record.member.id }} label="Account statement" className="h-8 justify-start" />
+                    <ViewReportButton request={{ kind: "member-statement", memberId: record.member.id }} label="Member Account Statement" className="h-8 justify-start" />
                     <Button variant="outline" size="sm" className="gap-2 h-8 rounded-sm justify-start" onClick={sendSummary} disabled={sharing}>
                       {sharing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <MessageCircle className="w-3.5 h-3.5" />} WhatsApp summary
                     </Button>
@@ -166,7 +168,7 @@ export default function MemberDetailsDialog({ memberId, open, onOpenChange, onCh
                   label="Loan outstanding"
                   unit={cur}
                   value={amount(record.loanOutstanding)}
-                  sub={record.openLoans ? `${record.openLoans} open loan${record.openLoans === 1 ? "" : "s"}` : "No outstanding loans"}
+                  sub={loanStateNote(record)}
                   tone={record.loans.some((l) => l.state === "Overdue" || l.state === "Defaulted") ? "bad" : undefined}
                 />
                 <SummaryTile
@@ -175,9 +177,17 @@ export default function MemberDetailsDialog({ memberId, open, onOpenChange, onCh
                   sub={record.recordedMeetings ? `${record.attended} of ${record.recordedMeetings} meetings` : "No attendance recorded"}
                 />
                 <SummaryTile
-                  label="Profit-sharing ratio"
-                  value={record.profitShareRatio === null ? "-" : `${(record.profitShareRatio * 100).toFixed(2)}%`}
-                  sub="Share of all contributions"
+                  label="Last dividend"
+                  unit={record.lastDividend ? cur : undefined}
+                  value={record.lastDividend ? amount(record.lastDividend.amount) : "-"}
+                  sub={
+                    !record.lastDividend
+                      ? "No profit shared yet"
+                      : [
+                          record.lastDividend.year ? `For ${record.lastDividend.year}` : `On ${day(record.lastDividend.date)}`,
+                          record.lastDividend.ratio !== null ? `${(record.lastDividend.ratio * 100).toFixed(2)}% share` : null,
+                        ].filter(Boolean).join(" · ")
+                  }
                 />
               </div>
 
@@ -220,10 +230,10 @@ export default function MemberDetailsDialog({ memberId, open, onOpenChange, onCh
                         <span className="col-span-2 text-right">Balance</span>
                       </div>
                       <div className="divide-y divide-border/60">
-                        {record.savings.map((s, i) => (
+                        {savingsPaged.rows.map((s, i) => (
                           <div key={i} className="grid grid-cols-12 items-center px-4 py-2.5 text-sm hover:bg-muted/30 transition-colors">
                             <span className="col-span-3 figure">{day(s.date)}</span>
-                            <span className={cn("col-span-3", s.kind === "profit" && "text-primary font-medium")}>{s.kind === "profit" ? "Profit share" : "Contribution"}</span>
+                            <span className={cn("col-span-3", s.kind !== "contribution" && "text-primary font-medium")}>{s.kind === "profit" ? "Profit share" : s.kind === "opening" ? "Brought forward" : "Contribution"}</span>
                             <span className="col-span-2">
                               {s.present === null ? <span className="text-xs text-muted-foreground">-</span> : <PresenceBadge present={s.present} />}
                             </span>
@@ -232,10 +242,7 @@ export default function MemberDetailsDialog({ memberId, open, onOpenChange, onCh
                           </div>
                         ))}
                       </div>
-                      <div className="grid grid-cols-12 px-4 py-2.5 bg-muted/40 border-t border-border/60">
-                        <span className="col-span-8 text-xs font-semibold text-muted-foreground">Savings balance</span>
-                        <span className="col-span-4 figure text-sm font-bold text-right">{money(record.savings[0].balance)}</span>
-                      </div>
+                      <TablePager paged={savingsPaged} noun="entries" />
                     </div>
                   )}
                 </TabsContent>
@@ -245,7 +252,7 @@ export default function MemberDetailsDialog({ memberId, open, onOpenChange, onCh
                     <Empty>No loans taken.</Empty>
                   ) : (
                     record.loans.map((l) => {
-                      const owedInAll = l.totalPayable + l.penaltyTotal;
+                      const owedInAll = l.totalPayable + l.bankCharge + l.penaltyTotal;
                       const progress = owedInAll > 0 ? Math.min(100, (l.repaid / owedInAll) * 100) : 0;
                       return (
                         <div key={l.id} className="rounded-sm border border-border/60 overflow-hidden">
@@ -260,7 +267,7 @@ export default function MemberDetailsDialog({ memberId, open, onOpenChange, onCh
                           </div>
                           <div className="px-4 py-3 space-y-3">
                             <div className="grid grid-cols-3 gap-3">
-                              <Figure label={l.penaltyTotal > 0 ? "Payable + penalty" : "Total payable"} value={money(owedInAll)} />
+                              <Figure label={l.penaltyTotal > 0 || l.bankCharge > 0 ? "Owed in all" : "Total payable"} value={money(owedInAll)} />
                               <Figure label="Repaid" value={money(l.repaid)} tone="good" />
                               <Figure label="Remaining" value={money(l.remaining)} tone={l.remaining > 0 ? "bad" : undefined} />
                             </div>
@@ -279,38 +286,42 @@ export default function MemberDetailsDialog({ memberId, open, onOpenChange, onCh
                             {l.nextDue && (
                               <p className="figure text-xs text-foreground">{l.nextDue.date === l.dueDate ? "Due" : "Next instalment"}: {day(l.nextDue.date)} · {money(l.nextDue.amount)}</p>
                             )}
-                            {(l.income.interest > 0 || l.income.penaltiesCharged > 0) && (
-                              <div className="rounded-sm border border-border/60">
-                                <p className="text-xs font-semibold text-muted-foreground px-3 pt-2">Interest & penalties</p>
-                                <div className="grid grid-cols-4 gap-2 px-3 py-2 text-xs">
-                                  <span />
-                                  <span className="text-muted-foreground text-right">Charged</span>
-                                  <span className="text-muted-foreground text-right">Received</span>
-                                  <span className="text-muted-foreground text-right">Outstanding</span>
-                                  {l.income.interest > 0 && (
-                                    <>
-                                      <span className="text-foreground">Interest</span>
-                                      <span className="figure text-right">{amount(l.income.interest)}</span>
-                                      <span className="figure text-right text-secondary">{amount(l.income.interestReceived)}</span>
-                                      <span className={cn("figure text-right", l.income.interestOutstanding > 0 && "text-destructive")}>{amount(l.income.interestOutstanding)}</span>
-                                    </>
-                                  )}
-                                  {l.income.penaltiesCharged > 0 && (
-                                    <>
-                                      <span className="text-foreground">Late penalties</span>
-                                      <span className="figure text-right">{amount(l.income.penaltiesCharged)}</span>
-                                      <span className="figure text-right text-secondary">{amount(l.income.penaltiesReceived)}</span>
-                                      <span className={cn("figure text-right", l.income.penaltiesOutstanding > 0 && "text-destructive")}>{amount(l.income.penaltiesOutstanding)}</span>
-                                    </>
-                                  )}
-                                </div>
+                            {/* How the balance is made up. Interest and penalties are part of it, not an
+                                extra amount, and are collected together when the loan is repaid in full. */}
+                            <div className="rounded-sm border border-border/60">
+                              <p className="text-xs font-semibold text-muted-foreground px-3 pt-2">How the balance is made up</p>
+                              <div className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1 px-3 py-2 text-xs">
+                                <span className="text-foreground">Amount lent</span>
+                                <span className="figure text-right">{amount(l.principal)}</span>
+                                <span className="text-foreground">
+                                  <span className="text-muted-foreground mr-1">+</span>Interest ({l.interestRate}% flat)
+                                </span>
+                                <span className="figure text-right">{amount(l.income.interest)}</span>
+                                {l.bankCharge > 0 && (
+                                  <>
+                                    <span className="text-foreground"><span className="text-muted-foreground mr-1">+</span>Bank charge on the withdrawal</span>
+                                    <span className="figure text-right">{amount(l.bankCharge)}</span>
+                                  </>
+                                )}
+                                {l.income.penaltiesCharged > 0 && (
+                                  <>
+                                    <span className="text-foreground"><span className="text-muted-foreground mr-1">+</span>Late penalties</span>
+                                    <span className="figure text-right">{amount(l.income.penaltiesCharged)}</span>
+                                  </>
+                                )}
+                                <span className="text-foreground"><span className="text-muted-foreground mr-1">−</span>Repaid</span>
+                                <span className="figure text-right text-secondary">{amount(l.repaid)}</span>
+                                <span className="font-semibold text-foreground border-t border-border/60 pt-1"><span className="text-muted-foreground mr-1">=</span>Outstanding</span>
+                                <span className={cn("figure text-right font-semibold border-t border-border/60 pt-1", l.remaining > 0 && "text-destructive")}>{amount(l.remaining)}</span>
+                              </div>
+                              {(l.income.interest > 0 || l.income.penaltiesCharged > 0) && (
                                 <p className="figure text-[11px] text-muted-foreground px-3 pb-2">
                                   {l.income.receivedOn
-                                    ? `Received on ${day(l.income.receivedOn)}, when the loan was repaid in full.`
-                                    : "Interest and penalties are recorded as received when the loan is repaid in full."}
+                                    ? `Interest and penalties collected on ${day(l.income.receivedOn)}, when the loan was repaid in full.`
+                                    : "Interest and penalties are collected when the loan is repaid in full."}
                                 </p>
-                              </div>
-                            )}
+                              )}
+                            </div>
                             <div>
                               <p className="text-xs font-semibold text-muted-foreground mb-1.5">Repayments</p>
                               {l.repayments.length === 0 ? (
@@ -391,9 +402,10 @@ function StateBadge({ state }: { state: LoanState }) {
   return <Badge variant={variant} className="text-[10px] flex-shrink-0">{state}</Badge>;
 }
 
-function LoanStatusBadge({ record }: { record: MemberRecord }) {
+/** Under the Loan outstanding figure: open loans, and the worst state among them (defaulted, overdue). */
+function loanStateNote(record: MemberRecord): string {
+  if (!record.openLoans) return "No outstanding loans";
+  const open = `${record.openLoans} open loan${record.openLoans === 1 ? "" : "s"}`;
   const worst = record.loans.find((l) => l.state === "Defaulted") ?? record.loans.find((l) => l.state === "Overdue");
-  if (worst) return <Badge variant="destructive" className="text-[10px]">Loan {worst.state.toLowerCase()}</Badge>;
-  if (record.openLoans) return <Badge variant="outline" className="text-[10px]">Loan active</Badge>;
-  return <Badge variant="secondary" className="text-[10px]">No outstanding loans</Badge>;
+  return worst ? `${open} · ${worst.state.toLowerCase()}` : open;
 }

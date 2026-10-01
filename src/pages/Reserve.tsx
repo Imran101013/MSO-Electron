@@ -13,7 +13,10 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
+import { parseLocalDate } from "@/hooks/useLoans";
+import { useBooksConfig } from "@/lib/books";
+import { useMemo, useState } from "react";
+import { TablePager, usePaged } from "@/components/TablePager";
 import { DatePicker } from "@/components/ui/date-picker";
 import StatCard from "@/components/StatCard";
 import ViewReportButton from "@/components/ViewReportButton";
@@ -32,13 +35,19 @@ export default function Reserve() {
   const [open, setOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { settings } = useSettings();
+  const { config: books } = useBooksConfig();
+  const ordered = useMemo(() => [...reserveTransactions].reverse(), [reserveTransactions]);
+  const paged = usePaged(ordered);
   const [formData, setFormData] = useState({
     type: "donation",
     amount: "",
     date: undefined as Date | undefined,
     donorName: "",
     notes: "",
+    bankCharge: "",
   });
+  // An expense above the limit in Settings is paid by a cheque the bank charges for.
+  const needsCharge = formData.type === "expense" && Number(formData.amount) > settings.bankChargeThreshold;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,11 +60,12 @@ export default function Reserve() {
       date: format(formData.date ?? new Date(), "yyyy-MM-dd"),
       donorName: formData.donorName || undefined,
       notes: formData.notes || undefined,
+      bankCharge: needsCharge ? Number(formData.bankCharge) || 0 : 0,
     });
     setIsSubmitting(false);
     if (success) {
       setOpen(false);
-      setFormData({ type: "donation", amount: "", date: undefined, donorName: "", notes: "" });
+      setFormData({ type: "donation", amount: "", date: undefined, donorName: "", notes: "", bankCharge: "" });
     }
   };
 
@@ -95,7 +105,7 @@ export default function Reserve() {
                   <Plus className="w-5 h-5 text-primary" />
                 </div>
                 <div>
-                  <h2 className="text-base font-bold text-foreground">Add Transaction</h2>
+                  <DialogTitle className="text-base font-bold text-foreground">Add Transaction</DialogTitle>
                   <p className="text-xs text-muted-foreground">Record a deposit or expense</p>
                 </div>
               </div>
@@ -118,6 +128,18 @@ export default function Reserve() {
                     <Input id="amount" name="amount" type="number" min="0" step="0.01" placeholder="Enter amount" className="h-9"
                       value={formData.amount} onChange={handleInputChange} required />
                   </div>
+
+                  {needsCharge && (
+                    <div className="space-y-1.5">
+                      <Label htmlFor="bankCharge" className="text-xs font-medium">Bank charge on this withdrawal ({settings.currency})</Label>
+                      <Input id="bankCharge" name="bankCharge" type="number" min="0" step="0.01" placeholder="From the bank statement" className="h-9"
+                        value={formData.bankCharge} onChange={handleInputChange} />
+                      <p className="text-xs text-muted-foreground">
+                        Expenses above {settings.currency} {settings.bankChargeThreshold.toLocaleString()} are paid by a cheque the bank charges for. The reserve fund pays the
+                        charge; it is recorded as a second expense on the same day.
+                      </p>
+                    </div>
+                  )}
   
                   <div className="space-y-1.5">
                     <Label className="text-xs font-medium">Date</Label>
@@ -125,6 +147,7 @@ export default function Reserve() {
                       date={formData.date}
                       onDateChange={(date) => setFormData((p) => ({ ...p, date: date || new Date() }))}
                       placeholder="Pick a date"
+                      disabledThrough={books.cutoverDate}
                     />
                   </div>
   
@@ -184,7 +207,7 @@ export default function Reserve() {
               <div className="w-7 h-7 rounded-sm border-2 border-primary/40 bg-primary/10 flex items-center justify-center">
                 <TrendingUp className="w-4 h-4 text-primary" />
               </div>
-              Recent Transactions
+              Transactions
             </CardTitle>
             {reserveTransactions.length > 0 && (
               <span className="figure text-xs text-muted-foreground bg-muted px-2.5 py-1 rounded-sm">
@@ -215,26 +238,26 @@ export default function Reserve() {
           ) : (
             <div className="divide-y divide-border/60">
               {/* Table header */}
-              <div className="grid grid-cols-12 px-5 py-2.5 bg-muted/50">
+              <div className="grid grid-cols-[2.5rem_repeat(12,minmax(0,1fr))] px-5 py-2.5 bg-muted/50">
                 <span className="col-span-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">#</span>
                 <span className="col-span-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Type</span>
                 <span className="col-span-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Source / Spent At</span>
                 <span className="col-span-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Notes</span>
                 <span className="col-span-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Date</span>
-                <span className="col-span-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground text-right">Amount</span>
+                <span className="col-span-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground text-right">Amount</span>
               </div>
 
               {/* Rows */}
-              {[...reserveTransactions].reverse().map((tx, idx) => {
+              {paged.rows.map((tx, idx) => {
                 const isInflow = tx.type !== "expense";
-                const label = tx.type === "expense" ? "Expense" : tx.type === "profit_allocation" ? "Profit Share" : "Deposit";
+                const label = tx.type === "expense" ? "Expense" : tx.type === "profit_allocation" ? "Profit Share" : tx.type === "opening" ? "Brought forward" : "Deposit";
                 return (
                 <div
                   key={tx.id}
-                  className="grid grid-cols-12 px-5 py-3.5 items-center hover:bg-muted/30 transition-colors"
+                  className="grid grid-cols-[2.5rem_repeat(12,minmax(0,1fr))] px-5 py-3.5 items-center hover:bg-muted/30 transition-colors"
                 >
                   <span className="figure col-span-1 text-xs text-muted-foreground">
-                    {reserveTransactions.length - idx}
+                    {reserveTransactions.length - (paged.offset + idx)}
                   </span>
 
                   <div className="col-span-2">
@@ -254,10 +277,10 @@ export default function Reserve() {
                     {tx.notes || "—"}
                   </span>
 
-                  <span className="figure col-span-2 text-xs text-muted-foreground">{tx.date}</span>
+                  <span className="figure col-span-2 text-xs text-muted-foreground">{format(parseLocalDate(String(tx.date).slice(0, 10)), settings.dateFormat)}</span>
 
                   <span className={cn(
-                    "figure col-span-1 text-sm font-bold text-right",
+                    "figure col-span-2 text-sm font-bold text-right whitespace-nowrap",
                     isInflow
                       ? "text-secondary"
                       : "text-destructive"
@@ -268,13 +291,7 @@ export default function Reserve() {
                 );
               })}
 
-              {/* Footer totals */}
-              <div className="grid grid-cols-12 px-5 py-3 bg-muted/40 border-t border-border/60">
-                <span className="col-span-11 text-xs font-semibold text-muted-foreground">Net Balance</span>
-                <span className="figure col-span-1 text-sm font-bold text-right text-foreground">
-                  {settings.currency} {reserveFund.toLocaleString()}
-                </span>
-              </div>
+              <TablePager paged={paged} noun="transactions" />
             </div>
           )}
         </CardContent>

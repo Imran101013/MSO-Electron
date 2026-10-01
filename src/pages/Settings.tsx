@@ -28,6 +28,7 @@ import { ORGANIZATION_CONFIG } from "@/config/organization";
 import { loanDueDate } from "@/utils/loanPenalty";
 import { backupAge, backupDatabase, isBackupDue, restoreDatabase, useLastBackupAt } from "@/lib/backup";
 import { cn, timePattern } from "@/lib/utils";
+import { ClearRecordsStrip, PaperRegistersCard } from "@/components/PaperRegisters";
 
 const DATE_FORMATS = ["dd/MM/yyyy", "MM/dd/yyyy", "yyyy-MM-dd"] as const;
 const DATE_FORMAT_NAMES: Record<(typeof DATE_FORMATS)[number], string> = {
@@ -58,7 +59,9 @@ const settingsSchema = z.object({
   applyLoanInterest: z.boolean(),
   loanInterestRate: percent,
   latePenaltyPerMonth: z.number({ invalid_type_error: "Enter an amount" }).min(0, "Can't be negative"),
-  reserveSharePercent: percent,
+  absencePenaltyPerMeeting: z.number({ invalid_type_error: "Enter an amount" }).min(0, "Can't be negative"),
+  reservePercent: percent,
+  bankChargeThreshold: z.number({ invalid_type_error: "Enter an amount" }).min(0, "Can't be negative"),
   theme: z.enum(["system", "light", "dark"]),
   dateFormat: z.enum(DATE_FORMATS),
   timeFormat: z.enum(["12", "24"]),
@@ -72,7 +75,7 @@ const settingsSchema = z.object({
 type FormValues = z.infer<typeof settingsSchema>;
 
 const SECTIONS: Record<string, Array<keyof FormValues>> = {
-  "Money rules": ["applyLoanInterest", "loanInterestRate", "latePenaltyPerMonth", "reserveSharePercent"],
+  "Money rules": ["applyLoanInterest", "loanInterestRate", "latePenaltyPerMonth", "absencePenaltyPerMeeting", "reservePercent", "bankChargeThreshold"],
   "Display & lists": ["theme", "dateFormat", "timeFormat", "currency", "enableAnimations", "membersPerPage", "itemsPerPage"],
   "Data safety": ["backupReminderDays"],
 };
@@ -81,7 +84,9 @@ const toForm = (s: AppSettings): FormValues => ({
   applyLoanInterest: s.applyLoanInterest,
   loanInterestRate: s.loanInterestRate,
   latePenaltyPerMonth: s.latePenaltyPerMonth,
-  reserveSharePercent: s.reserveSharePercent,
+  absencePenaltyPerMeeting: s.absencePenaltyPerMeeting,
+  reservePercent: s.reservePercent,
+  bankChargeThreshold: s.bankChargeThreshold,
   theme: s.theme,
   dateFormat: (DATE_FORMATS as readonly string[]).includes(s.dateFormat) ? (s.dateFormat as FormValues["dateFormat"]) : "dd/MM/yyyy",
   timeFormat: s.timeFormat === "24" ? "24" : "12",
@@ -173,11 +178,13 @@ export default function SettingsPage() {
   const cur = v.currency?.trim() || settings.currency;
   const period = ORGANIZATION_CONFIG.LOAN_PERIOD_MONTHS;
   const sampleLoan = 10000;
+  const sampleAbsences = 3;
   const sampleProfit = 100000;
   const sampleDue = loanDueDate(format(new Date(), "yyyy-MM-dd"));
-  const example = (apply: boolean, rateIn: number, penaltyIn: number, shareIn: number) => {
+  const example = (apply: boolean, rateIn: number, penaltyIn: number, fineIn: number, shareIn: number) => {
     const rate = apply ? (Number.isFinite(rateIn) ? rateIn : null) : 0;
     const payable = rate === null ? null : round2(sampleLoan * (1 + rate / 100));
+    const fine = Number.isFinite(fineIn) ? fineIn : null;
     const share = Number.isFinite(shareIn) ? shareIn : null;
     const reserve = share === null ? null : round2((sampleProfit * share) / 100);
     const penalty = Number.isFinite(penaltyIn) ? penaltyIn : null;
@@ -188,15 +195,18 @@ export default function SettingsPage() {
       instalment: payable === null ? "—" : money(round2(payable / period)),
       penalty: penalty === null ? "—" : penalty > 0 ? `+${money(penalty)} / month` : "no penalty",
       penaltyCharged: (penalty ?? 0) > 0,
+      fine: fine === null ? "—" : money(fine),
+      absenceTaken: fine === null ? "—" : fine > 0 ? `−${money(round2(fine * sampleAbsences))}` : "nothing",
+      absenceCharged: (fine ?? 0) > 0,
       shareLabel: share === null ? "—" : `${money(share)}%`,
       membersShareLabel: share === null ? "—" : `${money(100 - share)}%`,
       reserve: reserve === null ? "—" : money(reserve),
       members: reserve === null ? "—" : money(round2(sampleProfit - reserve)),
     };
   };
-  const next = example(v.applyLoanInterest, v.loanInterestRate, v.latePenaltyPerMonth, v.reserveSharePercent);
-  const inForce = example(settings.applyLoanInterest, settings.loanInterestRate, settings.latePenaltyPerMonth, settings.reserveSharePercent);
-  const shareNow = finite(v.reserveSharePercent);
+  const next = example(v.applyLoanInterest, v.loanInterestRate, v.latePenaltyPerMonth, v.absencePenaltyPerMeeting, v.reservePercent);
+  const inForce = example(settings.applyLoanInterest, settings.loanInterestRate, settings.latePenaltyPerMonth, settings.absencePenaltyPerMeeting, settings.reservePercent);
+  const shareNow = finite(v.reservePercent);
   const dateFmt = v.dateFormat || settings.dateFormat;
   const fmtDay = (key: string) => format(new Date(`${key}T00:00:00`), dateFmt);
   const now = new Date();
@@ -267,7 +277,7 @@ export default function SettingsPage() {
             <SettingRow
               compact
               label="Late penalty"
-              help={`Added for each full month after a loan's ${period}-month term until it is paid in full, penalties included.`}
+              help={`Added for each full month after a loan's ${period}-month term until it is paid in full, penalties included, or the committee marks it defaulted.`}
               htmlFor="latePenaltyPerMonth"
               error={errors.latePenaltyPerMonth?.message}
               hint={was("latePenaltyPerMonth", `${settings.currency} ${money(settings.latePenaltyPerMonth)} a month`)}
@@ -283,18 +293,51 @@ export default function SettingsPage() {
             </SettingRow>
             <SettingRow
               compact
-              label="Reserve fund share of profit"
-              help={`Taken from each profit distribution; members share the other ${money(100 - shareNow)}% by their contributions.`}
-              htmlFor="reserveSharePercent"
-              error={errors.reserveSharePercent?.message}
-              hint={was("reserveSharePercent", `${settings.reserveSharePercent}%`)}
+              label="Absence penalty"
+              help="Taken from a member's dividend for each meeting of the year they were marked absent at, never more than the dividend. The charges are part of the year's profit."
+              htmlFor="absencePenaltyPerMeeting"
+              error={errors.absencePenaltyPerMeeting?.message}
+              hint={was("absencePenaltyPerMeeting", `${settings.currency} ${money(settings.absencePenaltyPerMeeting)} a meeting`)}
             >
               <UnitInput
-                id="reserveSharePercent"
+                id="absencePenaltyPerMeeting"
+                prefix={cur}
+                suffix="/ meeting"
+                inputMode="decimal"
+                invalid={!!errors.absencePenaltyPerMeeting}
+                {...register("absencePenaltyPerMeeting", { setValueAs: asNumber })}
+              />
+            </SettingRow>
+            <SettingRow
+              compact
+              label="Reserve fund share of profit"
+              help={`Of each year's profit (bank profit, loan interest and penalties collected, and absence charges), shared at the July AGM. Members share the other ${money(100 - shareNow)}% by their savings on 31 December.`}
+              htmlFor="reservePercent"
+              error={errors.reservePercent?.message}
+              hint={was("reservePercent", `${settings.reservePercent}%`)}
+            >
+              <UnitInput
+                id="reservePercent"
                 suffix="%"
                 inputMode="decimal"
-                invalid={!!errors.reserveSharePercent}
-                {...register("reserveSharePercent", { setValueAs: asNumber })}
+                invalid={!!errors.reservePercent}
+                {...register("reservePercent", { setValueAs: asNumber })}
+              />
+            </SettingRow>
+            <SettingRow
+              compact
+              label="Bank charge on withdrawals above"
+              help="The bank takes a charge when a cheque withdrawal is above this amount. Loans and reserve expenses above it ask for the charge, typed in from the bank statement: on a loan the member repays it with the loan (no interest on it); on a reserve expense the reserve fund pays it."
+              htmlFor="bankChargeThreshold"
+              error={errors.bankChargeThreshold?.message}
+              hint={was("bankChargeThreshold", `${settings.currency} ${money(settings.bankChargeThreshold)}`)}
+            >
+              <UnitInput
+                id="bankChargeThreshold"
+                prefix={cur}
+                inputMode="decimal"
+                invalid={!!errors.bankChargeThreshold}
+                {...register("bankChargeThreshold", { setValueAs: asNumber })}
               />
             </SettingRow>
           </div>
@@ -316,7 +359,14 @@ export default function SettingsPage() {
               <Leader label="If unpaid a month after that" value={next.penalty} was={inForce.penalty} tone={next.penaltyCharged ? "bad" : undefined} />
             </dl>
             <p className="mt-4 text-xs font-medium text-muted-foreground">
-              A profit of <span className="figure">{cur} {money(sampleProfit)}</span> distributed
+              A member who missed <span className="figure">{sampleAbsences}</span> meetings in the year
+            </p>
+            <dl className="mt-1.5 space-y-1">
+              <Leader label="Penalty per meeting" value={next.fine} was={inForce.fine} />
+              <Leader label="Taken from their dividend" value={next.absenceTaken} was={inForce.absenceTaken} tone={next.absenceCharged ? "bad" : undefined} />
+            </dl>
+            <p className="mt-4 text-xs font-medium text-muted-foreground">
+              A year's profit of <span className="figure">{cur} {money(sampleProfit)}</span> shared at the AGM
             </p>
             <dl className="mt-1.5 space-y-1">
               <Leader label={`Reserve fund (${next.shareLabel})`} value={next.reserve} was={inForce.reserve} />
@@ -413,7 +463,7 @@ export default function SettingsPage() {
                 {...register("membersPerPage", { setValueAs: asNumber })}
               />
             </SettingRow>
-            <SettingRow label="Rows per page elsewhere" help="Contributions on the Budget page and entries in the Audit Log." htmlFor="itemsPerPage" error={errors.itemsPerPage?.message}>
+            <SettingRow label="Rows per page elsewhere" help="Every other table longer than this is split into pages: loans, meetings, the reserve fund, profit distribution, contributions, a member's savings history and the Audit Log." htmlFor="itemsPerPage" error={errors.itemsPerPage?.message}>
               <UnitInput
                 id="itemsPerPage"
                 suffix="rows"
@@ -426,6 +476,9 @@ export default function SettingsPage() {
           </div>
         </div>
       </Card>
+
+      {/* Moving from paper registers: cut-over date and opening balances */}
+      <PaperRegistersCard />
 
       {/* Data safety */}
       <Card className="rounded-sm shadow-sm">
@@ -509,6 +562,7 @@ export default function SettingsPage() {
             </AlertDialogContent>
           </AlertDialog>
         </div>
+        <ClearRecordsStrip />
       </Card>
 
       {/* Save bar */}

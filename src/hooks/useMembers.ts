@@ -14,6 +14,8 @@ export interface DbMember {
   join_date: string;
   profile_picture: string | null;
   total_budget: number;
+  /** The member's number in the paper register, for members brought in at the cut-over. */
+  register_no?: string | null;
   is_approved: boolean;
   created_at: string;
   updated_at: string;

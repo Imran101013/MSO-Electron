@@ -2,12 +2,25 @@ import { useState, useEffect } from "react";
 import { dbQuery } from "@/lib/db";
 import { useToast } from "@/hooks/use-toast";
 import { useSettings } from "@/contexts/SettingsContext";
+import { cutoverBlock } from "@/lib/books";
+import type { YearEndPlan } from "@/utils/yearEndProfit";
 
 export interface DbProfitDistribution {
   id: string;
   distribution_date: string;
+  /** The year's total profit: bank profit + loan interest + late penalties collected. */
   total_profit: number;
+  /** The reserve fund's share of the total. */
   reserve_allocation: number;
+  /** Set on year-end distributions; null on earlier bank-profit-only ones. */
+  profit_year?: number | null;
+  bank_profit?: number | null;
+  loan_interest?: number;
+  loan_penalties?: number;
+  absence_penalties?: number;
+  absence_fine?: number | null;
+  /** The bank profit came from the year's recorded bank profit entries (hooks/useBankProfits.ts). */
+  bank_profit_recorded?: boolean;
   created_at: string;
 }
 
@@ -15,15 +28,14 @@ export interface DbProfitAllocation {
   id: string;
   distribution_id: string;
   member_id: string;
+  /** The dividend credited to the member's savings (after any absence penalty). */
   amount: number;
   ratio: number;
+  gross_amount?: number | null;
+  absences?: number;
+  absence_penalty?: number;
+  savings_basis?: number | null;
   created_at: string;
-}
-
-export interface MemberAllocationInput {
-  memberId: string;
-  amount: number;
-  ratio: number;
 }
 
 export function useProfitDistributions() {
@@ -48,68 +60,83 @@ export function useProfitDistributions() {
     setIsLoading(false);
   };
 
-  // Records a profit distribution: the distribution header, one allocation row per
-  // member, the corresponding reserve-fund transaction, and each member's budget bump.
-  // Not wrapped in a DB transaction (the db-query IPC channel runs one statement per
-  // call) — matches the existing bulk-write convention used by useContributions/useAttendance.
-  const recordDistribution = async (
-    totalProfit: number,
-    reserveAllocation: number,
-    distributionDate: string,
-    memberAllocations: MemberAllocationInput[]
-  ) => {
+  /**
+   * Records an annual distribution (utils/yearEndProfit.ts) in one statement, so it lands in full
+   * or not at all: the distribution, one line per member, each member's savings credited with their
+   * dividend, and the reserve fund's share.
+   */
+  const recordYearEnd = async (plan: YearEndPlan, distributionDate: string) => {
     try {
-      // Guard: prevent distributing profit twice for the same calendar year.
+      const block = await cutoverBlock(distributionDate, settings.dateFormat);
+      if (block) { toast({ title: "Date is before the cut-over", description: block, variant: "destructive" }); return null; }
+      if (plan.problems.length > 0) { toast({ title: "Can't distribute yet", description: plan.problems[0], variant: "destructive" }); return null; }
+
       const existing = await dbQuery<{ id: string }>(
-        "SELECT id FROM public.profit_distributions WHERE EXTRACT(year FROM distribution_date::date) = EXTRACT(year FROM $1::date)",
-        [distributionDate]
+        "SELECT id FROM public.profit_distributions WHERE profit_year = $1 OR (profit_year IS NULL AND EXTRACT(year FROM distribution_date::date) = $1)",
+        [plan.year]
       );
       if (existing.length > 0) {
-        toast({ title: "Already Distributed", description: "Profit has already been distributed for this year.", variant: "destructive" });
+        toast({ title: "Already Distributed", description: `The profit for ${plan.year} has already been distributed.`, variant: "destructive" });
+        return null;
+      }
+      // The bank profit is the year's recorded bank profit entries (hooks/useBankProfits.ts); make
+      // sure none was added or removed since the figures on screen were worked out.
+      const [recorded] = await dbQuery<{ total: number }>(
+        "SELECT COALESCE(SUM(amount), 0) AS total FROM public.bank_profits WHERE profit_year = $1",
+        [plan.year]
+      );
+      if (Math.abs(Number(recorded?.total || 0) - plan.bankProfit) > 0.005) {
+        toast({ title: "Bank profit has changed", description: `The bank profit recorded for ${plan.year} is now ${settings.currency} ${Number(recorded?.total || 0).toLocaleString()}. Check the figures again before distributing.`, variant: "destructive" });
         return null;
       }
 
-      const distRows = await dbQuery<DbProfitDistribution>(
-        'INSERT INTO public.profit_distributions (distribution_date, total_profit, reserve_allocation) VALUES ($1,$2,$3) RETURNING *',
-        [distributionDate, totalProfit, reserveAllocation]
-      );
-      const distribution = distRows[0];
-
-      for (const alloc of memberAllocations) {
-        await dbQuery(
-          'INSERT INTO public.profit_allocations (distribution_id, member_id, amount, ratio) VALUES ($1,$2,$3,$4)',
-          [distribution.id, alloc.memberId, alloc.amount, alloc.ratio]
-        );
-        await dbQuery(
-          'UPDATE public.members SET total_budget = total_budget + $1 WHERE id = $2',
-          [alloc.amount, alloc.memberId]
-        );
-      }
-
-      await dbQuery(
-        'INSERT INTO public.reserve_transactions (transaction_type, amount, donor_name, notes, transaction_date) VALUES ($1,$2,$3,$4,$5)',
+      const rows = plan.rows;
+      const [result] = await dbQuery<{ id: string }>(
+        `WITH d AS (
+           INSERT INTO public.profit_distributions
+             (distribution_date, total_profit, reserve_allocation, profit_year, bank_profit, loan_interest, loan_penalties, absence_penalties, absence_fine, bank_profit_recorded)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true) RETURNING id
+         ),
+         a AS (
+           INSERT INTO public.profit_allocations (distribution_id, member_id, amount, ratio, gross_amount, absences, absence_penalty, savings_basis)
+           SELECT d.id, t.member_id, t.amount, t.ratio, t.gross, t.absences, t.penalty, t.savings
+           FROM d, unnest($10::uuid[], $11::numeric[], $12::numeric[], $13::numeric[], $14::int[], $15::numeric[], $16::numeric[])
+             AS t(member_id, amount, ratio, gross, absences, penalty, savings)
+           RETURNING member_id, amount
+         ),
+         m AS (
+           UPDATE public.members SET total_budget = COALESCE(members.total_budget, 0) + a.amount
+           FROM a WHERE members.id = a.member_id RETURNING members.id
+         ),
+         r AS (
+           INSERT INTO public.reserve_transactions (transaction_type, amount, donor_name, notes, transaction_date)
+           SELECT 'profit_allocation', x.amount, 'Year-end profit distribution', x.note, $1
+           FROM unnest($17::numeric[], $18::text[]) AS x(amount, note) WHERE x.amount > 0
+           RETURNING id
+         )
+         SELECT (SELECT id FROM d) AS id, (SELECT COUNT(*) FROM a) AS allocations, (SELECT COUNT(*) FROM m) AS members, (SELECT COUNT(*) FROM r) AS reserve`,
         [
-          'profit_allocation',
-          reserveAllocation,
-          'Yearly Profit Distribution',
-          `${totalProfit > 0 ? Math.round((reserveAllocation / totalProfit) * 10000) / 100 : 0}% allocation from yearly profit of ${settings.currency} ${totalProfit.toLocaleString()}`,
-          distributionDate,
+          distributionDate, plan.totalProfit, plan.reserve, plan.year, plan.bankProfit, plan.loanInterest, plan.loanPenalties, plan.absencePenalties, plan.absenceFine,
+          rows.map((x) => x.memberId), rows.map((x) => x.dividend), rows.map((x) => x.ratio), rows.map((x) => x.gross),
+          rows.map((x) => x.absences), rows.map((x) => x.penalty), rows.map((x) => x.savings),
+          [plan.reserve],
+          [`Reserve share (${plan.reservePercent}%) of the ${plan.year} profit`],
         ]
       );
 
       toast({
         title: "Profit Distributed",
-        description: `${settings.currency} ${totalProfit.toLocaleString()} distributed across ${memberAllocations.length} member(s).`,
+        description: `${settings.currency} ${plan.totalProfit.toLocaleString()} for ${plan.year}: ${settings.currency} ${plan.dividends.toLocaleString()} to ${rows.length} member(s), ${settings.currency} ${plan.reserve.toLocaleString()} to the reserve fund.`,
       });
       await fetchDistributions();
-      return distribution;
-    } catch (err: any) {
-      toast({ title: "Error", description: err.message || "Failed to distribute profit", variant: "destructive" });
+      return result ?? null;
+    } catch (err: unknown) {
+      toast({ title: "Error", description: err instanceof Error ? err.message : "Failed to distribute profit", variant: "destructive" });
       return null;
     }
   };
 
   useEffect(() => { fetchDistributions(); }, []);
 
-  return { distributions, allocations, isLoading, fetchDistributions, recordDistribution };
+  return { distributions, allocations, isLoading, fetchDistributions, recordYearEnd };
 }

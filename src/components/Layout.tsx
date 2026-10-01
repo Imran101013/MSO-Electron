@@ -8,7 +8,7 @@ import {
   FileText, Settings, LogOut, Lock, Sun, Moon, DollarSign, CalendarDays, History,
 } from "lucide-react";
 import {
-  Sidebar, SidebarContent, SidebarFooter, SidebarGroup,
+  Sidebar, SidebarContent, SidebarGroup,
   SidebarGroupContent, SidebarHeader, SidebarInset, SidebarMenu,
   SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger,
 } from "@/components/ui/sidebar";
@@ -100,30 +100,18 @@ export default function Layout({ children }: LayoutProps) {
           </SidebarGroup>
         </SidebarContent>
 
-        {/* Footer */}
-        <SidebarFooter className="px-3 py-3">
-          <div className="h-px bg-sidebar-border mb-3" />
-          <div className="flex items-center gap-3 px-3 py-2.5 rounded-sm bg-sidebar-accent/50 border border-sidebar-border">
-            <Avatar className="w-8 h-8 rounded-sm">
-              <AvatarFallback className="rounded-sm bg-sidebar-primary/15 border border-sidebar-primary/40 text-sidebar-primary text-xs font-bold">
-                {initials}
-              </AvatarFallback>
-            </Avatar>
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-semibold text-sidebar-foreground/90 truncate">{displayName}</p>
-              <p className="tracked-label text-[9px] text-sidebar-foreground/45 capitalize">{user?.role}</p>
-            </div>
-          </div>
-        </SidebarFooter>
       </Sidebar>
 
-      <SidebarInset>
+      {/* min-w-0: wide content (a table with many columns) scrolls inside its own box instead of
+          stretching the whole page wider than the window. */}
+      <SidebarInset className="min-w-0">
         {/* Top header — statement letterhead */}
         <header className="flex h-16 border-b-2 border-primary/50 shrink-0 items-center gap-3 px-5 bg-card/95 backdrop-blur-md sticky top-0 z-10 shadow-sm">
           <SidebarTrigger className="-ml-1 text-muted-foreground hover:text-foreground rounded-sm" />
           <Separator orientation="vertical" className="h-5 opacity-40" />
+          {/* The Members page has its own search over its list, so this one is left out there. */}
           <div className="flex-1">
-            <MemberSearch />
+            {location.pathname !== "/members" && <MemberSearch />}
           </div>
           <div className="flex items-center gap-2">
             <Button

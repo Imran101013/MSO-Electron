@@ -1,7 +1,13 @@
 export const ORGANIZATION_CONFIG = {
   // Finance settings
   LOAN_INTEREST_RATE: 10, // Loan interest rate in percentage
-  RESERVE_SHARE_PERCENT: 10, // Share of each profit distribution credited to the reserve fund
+  // Taken from a member's dividend for each meeting of the year they were marked absent at.
+  ABSENCE_PENALTY_PER_MEETING: 50,
+  // Share of each year's profit (bank profit + loan interest + penalties + absence charges)
+  // credited to the reserve fund at the AGM; members share the rest.
+  RESERVE_PERCENT_OF_PROFIT: 30,
+  // The bank takes a charge on a cheque withdrawal above this amount (loans, reserve expenses).
+  BANK_CHARGE_THRESHOLD: 50000,
 
   // Pagination settings
   MEMBERS_PER_PAGE: 5,

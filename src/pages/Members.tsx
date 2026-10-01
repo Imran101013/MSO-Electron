@@ -3,7 +3,7 @@ import { Pagination, PaginationContent, PaginationItem, PaginationLink, Paginati
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus, Search, Pencil, Trash2, Eye, Upload, Loader2, Users, Wallet, UserPlus } from "lucide-react";
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useForm } from "react-hook-form";
@@ -203,7 +203,7 @@ export default function Members() {
                     {editingMember ? <Pencil className="w-5 h-5 text-primary" /> : <Plus className="w-5 h-5 text-primary" />}
                   </div>
                   <div>
-                    <h2 className="text-base font-bold text-foreground">{editingMember ? "Edit Member" : "Add New Member"}</h2>
+                    <DialogTitle className="text-base font-bold text-foreground">{editingMember ? "Edit Member" : "Add New Member"}</DialogTitle>
                     <p className="text-xs text-muted-foreground">{editingMember ? "Update member information" : "Create a new member profile"}</p>
                   </div>
                 </div>
@@ -275,7 +275,7 @@ export default function Members() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <StatCard title="Total Members" value={members.length} icon={Users} iconColor="border-primary/40 bg-primary/10 text-primary" />
         <StatCard title="New This Month" value={newThisMonth} icon={UserPlus} iconColor="border-secondary/40 bg-secondary/10 text-secondary" />
-        <StatCard title="Total Contributions" value={`${settings.currency} ${totalContributions.toLocaleString()}`} icon={Wallet} iconColor="border-accent/50 bg-accent/15 text-accent-foreground" />
+        <StatCard title="Members' Savings" value={`${settings.currency} ${totalContributions.toLocaleString()}`} icon={Wallet} iconColor="border-accent/50 bg-accent/15 text-accent-foreground" />
       </div>
 
       {/* Search + List */}
@@ -311,7 +311,7 @@ export default function Members() {
             // runs 1px past the card's right and bottom edges so the outermost rules are clipped.
             <ul className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 -mr-px -mb-px border-t border-border/60">
               {currentMembers.map((member) => (
-                <li key={member.id} className="flex items-center gap-3 px-4 py-3 border-r border-b border-border/60 transition-colors hover:bg-muted/50">
+                <li key={member.id} className="flex items-center gap-3 px-3 py-2 border-r border-b border-border/60 transition-colors hover:bg-muted/50">
                   <Avatar className="h-10 w-10 rounded-sm flex-shrink-0">
                     <AvatarImage src={member.profile_picture || undefined} />
                     <AvatarFallback className="rounded-sm bg-primary/10 border border-primary/40 text-primary text-sm font-semibold">

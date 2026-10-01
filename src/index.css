@@ -46,6 +46,11 @@
 
     --radius: 0.625rem;
 
+    /* Dashboard loans chart. Stepped apart from brass/teller-green so the two series stay
+       distinct under colour-blind vision on the card surface (checked with a CVD validator). */
+    --chart-issued: 39 58% 44%;
+    --chart-recovered: 156 59% 30%;
+
     --gradient-primary: linear-gradient(135deg, hsl(38 58% 36%), hsl(42 72% 52%));
     --gradient-secondary: linear-gradient(135deg, hsl(150 40% 24%), hsl(150 44% 38%));
     --gradient-accent: linear-gradient(135deg, hsl(6 50% 36%), hsl(14 55% 48%));
@@ -93,6 +98,9 @@
     --border: 222 22% 19%;
     --input: 222 22% 19%;
     --ring: 38 70% 58%;
+
+    --chart-issued: 38 60% 45%;
+    --chart-recovered: 158 42% 43%;
 
     --gradient-primary: linear-gradient(135deg, hsl(38 65% 46%), hsl(42 75% 60%));
     --gradient-secondary: linear-gradient(135deg, hsl(150 40% 32%), hsl(150 46% 46%));

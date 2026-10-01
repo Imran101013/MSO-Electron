@@ -35,24 +35,33 @@
  *   owed and taken to income when it is charged.
  * - A loan's interest and penalties count as received when the loan is repaid in full
  *   (utils/loanInterest.ts) — this drives the Interest & Penalties sections, not the postings.
+ * - The bank's charge on a loan's cheque withdrawal leaves the bank on the loan date and is owed back
+ *   by the member with the loan: it is part of the balance owed, but it is neither interest nor income.
  * - Loans flagged "defaulted" are provided for in full (100% of the balance still owed, which
- *   includes interest and penalties already taken to income).
+ *   includes interest and penalties already taken to income) from the day the committee marked
+ *   them defaulted; no late penalty is charged after that day.
  */
 import { addDays, addMonths, differenceInCalendarDays, format } from "date-fns";
 import { loanDueDate } from "@/utils/loanPenalty";
 import { paidInFullOn } from "@/utils/loanInterest";
 import type {
+  BankProfit,
   Member,
   Meeting,
   ProfitDistribution,
   ReserveTransaction,
 } from "@/contexts/OrganizationContext";
+import type { OpeningProfit } from "@/lib/books";
 
 export interface AccountingInput {
   members: Member[];
   meetings: Meeting[];
   reserveTransactions: ReserveTransaction[];
   profitDistributions: ProfitDistribution[];
+  /** The bank's profit, counted on the day the bank credited it (hooks/useBankProfits.ts). */
+  bankProfits?: BankProfit[];
+  /** The year's profit not yet shared at the cut-over, from the paper registers. */
+  openingProfit?: OpeningProfit | null;
 }
 
 /** Inclusive reporting period as yyyy-MM-dd keys; `from: null` means since inception. */
@@ -142,8 +151,12 @@ export interface LoanRecord {
   interestRate: number;
   interest: number;
   totalPayable: number;
+  /** The bank's charge on the withdrawal, owed by the member with the loan (not interest). */
+  bankCharge: number;
   termMonths: number;
   state: LoanState;
+  /** The day the loan was marked defaulted; a position before it reads as not defaulted. */
+  defaultedOn: string | null;
   /** remaining_amount as stored on the loan row (includes penalties charged). */
   systemOutstanding: number;
   receipts: LoanReceipt[];
@@ -202,6 +215,11 @@ export interface LoanPosition {
   schedule: ScheduleStatusRow[];
 }
 
+/** Whether a loan counts as defaulted at `asAt`: marked defaulted on or before that day. */
+function defaultedBy(loan: LoanRecord, asAt: string): boolean {
+  return loan.state === "defaulted" && (!loan.defaultedOn || loan.defaultedOn <= asAt);
+}
+
 function normaliseLoanState(status: string): LoanState {
   const s = String(status || "").toLowerCase();
   if (s === "paid") return "paid";
@@ -220,7 +238,11 @@ export type EntryKind =
   | "bank_profit"
   | "profit_member"
   | "profit_reserve"
-  | "penalty_charge";
+  | "penalty_charge"
+  /** The bank's charge on a loan's cheque withdrawal: paid out of the bank, owed back by the member. */
+  | "bank_charge"
+  /** Loan interest and penalties collected in the paper registers' last year, not yet shared at the cut-over. */
+  | "opening_profit";
 
 const KIND_ORDER: Record<EntryKind, number> = {
   contribution: 1,
@@ -232,6 +254,8 @@ const KIND_ORDER: Record<EntryKind, number> = {
   profit_member: 7,
   profit_reserve: 8,
   penalty_charge: 9,
+  opening_profit: 10,
+  bank_charge: 11,
 };
 
 export const KIND_LABELS: Record<EntryKind, string> = {
@@ -241,13 +265,17 @@ export const KIND_LABELS: Record<EntryKind, string> = {
   disbursement: "Loan disbursement",
   expense: "Reserve fund expense",
   bank_profit: "Bank profit received",
-  profit_member: "Bank profit share to member",
-  profit_reserve: "Bank profit share to reserve fund",
+  profit_member: "Profit share to member",
+  profit_reserve: "Profit share to reserve fund",
   penalty_charge: "Late payment penalty charged",
+  opening_profit: "Profit not yet shared, from the paper registers",
+  bank_charge: "Bank charge on a loan withdrawal",
 };
 
 /** Before 20/07/2026 the app saved the reserve's share of a distribution as a "donation" row with this donor name. */
 const LEGACY_RESERVE_SHARE = "yearly profit distribution";
+/** Donor name on the reserve fund's entries from a year-end distribution; their notes say what each is. */
+const YEAR_END_SOURCE = "year-end profit distribution";
 
 /** Epoch ms for ISO or Postgres timestamps ("2026-08-08 15:55:11.383953+05"). */
 export function toEpoch(ts: string): number {
@@ -308,6 +336,8 @@ export interface Balances {
 export interface Movements {
   contributions: number;
   disbursements: number;
+  /** Bank charges on loan withdrawals: paid out of the bank, owed back by the borrowers. */
+  bankCharges: number;
   repayments: number;
   /** Flat interest charged on loans issued in the period (income). */
   interestIncome: number;
@@ -320,6 +350,8 @@ export interface Movements {
   donations: number;
   expenses: number;
   bankProfit: number;
+  /** Loan interest and penalties the paper registers collected in their last year, not yet shared. */
+  openingProfit: number;
   profitToMembers: number;
   profitToReserve: number;
   impairment: number;
@@ -398,7 +430,8 @@ export function buildBooks(input: AccountingInput): Books {
     .map((m) => ({ m, join: dayKey(m.joinDate) }))
     .sort((a, b) => registerOrder({ join: a.join, name: a.m.name, id: a.m.dbId }, { join: b.join, name: b.m.name, id: b.m.dbId }))
     .map(({ m, join }, i) => ({
-      memberNo: memberNumber(i),
+      // Members brought in from the paper registers keep their register number.
+      memberNo: m.registerNo || memberNumber(i),
       dbId: m.dbId,
       name: m.name,
       fatherName: m.fatherName || "",
@@ -420,6 +453,9 @@ export function buildBooks(input: AccountingInput): Books {
     const principal = r2(Number(loan.amount) || 0);
     const totalPayable = r2(Math.max(Number(loan.totalPayable) || principal, principal));
     const interest = r2(totalPayable - principal);
+    // Owed before penalties: the total payable plus the bank's charge on the withdrawal.
+    const bankCharge = r2(Math.max(0, Number(loan.bankCharge) || 0));
+    const owedBase = r2(totalPayable + bankCharge);
     const termMonths = Math.max(1, Math.round(loan.termMonths || 1));
     const systemOutstanding = r2(Math.max(0, Number(loan.remainingAmount) || 0));
     const penalties: PenaltyRow[] = (loan.penalties || [])
@@ -434,7 +470,7 @@ export function buildBooks(input: AccountingInput): Books {
       .map((inst, k) => ({ date: dayKey(inst.date), amount: r2(Number(inst.amount) || 0), sourceId: inst.id || `${loan.dbId}-i${k}`, itemised: true }))
       .sort((a, b) => a.date.localeCompare(b.date) || a.sourceId.localeCompare(b.sourceId));
     const itemisedTotal = sum(itemised, (x) => x.amount);
-    const unitemised = r2(totalPayable + penaltyTotal - systemOutstanding - itemisedTotal);
+    const unitemised = r2(owedBase + penaltyTotal - systemOutstanding - itemisedTotal);
     const rawReceipts = unitemised > EPS
       ? [{ date, amount: unitemised, sourceId: `${loan.dbId}-bf`, itemised: false }, ...itemised]
       : itemised;
@@ -444,7 +480,7 @@ export function buildBooks(input: AccountingInput): Books {
     let cumRepaid = 0;
     const receipts: LoanReceipt[] = rawReceipts.map((rc) => {
       cumRepaid = r2(cumRepaid + rc.amount);
-      return { ...rc, balanceAfter: r2(totalPayable + penaltiesBy(rc.date) - cumRepaid), voucher: "" };
+      return { ...rc, balanceAfter: r2(owedBase + penaltiesBy(rc.date) - cumRepaid), voucher: "" };
     });
 
     let schedule: ScheduleRow[] = (loan.schedule || []).map((s) => ({
@@ -455,10 +491,10 @@ export function buildBooks(input: AccountingInput): Books {
     const scheduleIsDerived = schedule.length === 0;
     if (scheduleIsDerived) {
       // Same equal-installment plan useLoans.issueLoan writes for new loans.
-      const base = Math.floor((totalPayable / termMonths) * 100) / 100;
+      const base = Math.floor((owedBase / termMonths) * 100) / 100;
       let allocated = 0;
       schedule = Array.from({ length: termMonths }, (_, k) => {
-        const due = k === termMonths - 1 ? r2(totalPayable - allocated) : base;
+        const due = k === termMonths - 1 ? r2(owedBase - allocated) : base;
         allocated = r2(allocated + due);
         return { no: k + 1, dueDate: format(addMonths(parseDay(date), k + 1), "yyyy-MM-dd"), dueAmount: due };
       });
@@ -475,8 +511,10 @@ export function buildBooks(input: AccountingInput): Books {
       interestRate: Number(loan.interestRate) || (principal > 0 ? r2((interest / principal) * 100) : 0),
       interest,
       totalPayable,
+      bankCharge,
       termMonths,
       state: normaliseLoanState(loan.status),
+      defaultedOn: loan.defaultedOn ? String(loan.defaultedOn).slice(0, 10) : null,
       systemOutstanding,
       receipts,
       schedule,
@@ -485,7 +523,7 @@ export function buildBooks(input: AccountingInput): Books {
       penaltyPerMonth: r2(Number(loan.penaltyPerMonth) || 0),
       penalties,
       penaltyTotal,
-      paidInFullOn: paidInFullOn(r2(totalPayable + penaltyTotal), date, rawReceipts),
+      paidInFullOn: paidInFullOn(r2(owedBase + penaltyTotal), date, rawReceipts),
       disbursementVoucher: "",
     };
   });
@@ -503,7 +541,7 @@ export function buildBooks(input: AccountingInput): Books {
         date: dayKey(c.month),
         kind: "contribution",
         voucher: "",
-        particulars: "Monthly contribution",
+        particulars: c.isOpening ? "Savings brought forward from the paper registers" : "Monthly contribution",
         sourceId: c.id || `${mr.dbId}-${dayKey(c.month)}-${amount}`,
         memberId: mr.dbId,
         memberNo: mr.memberNo,
@@ -534,13 +572,33 @@ export function buildBooks(input: AccountingInput): Books {
       interest: loan.interest,
       cashOut: loan.principal,
     });
+    if (loan.bankCharge > EPS) {
+      entries.push({
+        ...base,
+        date: loan.date,
+        kind: "bank_charge",
+        voucher: "",
+        particulars: `Bank charge on the withdrawal for loan ${loan.loanNo} - owed by the member`,
+        sourceId: `${loan.dbId}-bank-charge`,
+        memberId: loan.memberId,
+        memberNo: loan.memberNo,
+        memberName: loan.memberName,
+        loanNo: loan.loanNo,
+        loanId: loan.dbId,
+        amount: loan.bankCharge,
+        loans: loan.bankCharge,
+        cashOut: loan.bankCharge,
+      });
+    }
     for (const pen of loan.penalties) {
       entries.push({
         ...base,
         date: pen.date,
         kind: "penalty_charge",
         voucher: "",
-        particulars: `Late payment penalty - month ${pen.month} past due - ${loan.loanNo}`,
+        particulars: pen.month === 0
+          ? `Late penalties brought forward from the paper registers - ${loan.loanNo}`
+          : `Late payment penalty - month ${pen.month} past due - ${loan.loanNo}`,
         sourceId: `${loan.dbId}-p${pen.month}`,
         memberId: loan.memberId,
         memberNo: loan.memberNo,
@@ -579,7 +637,10 @@ export function buildBooks(input: AccountingInput): Books {
     if (t.type === "expense") {
       entries.push({ ...base, date, kind: "expense", voucher: "", particulars: detail || KIND_LABELS.expense, detail, sourceId: t.id, amount, cashOut: amount });
     } else if (t.type === "profit_allocation" || (t.donorName || "").trim().toLowerCase() === LEGACY_RESERVE_SHARE) {
-      entries.push({ ...base, date, kind: "profit_reserve", voucher: "", particulars: "Reserve share of bank profit", detail, sourceId: t.id, amount });
+      const yearEnd = (t.donorName || "").trim().toLowerCase() === YEAR_END_SOURCE;
+      entries.push({ ...base, date, kind: "profit_reserve", voucher: "", particulars: yearEnd && t.notes ? t.notes : "Reserve share of bank profit", detail, sourceId: t.id, amount });
+    } else if (t.type === "opening") {
+      entries.push({ ...base, date, kind: "donation", voucher: "", particulars: "Reserve balance brought forward from the paper registers", detail: "", sourceId: t.id, amount, cashIn: amount });
     } else {
       entries.push({ ...base, date, kind: "donation", voucher: "", particulars: detail || KIND_LABELS.donation, detail, sourceId: t.id, amount, cashIn: amount });
     }
@@ -590,17 +651,26 @@ export function buildBooks(input: AccountingInput): Books {
     .map((d, i) => ({ ...d, voucher: `JV-${pad(i + 1, 4)}` }));
 
   for (const d of distributions) {
-    const totalProfit = r2(Number(d.totalProfit) || 0);
-    entries.push({
-      ...base,
-      date: dayKey(d.date),
-      kind: "bank_profit",
-      voucher: "",
-      particulars: `Bank profit on funds held in the account - distributed under ${d.voucher}`,
-      sourceId: `${d.id}-bank`,
-      amount: totalProfit,
-      cashIn: totalProfit,
-    });
+    // Only the bank's profit is new money. A year-end distribution's loan interest and penalties
+    // were taken to income when charged and collected with the repayments, so sharing them out
+    // draws on the accumulated surplus. Earlier distributions were bank profit only.
+    // When the bank profit came from the recorded entries, it was counted on the day the bank
+    // credited it (below), so the AGM moves no money.
+    const bankProfit = r2(Number(d.profitYear ? d.bankProfit : d.totalProfit) || 0);
+    if ((bankProfit > EPS || !d.profitYear) && !d.bankProfitRecorded) {
+      entries.push({
+        ...base,
+        date: dayKey(d.date),
+        kind: "bank_profit",
+        voucher: "",
+        particulars: d.profitYear
+          ? `Bank profit for ${d.profitYear} - distributed under ${d.voucher}`
+          : `Bank profit on funds held in the account - distributed under ${d.voucher}`,
+        sourceId: `${d.id}-bank`,
+        amount: bankProfit,
+        cashIn: bankProfit,
+      });
+    }
     for (const a of d.memberAllocations) {
       const mr = memberById.get(a.memberId);
       entries.push({
@@ -608,7 +678,7 @@ export function buildBooks(input: AccountingInput): Books {
         date: dayKey(d.date),
         kind: "profit_member",
         voucher: d.voucher,
-        particulars: `Share of bank profit - ${d.voucher}`,
+        particulars: d.profitYear ? `Dividend for ${d.profitYear} - ${d.voucher}` : `Share of bank profit - ${d.voucher}`,
         sourceId: `${d.id}-${a.memberId}`,
         memberId: a.memberId,
         memberNo: mr?.memberNo,
@@ -616,6 +686,41 @@ export function buildBooks(input: AccountingInput): Books {
         amount: r2(Number(a.amount) || 0),
       });
     }
+  }
+
+  // ── The bank's profit, counted when the bank credited it; shared out at the following July AGM.
+  for (const b of input.bankProfits ?? []) {
+    const amount = r2(Number(b.amount) || 0);
+    if (amount <= EPS) continue;
+    entries.push({
+      ...base,
+      date: dayKey(b.creditedOn),
+      kind: "bank_profit",
+      voucher: "",
+      particulars: b.isOpening
+        ? `Bank profit for ${b.profitYear} - from the paper registers, not yet shared`
+        : `Bank profit for ${b.profitYear} - credited by the bank`,
+      sourceId: `bp-${b.id}`,
+      amount,
+      cashIn: amount,
+    });
+  }
+
+  // ── Loan interest and penalties the registers collected in their last year, not yet shared: the
+  // money is in the bank at the cut-over and is part of that year's profit.
+  const op = input.openingProfit;
+  const opCollected = op ? r2((Number(op.interest) || 0) + (Number(op.penalties) || 0)) : 0;
+  if (op && opCollected > EPS) {
+    entries.push({
+      ...base,
+      date: dayKey(op.asAt),
+      kind: "opening_profit",
+      voucher: "",
+      particulars: `Loan interest and penalties collected in ${op.year} - from the paper registers, not yet shared`,
+      sourceId: "opening-profit",
+      amount: opCollected,
+      cashIn: opCollected,
+    });
   }
 
   entries.sort(
@@ -685,7 +790,7 @@ export function buildBooks(input: AccountingInput): Books {
     const received = loan.receipts.filter((r) => r.date <= asAt);
     const repaid = sum(received, (r) => r.amount);
     const penaltiesCharged = sum(loan.penalties.filter((p) => p.date <= asAt), (p) => p.amount);
-    const outstanding = r2(Math.max(0, loan.totalPayable + penaltiesCharged - repaid));
+    const outstanding = r2(Math.max(0, loan.totalPayable + loan.bankCharge + penaltiesCharged - repaid));
     // Interest and penalties are received together, when the loan is repaid in full.
     const paidInFull = loan.paidInFullOn !== null && loan.paidInFullOn <= asAt;
     const interestReceived = paidInFull ? loan.interest : 0;
@@ -715,7 +820,7 @@ export function buildBooks(input: AccountingInput): Books {
     const next = nextRow
       ? { dueDate: nextRow.dueDate, balance: nextRow.balance }
       : !pastDue && outstanding > EPS ? { dueDate: loan.maturityDate, balance: outstanding } : null;
-    const state: LoanState = outstanding <= EPS ? "paid" : loan.state === "defaulted" ? "defaulted" : "active";
+    const state: LoanState = outstanding <= EPS ? "paid" : defaultedBy(loan, asAt) ? "defaulted" : "active";
 
     let bucket: AgingBucket | null = null;
     if (state === "defaulted") bucket = "defaulted";
@@ -746,7 +851,7 @@ export function buildBooks(input: AccountingInput): Books {
   const allowanceAt = (asAt: string | null) => {
     if (asAt === null) return 0;
     return sum(
-      loans.filter((l) => l.state === "defaulted"),
+      loans.filter((l) => defaultedBy(l, asAt)),
       (l) => loanPositionAt(l, asAt)?.outstanding ?? 0,
     );
   };
@@ -755,12 +860,12 @@ export function buildBooks(input: AccountingInput): Books {
     const es = upTo(asAt);
     const of = (k: EntryKind, pick: (e: LedgerEntry) => number = (e) => e.amount) => sum(es.filter((e) => e.kind === k), pick);
     const cash = r2(sum(es, (e) => e.cashIn) - sum(es, (e) => e.cashOut));
-    const loansReceivable = r2(of("disbursement", (e) => e.loans) + of("penalty_charge", (e) => e.loans) - of("repayment", (e) => e.loans));
+    const loansReceivable = r2(of("disbursement", (e) => e.loans) + of("bank_charge", (e) => e.loans) + of("penalty_charge", (e) => e.loans) - of("repayment", (e) => e.loans));
     const allowance = allowanceAt(asAt);
     const netLoans = r2(loansReceivable - allowance);
     const savings = r2(of("contribution") + of("profit_member"));
     const reserve = r2(of("donation") + of("profit_reserve") - of("expense"));
-    const surplus = r2(of("disbursement", (e) => e.interest) + of("penalty_charge", (e) => e.penalty) + of("bank_profit") - of("profit_member") - of("profit_reserve") - allowance);
+    const surplus = r2(of("disbursement", (e) => e.interest) + of("penalty_charge", (e) => e.penalty) + of("bank_profit") + of("opening_profit") - of("profit_member") - of("profit_reserve") - allowance);
     const totalAssets = r2(cash + netLoans);
     const totalFunds = r2(savings + reserve + surplus);
     return { asAt, cash, loansReceivable, allowance, netLoans, totalAssets, savings, reserve, surplus, totalFunds, difference: r2(totalAssets - totalFunds) };
@@ -773,6 +878,7 @@ export function buildBooks(input: AccountingInput): Books {
     return {
       contributions: of("contribution"),
       disbursements: of("disbursement"),
+      bankCharges: of("bank_charge"),
       repayments: of("repayment"),
       interestIncome: of("disbursement", (e) => e.interest),
       penaltyIncome: of("penalty_charge", (e) => e.penalty),
@@ -781,6 +887,7 @@ export function buildBooks(input: AccountingInput): Books {
       donations: of("donation"),
       expenses: of("expense"),
       bankProfit: of("bank_profit"),
+      openingProfit: of("opening_profit"),
       profitToMembers: of("profit_member"),
       profitToReserve: of("profit_reserve"),
       impairment: r2(allowanceAt(period.to) - allowanceAt(openingDate(period))),
@@ -813,7 +920,7 @@ export function buildBooks(input: AccountingInput): Books {
           "Master balance is members.total_budget; a difference means a balance was edited outside the contribution/profit workflows.",
         ),
       );
-      const ledgerOwed = (l: LoanRecord) => r2(l.totalPayable + l.penaltyTotal - sum(l.receipts, (r) => r.amount));
+      const ledgerOwed = (l: LoanRecord) => r2(l.totalPayable + l.bankCharge + l.penaltyTotal - sum(l.receipts, (r) => r.amount));
       const mismatched = loans.filter((l) => Math.abs(ledgerOwed(l) - l.systemOutstanding) >= 0.01);
       out.push(
         check(
@@ -828,7 +935,7 @@ export function buildBooks(input: AccountingInput): Books {
     if (distUpTo.length) {
       out.push(
         check(
-          "Reserve share of bank profit: distributions vs. reserve ledger",
+          "Reserve share of the year's profit: distributions vs. reserve ledger",
           sum(distUpTo, (d) => d.reserveAllocation),
           sum(entries.filter((e) => e.kind === "profit_reserve" && e.date <= asAt), (e) => e.amount),
           "A shortfall indicates a distribution whose reserve posting was not recorded.",
@@ -836,8 +943,9 @@ export function buildBooks(input: AccountingInput): Books {
       );
       out.push(
         check(
-          "Members' share of bank profit: declared vs. credited",
-          sum(distUpTo, (d) => d.totalProfit - d.reserveAllocation),
+          "Members' share of the year's profit: declared vs. credited",
+          // Each member's absence charges come off their own share, so they are not credited.
+          sum(distUpTo, (d) => d.totalProfit - d.reserveAllocation - (Number(d.absencePenalties) || 0)),
           sum(distUpTo, (d) => sum(d.memberAllocations, (a) => a.amount)),
           "Small differences arise from rounding each member's share to the nearest paisa.",
           // each share may round by up to half a paisa
@@ -866,6 +974,11 @@ export function buildBooks(input: AccountingInput): Books {
   const distributionBasis = (distributionId: string): DistributionBasis | null => {
     const d = distributions.find((x) => x.id === distributionId);
     if (!d || !d.memberAllocations.length) return null;
+    // Year-end distributions store the savings each share was based on.
+    if (d.memberAllocations.every((a) => a.savingsBasis !== undefined && a.savingsBasis !== null)) {
+      const byMember = new Map(d.memberAllocations.map((a) => [a.memberId, r2(Number(a.savingsBasis) || 0)]));
+      return { byMember, total: r2([...byMember.values()].reduce((s, v) => s + v, 0)) };
+    }
     const cutoff = d.createdAt ? toEpoch(d.createdAt) : NaN;
     const counted = (e: LedgerEntry) =>
       e.createdAt && !Number.isNaN(cutoff) ? toEpoch(e.createdAt) <= cutoff : e.date <= dayKey(d.date);

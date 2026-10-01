@@ -72,7 +72,7 @@ function resolvePeriod(preset: PeriodPreset, from?: Date, to?: Date): ReportPeri
 type Scope = "period" | "as-at" | "distribution";
 
 export default function ReportsPage() {
-  const { members, meetings, reserveTransactions, profitDistributions, refreshData } = useOrganization();
+  const { members, meetings, reserveTransactions, profitDistributions, bankProfits, openingProfit, refreshData } = useOrganization();
   const { settings } = useSettings();
   const { openReport } = useReportViewer();
 
@@ -97,8 +97,8 @@ export default function ReportsPage() {
 
   // One derived ledger feeds every report so figures agree across documents.
   const books = useMemo(
-    () => buildBooks({ members, meetings, reserveTransactions, profitDistributions }),
-    [members, meetings, reserveTransactions, profitDistributions],
+    () => buildBooks({ members, meetings, reserveTransactions, profitDistributions, bankProfits, openingProfit }),
+    [members, meetings, reserveTransactions, profitDistributions, bankProfits, openingProfit],
   );
 
   const period = resolvePeriod(preset, customFrom, customTo);
@@ -282,7 +282,7 @@ export default function ReportsPage() {
           {
             icon: PieChart,
             title: "Profit Distribution Statement",
-            description: "Member allocations, reserve share, rounding and surplus availability.",
+            description: "How the year's profit is made up, the reserve fund's share and each member's dividend after absence charges.",
           },
           { distributionId: selectedDistributionId ?? undefined },
           <Select value={selectedDistributionId ?? undefined} onValueChange={(v) => setSelectedDistributionId(v || null)}>

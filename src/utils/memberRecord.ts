@@ -15,6 +15,8 @@ export interface MemberLoan {
   principal: number;
   interestRate: number;
   totalPayable: number;
+  /** The bank's charge on the withdrawal, repaid with the loan (no interest on it). */
+  bankCharge: number;
   repaid: number;
   remaining: number;
   termMonths: number;
@@ -36,7 +38,8 @@ export interface MemberLoan {
 
 export interface SavingsEntry {
   date: string;
-  kind: "contribution" | "profit";
+  /** "opening": the savings balance brought forward from the paper registers at the cut-over. */
+  kind: "contribution" | "profit" | "opening";
   amount: number;
   /** Attendance at the meeting the contribution was collected in (null when not recorded / not a meeting). */
   present: boolean | null;
@@ -53,8 +56,8 @@ export interface MemberRecord {
   profitTotal: number;
   /** Newest first. */
   savings: SavingsEntry[];
-  /** Share of all members' contributions — the basis for profit distribution. */
-  profitShareRatio: number | null;
+  /** The member's most recent dividend, as saved with its distribution (null if none yet). */
+  lastDividend: { amount: number; date: string; year: number | null; ratio: number | null } | null;
   /** Newest first. */
   loans: MemberLoan[];
   loanOutstanding: number;
@@ -69,23 +72,24 @@ const todayKey = () => format(new Date(), "yyyy-MM-dd");
 
 export async function getMemberRecord(memberId: string): Promise<MemberRecord> {
   await syncLoanPenalties();
-  const [memberRows, allMembers, contributions, profits, loans, installments, schedule, meetings, totals] = await Promise.all([
+  const [memberRows, allMembers, contributions, profits, loans, installments, schedule, meetings] = await Promise.all([
     dbQuery<DbMember>("SELECT * FROM public.members WHERE id = $1", [memberId]),
     dbQuery<{ id: string; name: string; join_date: string }>("SELECT id, name, join_date::text AS join_date FROM public.members"),
-    dbQuery<{ amount: number; contribution_date: string; present: boolean | null; created_at: string }>(
-      `SELECT c.amount, c.contribution_date::text AS contribution_date, a.present, c.created_at::text AS created_at
+    dbQuery<{ amount: number; contribution_date: string; present: boolean | null; created_at: string; is_opening: boolean }>(
+      `SELECT c.amount, c.contribution_date::text AS contribution_date, a.present, c.created_at::text AS created_at, c.is_opening
        FROM public.monthly_contributions c
        LEFT JOIN public.attendance a ON a.meeting_id = c.meeting_id AND a.member_id = c.member_id
        WHERE c.member_id = $1`,
       [memberId],
     ),
-    dbQuery<{ amount: number; distribution_date: string }>(
-      `SELECT a.amount, d.distribution_date::text AS distribution_date FROM public.profit_allocations a
-       JOIN public.profit_distributions d ON d.id = a.distribution_id WHERE a.member_id = $1`,
+    dbQuery<{ amount: number; distribution_date: string; ratio: number | null; profit_year: number | null }>(
+      `SELECT a.amount, d.distribution_date::text AS distribution_date, a.ratio, d.profit_year FROM public.profit_allocations a
+       JOIN public.profit_distributions d ON d.id = a.distribution_id WHERE a.member_id = $1
+       ORDER BY d.distribution_date, d.created_at`,
       [memberId],
     ),
-    dbQuery<{ id: string; loan_date: string; amount: number; interest_rate: number; total_payable: number; remaining_amount: number; term_months: number; penalty_per_month: number; penalty_total: number; status: string }>(
-      `SELECT l.id, l.loan_date::text AS loan_date, l.amount, l.interest_rate, l.total_payable, l.remaining_amount, l.term_months, l.penalty_per_month,
+    dbQuery<{ id: string; loan_date: string; amount: number; interest_rate: number; total_payable: number; bank_charge: number; remaining_amount: number; term_months: number; penalty_per_month: number; penalty_total: number; status: string }>(
+      `SELECT l.id, l.loan_date::text AS loan_date, l.amount, l.interest_rate, l.total_payable, l.bank_charge, l.remaining_amount, l.term_months, l.penalty_per_month,
               COALESCE((SELECT SUM(p.amount) FROM public.loan_penalties p WHERE p.loan_id = l.id), 0) AS penalty_total, l.status
        FROM public.loans l WHERE l.member_id = $1 ORDER BY l.loan_date DESC, l.created_at DESC`,
       [memberId],
@@ -107,7 +111,6 @@ export async function getMemberRecord(memberId: string): Promise<MemberRecord> {
        WHERE mt.meeting_date >= m.join_date OR a.id IS NOT NULL`,
       [memberId],
     ),
-    dbQuery<{ total: number }>("SELECT COALESCE(SUM(amount), 0) AS total FROM public.monthly_contributions"),
   ]);
 
   const member = memberRows[0];
@@ -116,11 +119,12 @@ export async function getMemberRecord(memberId: string): Promise<MemberRecord> {
   const ordered = [...allMembers].sort((a, b) =>
     registerOrder({ join: a.join_date, name: a.name, id: a.id }, { join: b.join_date, name: b.name, id: b.id }),
   );
-  const memberNo = memberNumber(Math.max(0, ordered.findIndex((m) => m.id === memberId)));
+  // Members brought in from the paper registers keep their register number.
+  const memberNo = member.register_no || memberNumber(Math.max(0, ordered.findIndex((m) => m.id === memberId)));
 
   // Savings account: contributions and profit shares, oldest first for the running balance.
   const entries = [
-    ...contributions.map((c) => ({ date: c.contribution_date, kind: "contribution" as const, amount: Number(c.amount), present: c.present, order: c.created_at })),
+    ...contributions.map((c) => ({ date: c.contribution_date, kind: c.is_opening ? ("opening" as const) : ("contribution" as const), amount: Number(c.amount), present: c.present, order: c.is_opening ? "" : c.created_at })),
     ...profits.map((p) => ({ date: p.distribution_date, kind: "profit" as const, amount: Number(p.amount), present: null, order: "~" })),
   ].sort((a, b) => a.date.localeCompare(b.date) || a.order.localeCompare(b.order));
   let running = 0;
@@ -134,6 +138,7 @@ export async function getMemberRecord(memberId: string): Promise<MemberRecord> {
   const today = todayKey();
   const memberLoans: MemberLoan[] = loans.map((l) => {
     const totalPayable = Number(l.total_payable) || Number(l.amount);
+    const bankCharge = r2(Number(l.bank_charge) || 0);
     const penaltyTotal = r2(Number(l.penalty_total) || 0);
     const remaining = Math.max(0, r2(Number(l.remaining_amount)));
     const repayments = installments.filter((i) => i.loan_id === l.id).map((i) => ({ date: i.payment_date, amount: Number(i.amount) }));
@@ -152,7 +157,8 @@ export async function getMemberRecord(memberId: string): Promise<MemberRecord> {
       principal: Number(l.amount),
       interestRate: Number(l.interest_rate) || 0,
       totalPayable,
-      repaid: r2(totalPayable + penaltyTotal - remaining),
+      bankCharge,
+      repaid: r2(totalPayable + bankCharge + penaltyTotal - remaining),
       remaining,
       termMonths: l.term_months || 1,
       dueDate,
@@ -163,12 +169,12 @@ export async function getMemberRecord(memberId: string): Promise<MemberRecord> {
       daysOverdue: state === "Paid" || !pastDue ? 0 : differenceInCalendarDays(parseLocalDate(today), parseLocalDate(dueDate)),
       nextDue: state === "Paid" || !next ? null : next,
       repayments,
-      income: loanIncome({ loanDate: l.loan_date, amount: Number(l.amount), totalPayable, remaining, penaltiesCharged: penaltyTotal, payments: repayments }),
+      income: loanIncome({ loanDate: l.loan_date, amount: Number(l.amount), totalPayable, bankCharge, remaining, penaltiesCharged: penaltyTotal, payments: repayments }),
     };
   });
 
   const recorded = meetings.filter((m) => m.present !== null);
-  const allContributions = Number(totals[0]?.total) || 0;
+  const last = profits[profits.length - 1];
 
   return {
     member,
@@ -177,7 +183,9 @@ export async function getMemberRecord(memberId: string): Promise<MemberRecord> {
     contributionsTotal,
     profitTotal,
     savings: savings.reverse(),
-    profitShareRatio: allContributions > 0 ? contributionsTotal / allContributions : null,
+    lastDividend: last
+      ? { amount: r2(Number(last.amount)), date: last.distribution_date, year: last.profit_year ?? null, ratio: last.ratio === null ? null : Number(last.ratio) }
+      : null,
     loans: memberLoans,
     loanOutstanding: r2(memberLoans.filter((l) => l.state !== "Paid").reduce((s, l) => s + l.remaining, 0)),
     openLoans: memberLoans.filter((l) => l.state !== "Paid").length,

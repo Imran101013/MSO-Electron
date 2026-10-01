@@ -11,10 +11,17 @@ interface DatePickerProps {
   onDateChange?: (date: Date | undefined) => void;
   placeholder?: string;
   className?: string;
+  /** yyyy-MM-dd: this day and every earlier one are greyed out (e.g. the paper-registers cut-over). */
+  disabledThrough?: string | null;
 }
 
-export function DatePicker({ date, onDateChange, placeholder = "Pick a date", className }: DatePickerProps) {
+export function DatePicker({ date, onDateChange, placeholder = "Pick a date", className, disabledThrough }: DatePickerProps) {
   const [open, setOpen] = React.useState(false);
+  const firstOpenDay = React.useMemo(() => {
+    if (!disabledThrough) return undefined;
+    const [y, m, d] = disabledThrough.slice(0, 10).split("-").map(Number);
+    return new Date(y, m - 1, d + 1);
+  }, [disabledThrough]);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -33,6 +40,7 @@ export function DatePicker({ date, onDateChange, placeholder = "Pick a date", cl
           selected={date}
           onSelect={(d) => { onDateChange?.(d); setOpen(false); }}
           defaultMonth={date ?? new Date()}
+          disabled={firstOpenDay ? { before: firstOpenDay } : undefined}
           initialFocus
         />
       </PopoverContent>
