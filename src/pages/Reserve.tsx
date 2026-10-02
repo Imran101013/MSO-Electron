@@ -78,7 +78,7 @@ export default function Reserve() {
     <div className="space-y-6">
 
       {/* Header */}
-      <div className="flex items-center justify-between border-b-2 border-primary/40 pb-4">
+      <div className="flex items-center justify-between border-b-2 border-accent/70 pb-4">
         <div className="flex items-center gap-4">
           <div className="w-11 h-11 rounded-sm border-2 border-primary/40 bg-primary/10 flex items-center justify-center">
             <PiggyBank className="w-5 h-5 text-primary" />
@@ -200,7 +200,7 @@ export default function Reserve() {
       </div>
 
       {/* Transactions Table */}
-      <Card className="shadow-sm rounded-sm border-0 border-t-2 border-t-primary/70">
+      <Card className="shadow-sm rounded-sm border-0 border-t-2 border-t-accent">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2 text-base">
@@ -254,7 +254,7 @@ export default function Reserve() {
                 return (
                 <div
                   key={tx.id}
-                  className="grid grid-cols-[2.5rem_repeat(12,minmax(0,1fr))] px-5 py-3.5 items-center hover:bg-muted/30 transition-colors"
+                  className="grid grid-cols-[2.5rem_repeat(12,minmax(0,1fr))] px-5 py-2 items-center hover:bg-muted/30 transition-colors"
                 >
                   <span className="figure col-span-1 text-xs text-muted-foreground">
                     {reserveTransactions.length - (paged.offset + idx)}

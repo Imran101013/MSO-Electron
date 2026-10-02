@@ -27,12 +27,11 @@
  * Accounting policies applied (disclosed in the Financial Statements notes):
  * - Loans carry flat interest worked out once, when the loan is issued (loans.total_payable).
  *   That interest is income on the issue date, and the loan is carried at the balance the member
- *   owes. Repayments (instalments or a lump sum) only reduce that balance; they are never split
+ *   owes. Repayments (of any amount, at any time) only reduce that balance; they are never split
  *   between the amount lent, interest and penalties.
- * - Loans run for one year (utils/loanPenalty.ts). A loan still owing after that is overdue
- *   and aged from its due date; instalments missed within the year are not arrears, as the
- *   member may repay as a lump sum instead. Each monthly late penalty is added to the balance
- *   owed and taken to income when it is charged.
+ * - Loans run for one year (utils/loanPenalty.ts) with no instalment plan: the whole balance is
+ *   due by the due date. A loan still owing after that is overdue and aged from its due date.
+ *   Each monthly late penalty is added to the balance owed and taken to income when it is charged.
  * - A loan's interest and penalties count as received when the loan is repaid in full
  *   (utils/loanInterest.ts) — this drives the Interest & Penalties sections, not the postings.
  * - The bank's charge on a loan's cheque withdrawal leaves the bank on the loan date and is owed back
@@ -41,7 +40,7 @@
  *   includes interest and penalties already taken to income) from the day the committee marked
  *   them defaulted; no late penalty is charged after that day.
  */
-import { addDays, addMonths, differenceInCalendarDays, format } from "date-fns";
+import { addDays, differenceInCalendarDays, format } from "date-fns";
 import { loanDueDate } from "@/utils/loanPenalty";
 import { paidInFullOn } from "@/utils/loanInterest";
 import type {
@@ -140,12 +139,6 @@ export interface PenaltyRow {
   amount: number;
 }
 
-export interface ScheduleRow {
-  no: number;
-  dueDate: string;
-  dueAmount: number;
-}
-
 export interface LoanRecord {
   loanNo: string;
   dbId: string;
@@ -166,8 +159,6 @@ export interface LoanRecord {
   /** remaining_amount as stored on the loan row (includes penalties charged). */
   systemOutstanding: number;
   receipts: LoanReceipt[];
-  schedule: ScheduleRow[];
-  scheduleIsDerived: boolean;
   /** Date the loan must be repaid by: one year after disbursement. */
   maturityDate: string;
   penaltyPerMonth: number;
@@ -190,13 +181,6 @@ export const AGING_LABELS: Record<AgingBucket, string> = {
   defaulted: "Defaulted (flagged)",
 };
 
-export interface ScheduleStatusRow extends ScheduleRow {
-  paid: number;
-  balance: number;
-  status: "Paid" | "Part-paid" | "Due" | "Overdue";
-  daysOverdue: number;
-}
-
 export interface LoanPosition {
   loan: LoanRecord;
   asAt: string;
@@ -214,11 +198,8 @@ export interface LoanPosition {
   /** Everything owed once the due date has passed; 0 before it. */
   arrears: number;
   daysPastDue: number;
-  nextDueDate: string | null;
-  nextDueAmount: number;
   state: LoanState;
   bucket: AgingBucket | null;
-  schedule: ScheduleStatusRow[];
 }
 
 /** Whether a loan counts as defaulted at `asAt`: marked defaulted on or before that day. */
@@ -493,23 +474,6 @@ export function buildBooks(input: AccountingInput): Books {
       return { ...rc, balanceAfter: r2(owedBase + penaltiesBy(rc.date) - cumRepaid), voucher: "" };
     });
 
-    let schedule: ScheduleRow[] = (loan.schedule || []).map((s) => ({
-      no: s.installmentNumber,
-      dueDate: dayKey(s.dueDate),
-      dueAmount: r2(Number(s.dueAmount) || 0),
-    }));
-    const scheduleIsDerived = schedule.length === 0;
-    if (scheduleIsDerived) {
-      // Same equal-installment plan useLoans.issueLoan writes for new loans.
-      const base = Math.floor((owedBase / termMonths) * 100) / 100;
-      let allocated = 0;
-      schedule = Array.from({ length: termMonths }, (_, k) => {
-        const due = k === termMonths - 1 ? r2(owedBase - allocated) : base;
-        allocated = r2(allocated + due);
-        return { no: k + 1, dueDate: format(addMonths(parseDay(date), k + 1), "yyyy-MM-dd"), dueAmount: due };
-      });
-    }
-
     return {
       loanNo: `LN-${pad(i + 1, 4)}`,
       dbId: loan.dbId,
@@ -527,8 +491,6 @@ export function buildBooks(input: AccountingInput): Books {
       defaultedOn: loan.defaultedOn ? String(loan.defaultedOn).slice(0, 10) : null,
       systemOutstanding,
       receipts,
-      schedule,
-      scheduleIsDerived,
       maturityDate: loanDueDate(date),
       penaltyPerMonth: r2(Number(loan.penaltyPerMonth) || 0),
       penalties,
@@ -808,30 +770,10 @@ export function buildBooks(input: AccountingInput): Books {
     const interestReceived = paidInFull ? loan.interest : 0;
     const penaltyReceived = paidInFull ? penaltiesCharged : 0;
 
-    // Instalments are a guide: nothing is overdue until the loan's one-year due date has passed.
+    // There is no instalment plan: nothing is overdue until the loan's one-year due date has passed.
     const pastDue = asAt > loan.maturityDate && outstanding > EPS;
     const daysPastDue = pastDue ? differenceInCalendarDays(parseDay(asAt), parseDay(loan.maturityDate)) : 0;
-    let pool = repaid;
-    const schedule: ScheduleStatusRow[] = loan.schedule.map((row) => {
-      const paid = r2(Math.min(row.dueAmount, Math.max(0, pool)));
-      pool = r2(pool - paid);
-      const balance = r2(row.dueAmount - paid);
-      const overdue = balance > EPS && pastDue;
-      return {
-        ...row,
-        paid,
-        balance,
-        status: balance <= EPS ? "Paid" : overdue ? "Overdue" : paid > EPS ? "Part-paid" : "Due",
-        daysOverdue: overdue ? daysPastDue : 0,
-      };
-    });
     const arrears = pastDue ? outstanding : 0;
-    // Loans recorded before the one-year rule may have instalment plans that end earlier; the
-    // due date is then the next date anything falls due.
-    const nextRow = schedule.find((s) => s.balance > EPS && s.dueDate >= asAt);
-    const next = nextRow
-      ? { dueDate: nextRow.dueDate, balance: nextRow.balance }
-      : !pastDue && outstanding > EPS ? { dueDate: loan.maturityDate, balance: outstanding } : null;
     const state: LoanState = outstanding <= EPS ? "paid" : defaultedBy(loan, asAt) ? "defaulted" : "active";
 
     let bucket: AgingBucket | null = null;
@@ -852,11 +794,8 @@ export function buildBooks(input: AccountingInput): Books {
       penaltyOutstanding: r2(penaltiesCharged - penaltyReceived),
       arrears,
       daysPastDue,
-      nextDueDate: next?.dueDate ?? null,
-      nextDueAmount: next?.balance ?? 0,
       state,
       bucket,
-      schedule,
     };
   };
 

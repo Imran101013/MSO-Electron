@@ -1,7 +1,7 @@
 import { differenceInCalendarDays, differenceInMonths, differenceInYears, format } from "date-fns";
 import { dbQuery } from "@/lib/db";
 import { parseLocalDate, syncLoanPenalties } from "@/hooks/useLoans";
-import { loanDueDate } from "@/utils/loanPenalty";
+import { dueIn, loanDueDate } from "@/utils/loanPenalty";
 import { loanIncome, type LoanIncome } from "@/utils/loanInterest";
 import type { DbMember } from "@/hooks/useMembers";
 import { attendanceStatus, type AttendanceStatus } from "@/hooks/useAttendance";
@@ -31,7 +31,8 @@ export interface MemberLoan {
   arrears: number;
   /** Days since the due date. */
   daysOverdue: number;
-  nextDue: { date: string; amount: number } | null;
+  /** Until the due date, for an active loan: "5 months left" (there is no instalment plan). */
+  timeLeft: string | null;
   repayments: { date: string; amount: number }[];
   /** Interest and late penalties: charged, received, outstanding. */
   income: LoanIncome;
@@ -75,7 +76,7 @@ const todayKey = () => format(new Date(), "yyyy-MM-dd");
 
 export async function getMemberRecord(memberId: string): Promise<MemberRecord> {
   await syncLoanPenalties();
-  const [memberRows, allMembers, contributions, profits, loans, installments, schedule, meetings] = await Promise.all([
+  const [memberRows, allMembers, contributions, profits, loans, installments, meetings] = await Promise.all([
     dbQuery<DbMember>("SELECT * FROM public.members WHERE id = $1", [memberId]),
     dbQuery<{ id: string; name: string; join_date: string }>("SELECT id, name, join_date::text AS join_date FROM public.members"),
     dbQuery<{ amount: number; contribution_date: string; present: boolean | null; on_leave: boolean | null; created_at: string; is_opening: boolean }>(
@@ -100,11 +101,6 @@ export async function getMemberRecord(memberId: string): Promise<MemberRecord> {
     dbQuery<{ loan_id: string; amount: number; payment_date: string }>(
       `SELECT i.loan_id, i.amount, i.payment_date::text AS payment_date FROM public.loan_installments i
        JOIN public.loans l ON l.id = i.loan_id WHERE l.member_id = $1 ORDER BY i.payment_date, i.created_at`,
-      [memberId],
-    ),
-    dbQuery<{ loan_id: string; due_date: string; due_amount: number; paid_amount: number; status: string }>(
-      `SELECT s.loan_id, s.due_date::text AS due_date, s.due_amount, s.paid_amount, s.status FROM public.loan_schedule s
-       JOIN public.loans l ON l.id = s.loan_id WHERE l.member_id = $1 ORDER BY s.installment_number`,
       [memberId],
     ),
     dbQuery<{ present: boolean | null; on_leave: boolean | null }>(
@@ -146,11 +142,8 @@ export async function getMemberRecord(memberId: string): Promise<MemberRecord> {
     const remaining = Math.max(0, r2(Number(l.remaining_amount)));
     const repayments = installments.filter((i) => i.loan_id === l.id).map((i) => ({ date: i.payment_date, amount: Number(i.amount) }));
     const dueDate = loanDueDate(l.loan_date);
-    // Instalments are a guide (a lump sum before the due date is fine), so only the due date makes a loan overdue.
+    // There is no instalment plan: a loan is repaid in any amounts, and only the due date makes it overdue.
     const pastDue = dueDate < today;
-    const rows = schedule.filter((s) => s.loan_id === l.id).map((s) => ({ ...s, balance: r2(Number(s.due_amount) - Number(s.paid_amount)) }));
-    const nextRow = rows.find((s) => s.balance > 0.005 && s.due_date >= today);
-    const next = nextRow ? { date: nextRow.due_date, amount: nextRow.balance } : pastDue ? null : { date: dueDate, amount: remaining };
     const status = String(l.status).toLowerCase();
     const state: LoanState =
       status === "defaulted" ? "Defaulted" : remaining <= 0.005 || status === "paid" ? "Paid" : pastDue ? "Overdue" : "Active";
@@ -170,7 +163,7 @@ export async function getMemberRecord(memberId: string): Promise<MemberRecord> {
       state,
       arrears: state === "Paid" || !pastDue ? 0 : remaining,
       daysOverdue: state === "Paid" || !pastDue ? 0 : differenceInCalendarDays(parseLocalDate(today), parseLocalDate(dueDate)),
-      nextDue: state === "Paid" || !next ? null : next,
+      timeLeft: state === "Active" ? dueIn(dueDate, today).text : null,
       repayments,
       income: loanIncome({ loanDate: l.loan_date, amount: Number(l.amount), totalPayable, bankCharge, remaining, penaltiesCharged: penaltyTotal, payments: repayments }),
     };
@@ -243,7 +236,7 @@ export function formatMemberSummary(record: MemberRecord, settings: Pick<Setting
       ? `overdue since ${date(l.dueDate)} (${l.daysOverdue} days)${l.penaltyTotal > 0 ? `, incl. ${cur} ${num(l.penaltyTotal)} late penalty` : ""}`
       : l.state === "Defaulted"
         ? "defaulted"
-        : `due by ${date(l.dueDate)}${l.nextDue && l.nextDue.date !== l.dueDate ? `, next instalment ${date(l.nextDue.date)}: ${cur} ${num(l.nextDue.amount)}` : ""}`;
+        : `due by ${date(l.dueDate)}${l.timeLeft ? ` (${l.timeLeft})` : ""}`;
     out.push(`- Loan of ${date(l.date)}: ${cur} ${num(l.remaining)} remaining, ${detail}`);
   }
   if (record.recordedMeetings) {

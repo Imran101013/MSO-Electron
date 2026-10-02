@@ -1,15 +1,16 @@
-import { forwardRef, useEffect, useState, type InputHTMLAttributes, type ReactNode } from "react";
+import { forwardRef, useEffect, useRef, useState, type InputHTMLAttributes, type ReactNode } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { format } from "date-fns";
 import { toast } from "sonner";
-import { CheckCircle2, CircleDot, DatabaseBackup, Loader2, RotateCcw, Save, Settings, Undo2, Upload } from "lucide-react";
+import { CheckCircle2, CircleDot, DatabaseBackup, Loader2, MessageCircle, RotateCcw, Save, Settings, Undo2, Upload } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
@@ -26,9 +27,12 @@ import {
 import { DEFAULT_SETTINGS, useSettings, type Settings as AppSettings } from "@/contexts/SettingsContext";
 import { ORGANIZATION_CONFIG } from "@/config/organization";
 import { loanDueDate } from "@/utils/loanPenalty";
-import { backupAge, backupDatabase, isBackupDue, restoreDatabase, useLastBackupAt } from "@/lib/backup";
+import { backupAge, backupDatabase, restoreDatabase, useBackupStatus } from "@/lib/backup";
 import { cn, timePattern } from "@/lib/utils";
 import { ClearRecordsStrip, PaperRegistersCard } from "@/components/PaperRegisters";
+import CircularShareDialog from "@/components/CircularShareDialog";
+import { CIRCULAR_FIELDS, circularValues, type CircularMeeting } from "@/lib/circular";
+import { dbQuery } from "@/lib/db";
 
 const DATE_FORMATS = ["dd/MM/yyyy", "MM/dd/yyyy", "yyyy-MM-dd"] as const;
 const DATE_FORMAT_NAMES: Record<(typeof DATE_FORMATS)[number], string> = {
@@ -36,14 +40,19 @@ const DATE_FORMAT_NAMES: Record<(typeof DATE_FORMATS)[number], string> = {
   "MM/dd/yyyy": "Month / Day / Year",
   "yyyy-MM-dd": "Year - Month - Day",
 };
-// Read with the visible "Remind me" label: when the last backup is this old. Not a backup schedule.
+// Read with the visible "Remind me" label: after what the Dashboard shows a backup reminder. Not a
+// backup schedule. A number is the last backup's age in days ("0" never); the others are events.
 const REMINDER_OPTIONS = [
-  { days: 3, label: "After 3 days" },
-  { days: 7, label: "After a week" },
-  { days: 14, label: "After 2 weeks" },
-  { days: 30, label: "After a month" },
-  { days: 0, label: "Never" },
+  { value: "change", label: "After every change" },
+  { value: "meeting", label: "After saving the latest meeting" },
+  { value: "3", label: "After 3 days" },
+  { value: "7", label: "After a week" },
+  { value: "14", label: "After 2 weeks" },
+  { value: "30", label: "After a month" },
+  { value: "0", label: "Never" },
 ];
+const reminderValue = (s: { backupReminderTrigger?: AppSettings["backupReminderTrigger"]; backupReminderDays?: number }) =>
+  s.backupReminderTrigger === "meeting" || s.backupReminderTrigger === "change" ? s.backupReminderTrigger : String(s.backupReminderDays ?? 0);
 
 const percent = z
   .number({ invalid_type_error: "Enter a percentage" })
@@ -70,6 +79,8 @@ const settingsSchema = z.object({
   membersPerPage: rowsPerPage,
   itemsPerPage: rowsPerPage,
   backupReminderDays: z.number().int().min(0),
+  backupReminderTrigger: z.enum(["age", "meeting", "change"]),
+  circularTemplate: z.string().trim().min(1, "Write the circular, or use Reset to defaults for the original.").max(4000, "Keep the circular under 4,000 characters."),
 });
 
 type FormValues = z.infer<typeof settingsSchema>;
@@ -77,7 +88,8 @@ type FormValues = z.infer<typeof settingsSchema>;
 const SECTIONS: Record<string, Array<keyof FormValues>> = {
   "Money rules": ["applyLoanInterest", "loanInterestRate", "latePenaltyPerMonth", "absencePenaltyPerMeeting", "reservePercent", "bankChargeThreshold"],
   "Display & lists": ["theme", "dateFormat", "timeFormat", "currency", "enableAnimations", "membersPerPage", "itemsPerPage"],
-  "Data safety": ["backupReminderDays"],
+  "Meeting circular": ["circularTemplate"],
+  "Data safety": ["backupReminderDays", "backupReminderTrigger"],
 };
 
 const toForm = (s: AppSettings): FormValues => ({
@@ -95,6 +107,8 @@ const toForm = (s: AppSettings): FormValues => ({
   membersPerPage: s.membersPerPage,
   itemsPerPage: s.itemsPerPage,
   backupReminderDays: s.backupReminderDays,
+  backupReminderTrigger: s.backupReminderTrigger === "meeting" || s.backupReminderTrigger === "change" ? s.backupReminderTrigger : "age",
+  circularTemplate: s.circularTemplate,
 });
 
 // Empty or non-numeric input becomes NaN so the schema reports it instead of silently saving 0.
@@ -105,9 +119,20 @@ const money = (n: number) => finite(n).toLocaleString("en-US", { minimumFraction
 
 export default function SettingsPage() {
   const { settings, updateSettings } = useSettings();
-  const lastBackupAt = useLastBackupAt();
+  const { lastBackupAt, due: backupDue } = useBackupStatus();
   const [backingUp, setBackingUp] = useState(false);
   const [restoring, setRestoring] = useState(false);
+  const [circularOpen, setCircularOpen] = useState(false);
+  // The next scheduled meeting, whose details fill the circular's fields (null: none scheduled).
+  const [nextMeeting, setNextMeeting] = useState<CircularMeeting | null>(null);
+  const circularRef = useRef<HTMLTextAreaElement | null>(null);
+  useEffect(() => {
+    dbQuery<CircularMeeting>(
+      "SELECT meeting_date::text AS meeting_date, meeting_time::text AS meeting_time, venue FROM public.upcoming_meetings WHERE meeting_date >= CURRENT_DATE ORDER BY meeting_date, meeting_time LIMIT 1",
+    )
+      .then((rows) => setNextMeeting(rows[0] ?? null))
+      .catch(() => setNextMeeting(null));
+  }, []);
 
   const form = useForm<FormValues>({ resolver: zodResolver(settingsSchema), defaultValues: toForm(settings) });
   const { register, control, handleSubmit, reset, watch, formState } = form;
@@ -132,6 +157,20 @@ export default function SettingsPage() {
       description: moneyChanged ? "New money rules apply to loans issued and profit distributed from now on." : undefined,
     });
   };
+
+  const insertCircularField = (token: string) => {
+    const el = circularRef.current;
+    const current = form.getValues("circularTemplate") ?? "";
+    const start = el?.selectionStart ?? current.length;
+    const end = el?.selectionEnd ?? current.length;
+    form.setValue("circularTemplate", current.slice(0, start) + token + current.slice(end), { shouldDirty: true, shouldValidate: true });
+    requestAnimationFrame(() => {
+      el?.focus();
+      el?.setSelectionRange(start + token.length, start + token.length);
+    });
+  };
+  const { ref: circularFieldRef, ...circularField } = register("circularTemplate");
+  const circularNow = nextMeeting ? circularValues(nextMeeting, settings.dateFormat, settings.timeFormat) : null;
 
   const onInvalid = () => toast.error("Some settings need attention", { description: "Fix the highlighted fields, then save again." });
 
@@ -192,7 +231,6 @@ export default function SettingsPage() {
       rateLabel: rate ? `Interest at ${money(rate)}% flat` : "Interest",
       interest: rate === null || payable === null ? "—" : rate === 0 ? "none" : money(round2(payable - sampleLoan)),
       payable: payable === null ? "—" : `${cur} ${money(payable)}`,
-      instalment: payable === null ? "—" : money(round2(payable / period)),
       penalty: penalty === null ? "—" : penalty > 0 ? `+${money(penalty)} / month` : "no penalty",
       penaltyCharged: (penalty ?? 0) > 0,
       fine: fine === null ? "—" : money(fine),
@@ -210,12 +248,25 @@ export default function SettingsPage() {
   const dateFmt = v.dateFormat || settings.dateFormat;
   const fmtDay = (key: string) => format(new Date(`${key}T00:00:00`), dateFmt);
   const now = new Date();
-  const backupDue = isBackupDue(lastBackupAt, settings.backupReminderDays);
-  const reminderOptions = [settings.backupReminderDays, v.backupReminderDays].reduce(
-    (opts, days) => (opts.some((o) => o.days === days) ? opts : [...opts, { days, label: `After ${days} days` }]),
+  // A number of days not in the list (set before, or by an older version) is shown as its own option.
+  const reminderOptions = [reminderValue(settings), reminderValue(v)].reduce(
+    (opts, value) => (opts.some((o) => o.value === value) ? opts : [...opts, { value, label: `After ${value} days` }]),
     REMINDER_OPTIONS,
   );
-  const reminderLabel = (days: number) => reminderOptions.find((o) => o.days === days)?.label.toLowerCase() ?? `after ${days} days`;
+  const reminderLabel = (value: string) => reminderOptions.find((o) => o.value === value)?.label.toLowerCase() ?? `after ${value} days`;
+  const setReminder = (value: string) => {
+    const trigger = value === "meeting" || value === "change" ? value : "age";
+    form.setValue("backupReminderTrigger", trigger, { shouldDirty: true });
+    if (trigger === "age") form.setValue("backupReminderDays", Number(value), { shouldDirty: true });
+  };
+  const reminderInForce =
+    settings.backupReminderTrigger === "meeting"
+      ? "The Dashboard reminds you once a meeting is saved after the last backup."
+      : settings.backupReminderTrigger === "change"
+        ? "The Dashboard reminds you as soon as any record changes after the last backup."
+        : settings.backupReminderDays > 0
+          ? `The Dashboard reminds you when the last backup is ${settings.backupReminderDays} day${settings.backupReminderDays === 1 ? "" : "s"} old.`
+          : "Reminders are off.";
 
   // "In force now" hint under a money field that has been edited.
   const was = (key: keyof FormValues, text: string, figure = true) =>
@@ -224,7 +275,7 @@ export default function SettingsPage() {
   return (
     <form onSubmit={handleSubmit(onSave, onInvalid)} className="flex flex-col gap-6" noValidate>
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b-2 border-primary/40 pb-4">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b-2 border-accent/70 pb-4">
         <div className="flex items-center gap-4">
           <div className="w-11 h-11 rounded-sm border-2 border-primary/40 bg-primary/10 flex items-center justify-center">
             <Settings className="w-5 h-5 text-primary" />
@@ -241,7 +292,7 @@ export default function SettingsPage() {
       </div>
 
       {/* Money rules */}
-      <Card className="rounded-sm border-t-2 border-t-primary/70 shadow-sm">
+      <Card className="rounded-sm border-t-2 border-t-accent shadow-sm">
         <SectionHead
           title="Money rules"
           description="Apply to loans issued and profit distributed after you save. Existing loans and past distributions keep the terms they were made with."
@@ -251,7 +302,7 @@ export default function SettingsPage() {
             <SettingRow
               compact
               label="Interest on new loans"
-              help="A flat rate added once when a loan is issued, repaid across its instalments."
+              help="A flat rate added once when a loan is issued, and repaid with the loan in any amounts by its due date."
               htmlFor="loanInterestRate"
               error={errors.loanInterestRate?.message}
               hint={was("loanInterestRate", `${settings.loanInterestRate}%`) ?? was("applyLoanInterest", settings.applyLoanInterest ? "charged" : "not charged", false)}
@@ -354,8 +405,7 @@ export default function SettingsPage() {
             <dl className="mt-1.5 space-y-1">
               <Leader label={next.rateLabel} value={next.interest} was={inForce.interest} />
               <Leader label="Total payable" value={next.payable} was={inForce.payable} strong rule="above" />
-              <Leader label={`${period} monthly instalments of`} value={next.instalment} was={inForce.instalment} />
-              <Leader label="Due by" value={fmtDay(sampleDue)} />
+              <Leader label="Repaid in any amounts by" value={fmtDay(sampleDue)} />
               <Leader label="If unpaid a month after that" value={next.penalty} was={inForce.penalty} tone={next.penaltyCharged ? "bad" : undefined} />
             </dl>
             <p className="mt-4 text-xs font-medium text-muted-foreground">
@@ -477,6 +527,65 @@ export default function SettingsPage() {
         </div>
       </Card>
 
+      {/* Meeting circular */}
+      <Card className="rounded-sm shadow-sm">
+        <SectionHead
+          title="Meeting circular"
+          description="The notice sent to the WhatsApp group before each meeting. Fields in braces are filled in from the next scheduled meeting when you share it, and the circular can still be changed before it is sent."
+        />
+        <div className="grid gap-6 px-5 pb-5 pt-2 lg:grid-cols-[minmax(0,1fr)_18rem]">
+          <div>
+            <Label htmlFor="circularTemplate" className="text-sm font-medium">Format</Label>
+            <Textarea
+              id="circularTemplate"
+              dir="rtl"
+              lang="ur"
+              rows={12}
+              className={cn("urdu mt-1.5 text-base leading-loose rounded-sm resize-y", errors.circularTemplate && "border-destructive")}
+              {...circularField}
+              ref={(el) => {
+                circularFieldRef(el);
+                circularRef.current = el;
+              }}
+            />
+            <HintSlot>
+              {errors.circularTemplate ? <span className="text-destructive">{errors.circularTemplate.message}</span> : dirtyFields.circularTemplate ? <span className="text-xs text-muted-foreground">Not saved yet: Save changes keeps this format for every circular.</span> : null}
+            </HintSlot>
+          </div>
+          <div className="space-y-4 lg:border-l lg:border-border lg:pl-6">
+            <div>
+              <p className="text-sm font-medium text-foreground">Filled in automatically</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Click a field to put it where the cursor is in the format.</p>
+              <ul className="mt-3 space-y-2">
+                {CIRCULAR_FIELDS.map((f) => (
+                  <li key={f.token} className="flex items-center justify-between gap-3 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => insertCircularField(f.token)}
+                      className="urdu rounded-sm border border-input bg-background px-2 py-0.5 text-sm hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      title={`Insert ${f.label.toLowerCase()}`}
+                    >
+                      {f.token}
+                    </button>
+                    <span className="text-muted-foreground">{f.label}</span>
+                    <span className={cn("ml-auto truncate text-right", circularNow?.[f.token] ? "text-foreground" : "text-muted-foreground")} dir="auto">
+                      {circularNow ? circularNow[f.token] || "not set" : "—"}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-xs text-muted-foreground mt-3">
+                {nextMeeting ? "From the next scheduled meeting." : "No meeting is scheduled; schedule one on the Meetings page to fill these in."}
+              </p>
+            </div>
+            <Button type="button" onClick={() => setCircularOpen(true)} disabled={!!errors.circularTemplate} className="w-full gap-2 rounded-sm">
+              <MessageCircle className="w-4 h-4" /> Share circular
+            </Button>
+          </div>
+        </div>
+      </Card>
+      <CircularShareDialog open={circularOpen} onOpenChange={setCircularOpen} template={v.circularTemplate ?? settings.circularTemplate} />
+
       {/* Moving from paper registers: cut-over date and opening balances */}
       <PaperRegistersCard />
 
@@ -500,38 +609,28 @@ export default function SettingsPage() {
                   "No backup has been made on this computer yet"
                 )}
               </p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {settings.backupReminderDays > 0
-                  ? `The Dashboard reminds you when the last backup is ${settings.backupReminderDays} day${settings.backupReminderDays === 1 ? "" : "s"} old.`
-                  : "Reminders are off."}
-              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">{reminderInForce}</p>
             </div>
           </div>
           <div className="flex flex-col gap-1 xl:items-end">
             <div className="flex flex-wrap items-center gap-3">
               <Label htmlFor="backupReminderDays" className="text-sm text-muted-foreground">Remind me</Label>
-              <Controller
-                control={control}
-                name="backupReminderDays"
-                render={({ field }) => (
-                  <Select value={String(field.value)} onValueChange={(val) => field.onChange(Number(val))}>
-                    <SelectTrigger id="backupReminderDays" className="h-10 w-40 rounded-sm">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {reminderOptions.map((o) => (
-                        <SelectItem key={o.days} value={String(o.days)}>{o.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              />
+              <Select value={reminderValue(v)} onValueChange={setReminder}>
+                <SelectTrigger id="backupReminderDays" className="h-10 w-[15.5rem] rounded-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {reminderOptions.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <Button type="button" variant={backupDue ? "default" : "outline"} onClick={runBackup} disabled={backingUp} className="gap-2 rounded-sm">
                 {backingUp ? <Loader2 className="w-4 h-4 animate-spin" /> : <DatabaseBackup className="w-4 h-4" />}
                 {backingUp ? "Backing up…" : "Back up now"}
               </Button>
             </div>
-            <HintSlot>{was("backupReminderDays", reminderLabel(settings.backupReminderDays), false)}</HintSlot>
+            <HintSlot>{was("backupReminderTrigger", reminderLabel(reminderValue(settings)), false) ?? was("backupReminderDays", reminderLabel(reminderValue(settings)), false)}</HintSlot>
           </div>
         </div>
         <div className="flex flex-col gap-3 border-t border-border bg-destructive/[0.04] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
@@ -569,7 +668,7 @@ export default function SettingsPage() {
       <div
         className={cn(
           "sticky bottom-0 z-10 -mx-6 -mb-6 flex flex-wrap items-center justify-between gap-3 border-t-2 bg-card px-6 py-3 transition-colors duration-200",
-          isDirty ? "border-primary/70" : "border-border",
+          isDirty ? "border-accent" : "border-border",
         )}
       >
         <p className="flex items-center gap-2 text-sm" aria-live="polite">

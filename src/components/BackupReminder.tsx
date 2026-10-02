@@ -4,15 +4,22 @@ import { toast } from "sonner";
 import { DatabaseBackup, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSettings } from "@/contexts/SettingsContext";
-import { backupAge, backupDatabase, isBackupDue, useLastBackupAt } from "@/lib/backup";
+import { backupAge, backupDatabase, useBackupStatus } from "@/lib/backup";
 
-/** Shown on the Dashboard once a backup is due (Settings → Data safety → reminder interval). */
+/** Shown on the Dashboard once a backup is due (Settings → Data safety → Remind me). */
 export default function BackupReminder() {
   const { settings } = useSettings();
-  const lastBackupAt = useLastBackupAt();
+  const { lastBackupAt, due } = useBackupStatus();
   const [busy, setBusy] = useState(false);
 
-  if (!isBackupDue(lastBackupAt, settings.backupReminderDays)) return null;
+  if (!due) return null;
+  const why = !lastBackupAt
+    ? "No backup has been made on this computer yet"
+    : settings.backupReminderTrigger === "meeting"
+      ? `A meeting has been saved since the last backup (${backupAge(lastBackupAt)})`
+      : settings.backupReminderTrigger === "change"
+        ? `Records have changed since the last backup (${backupAge(lastBackupAt)})`
+        : `Time for a backup: the last one was ${backupAge(lastBackupAt)}`;
 
   const runBackup = async () => {
     setBusy(true);
@@ -35,9 +42,7 @@ export default function BackupReminder() {
           <DatabaseBackup className="w-4 h-4" />
         </div>
         <div>
-          <p className="text-sm font-semibold text-foreground">
-            {lastBackupAt ? `Time for a backup: the last one was ${backupAge(lastBackupAt)}` : "No backup has been made on this computer yet"}
-          </p>
+          <p className="text-sm font-semibold text-foreground">{why}</p>
           <p className="text-xs text-muted-foreground mt-0.5">Every record is stored only on this computer. A backup saves it all to a file you choose.</p>
         </div>
       </div>

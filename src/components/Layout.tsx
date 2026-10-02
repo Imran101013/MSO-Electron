@@ -5,7 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useSettings } from "@/contexts/SettingsContext";
 import {
   LayoutDashboard, Users, Wallet, HandCoins, PiggyBank,
-  FileText, Settings, LogOut, Lock, Sun, Moon, DollarSign, CalendarDays, History,
+  FileText, Settings, LogOut, KeyRound, Sun, Moon, DollarSign, CalendarDays, History,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup,
@@ -13,7 +13,6 @@ import {
   SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import MemberSearch from "@/components/MemberSearch";
 import MsoMark from "@/components/MsoMark";
@@ -49,7 +48,6 @@ export default function Layout({ children }: LayoutProps) {
 
   const handleLogout = () => { logout(); navigate("/login"); };
 
-  const initials = (user?.fullName?.[0] || user?.email?.[0] || "U").toUpperCase();
   const displayName = user?.fullName || user?.email || "User";
 
   return (
@@ -106,7 +104,7 @@ export default function Layout({ children }: LayoutProps) {
           stretching the whole page wider than the window. */}
       <SidebarInset className="min-w-0">
         {/* Top header — statement letterhead */}
-        <header className="flex h-16 border-b-2 border-primary/50 shrink-0 items-center gap-3 px-5 bg-card/95 backdrop-blur-md sticky top-0 z-10 shadow-sm">
+        <header className="flex h-16 border-b-2 border-accent/70 shrink-0 items-center gap-3 px-5 bg-card/95 backdrop-blur-md sticky top-0 z-10 shadow-sm">
           <SidebarTrigger className="-ml-1 text-muted-foreground hover:text-foreground rounded-sm" />
           <Separator orientation="vertical" className="h-5 opacity-40" />
           {/* The Members page has its own search over its list, so this one is left out there. */}
@@ -124,14 +122,10 @@ export default function Layout({ children }: LayoutProps) {
               {settings.theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </Button>
             <div className="flex items-center gap-2 pl-2 border-l border-border">
-              <Avatar className="w-9 h-9 rounded-sm">
-                <AvatarFallback className="rounded-sm bg-primary/10 border border-primary/40 text-primary text-xs font-bold">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
+              <MsoMark className="w-9 h-9 flex-shrink-0" />
               <div className="hidden sm:block">
                 <p className="text-xs font-semibold text-foreground leading-tight">{displayName}</p>
-                <p className="tracked-label text-[9px] text-muted-foreground capitalize">{user?.role}</p>
+                {user?.fullName && <p className="tracked-label text-[9px] text-muted-foreground">{user.email}</p>}
               </div>
             </div>
             <div className="flex items-center gap-1 pl-2 border-l border-border">
@@ -140,9 +134,10 @@ export default function Layout({ children }: LayoutProps) {
                 size="icon"
                 className="w-9 h-9 rounded-sm"
                 onClick={() => navigate("/change-password")}
-                title="Change Password"
+                title="Login details"
+                aria-label="Login details"
               >
-                <Lock className="w-4 h-4" />
+                <KeyRound className="w-4 h-4" />
               </Button>
               <Button
                 variant="ghost"

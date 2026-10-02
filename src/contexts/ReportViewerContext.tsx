@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import type { jsPDF } from "jspdf";
-import { AlertTriangle, Download, FileText, Loader2, MessageCircle } from "lucide-react";
+import { AlertTriangle, ChevronDown, Download, FileText, Images, Loader2, MessageCircle } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -17,11 +18,15 @@ interface ReportViewerContextType {
 
 const ReportViewerContext = createContext<ReportViewerContextType | undefined>(undefined);
 
-type ShareFileResult = { opened?: "app" | "web"; copied?: boolean; file?: string; error?: string };
+type ShareFileResult = { opened?: "app" | "web"; copied?: boolean; file?: string; count?: number; error?: string };
 type ShareBridge = {
   shareFileWhatsApp?: (filename: string, data: ArrayBuffer, text: string, phone?: string | null) => Promise<ShareFileResult>;
+  shareFilesWhatsApp?: (files: { name: string; data: ArrayBuffer }[], text: string, phone?: string | null) => Promise<ShareFileResult>;
   showSharedFile?: (file: string) => Promise<{ error?: string }>;
 };
+/** As pictures, one per page (they read in the chat), or as the PDF file (for printing or keeping). */
+type ShareFormat = "pictures" | "pdf";
+const MAX_PICTURES = 100; // WhatsApp sends at most 100 media in one go
 
 type Viewing =
   | { request: ReportRequest; stage: "loading" }
@@ -108,32 +113,49 @@ export function ReportViewerProvider({ children }: { children: ReactNode }) {
 
   const title = viewing ? reportTitle(viewing.request.kind) : "";
 
-  const share = async () => {
+  const share = async (format: ShareFormat) => {
     if (viewing?.stage !== "ready") return;
     const api = (window as unknown as { electronAPI?: ShareBridge }).electronAPI;
-    if (!api?.shareFileWhatsApp) {
+    if (!api?.shareFileWhatsApp || !api.shareFilesWhatsApp) {
       toast.error("Unable to open WhatsApp", { description: "Sharing is available in the desktop app." });
       return;
     }
     setSharing(true);
     try {
-      const caption = `*MSO ${title}*
-${viewing.subtitle}`;
-      const res = await api.shareFileWhatsApp(viewing.filename, viewing.doc.output("arraybuffer"), caption, viewing.phone);
+      const pdf = viewing.doc.output("arraybuffer");
+      let files: { name: string; data: ArrayBuffer }[];
+      if (format === "pictures") {
+        const { pdfToPngPages } = await import("@/utils/pdfImages");
+        const pages = await pdfToPngPages(pdf);
+        if (pages.length > MAX_PICTURES) {
+          toast.error("Too many pages for pictures", { description: `This report has ${pages.length} pages; WhatsApp sends at most ${MAX_PICTURES} pictures at once. Share it as a PDF, or choose a shorter period.` });
+          return;
+        }
+        const stem = viewing.filename.replace(/\.pdf$/i, "");
+        const digits = String(pages.length).length;
+        files = pages.map((data, i) => ({ name: `${stem}_page-${String(i + 1).padStart(digits, "0")}.png`, data }));
+      } else {
+        files = [{ name: viewing.filename, data: pdf }];
+      }
+      // Plain text: the asterisks of WhatsApp's bold show as typed until the message is sent.
+      const pagesNote = format === "pictures" ? ` (${files.length} page${files.length === 1 ? "" : "s"})` : "";
+      const caption = `MSO ${title}${pagesNote}\n${viewing.subtitle}`;
+      const res = await api.shareFilesWhatsApp(files, caption, viewing.phone);
       if (res.error) {
         toast.error("Unable to share the report", { description: res.error });
         return;
       }
+      const what = format === "pictures" ? `the ${files.length === 1 ? "picture" : `${files.length} pictures`}` : "the PDF";
       const showFile = () => { if (res.file) api.showSharedFile?.(res.file); };
       if (res.copied) {
-        toast.success("Report copied: paste it in WhatsApp", {
-          description: `${viewing.phone ? "In the member's chat" : "Choose the chat, then"} press Ctrl+V to attach the PDF, or drag it in from Show file.`,
+        toast.success(format === "pictures" ? `${files.length} page${files.length === 1 ? "" : "s"} copied as pictures: paste in WhatsApp` : "Report copied: paste it in WhatsApp", {
+          description: `${viewing.phone ? "In the member's chat" : "Choose the chat, then"} press Ctrl+V to attach ${what}, or drag ${files.length === 1 ? "it" : "them"} in from Show file.`,
           action: { label: "Show file", onClick: showFile },
           duration: 15000,
         });
       } else {
         showFile();
-        toast.success("WhatsApp opened", { description: "Drag the PDF from the folder that opened into the chat.", duration: 15000 });
+        toast.success("WhatsApp opened", { description: `Drag ${what} from the folder that opened into the chat.`, duration: 15000 });
       }
     } catch (err) {
       toast.error("Unable to share the report", { description: err instanceof Error ? err.message : String(err) });
@@ -157,9 +179,31 @@ ${viewing.subtitle}`;
                 {viewing?.stage === "ready" ? viewing.filename : viewing?.stage === "error" ? "Could not generate this report" : "Loading the latest records…"}
               </DialogDescription>
             </div>
-            <Button variant="outline" size="sm" className="gap-2 rounded-sm flex-shrink-0" onClick={share} disabled={viewing?.stage !== "ready" || sharing}>
-              {sharing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <MessageCircle className="w-3.5 h-3.5" />} Share on WhatsApp
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-2 rounded-sm flex-shrink-0" disabled={viewing?.stage !== "ready" || sharing}>
+                  {sharing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <MessageCircle className="w-3.5 h-3.5" />}
+                  {sharing ? "Preparing…" : "Share on WhatsApp"}
+                  <ChevronDown className="w-3.5 h-3.5 opacity-60" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-64 rounded-sm">
+                <DropdownMenuItem className="flex items-start gap-3 rounded-sm py-2" onSelect={() => share("pictures")}>
+                  <Images className="w-4 h-4 mt-0.5 text-primary" />
+                  <span>
+                    <span className="block text-sm font-medium">As pictures</span>
+                    <span className="block text-xs text-muted-foreground">One per page, read right in the chat</span>
+                  </span>
+                </DropdownMenuItem>
+                <DropdownMenuItem className="flex items-start gap-3 rounded-sm py-2" onSelect={() => share("pdf")}>
+                  <FileText className="w-4 h-4 mt-0.5 text-primary" />
+                  <span>
+                    <span className="block text-sm font-medium">As a PDF file</span>
+                    <span className="block text-xs text-muted-foreground">For printing or keeping</span>
+                  </span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button size="sm" className="gap-2 rounded-sm flex-shrink-0" onClick={download} disabled={viewing?.stage !== "ready"}>
               <Download className="w-3.5 h-3.5" /> Download PDF
             </Button>

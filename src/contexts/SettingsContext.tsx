@@ -6,6 +6,7 @@ import React, {
   useEffect,
 } from "react";
 import { ORGANIZATION_CONFIG } from "@/config/organization";
+import { DEFAULT_CIRCULAR } from "@/lib/circular";
 
 export interface Settings {
   loanInterestRate: number;
@@ -24,8 +25,14 @@ export interface Settings {
   membersPerPage: number;
   /** Rows per page on every other table (components/TablePager.tsx) and the Audit Log. */
   itemsPerPage: number;
-  /** Days after the last backup before a reminder shows (0 = never remind). */
+  /** Days after the last backup before a reminder shows (0 = never remind), when the trigger is "age". */
   backupReminderDays: number;
+  /** What brings up the backup reminder: the last backup's age (backupReminderDays), a meeting
+   *  saved after it, or any change to the records after it (lib/backup.ts). */
+  backupReminderTrigger: "age" | "meeting" | "change";
+  /** The meeting circular sent to the WhatsApp group; fields in braces are filled from the
+   *  scheduled meeting (lib/circular.ts). */
+  circularTemplate: string;
   dateFormat: string;
   currency: string;
   theme: "system" | "light" | "dark";
@@ -58,6 +65,8 @@ export const DEFAULT_SETTINGS: Settings = {
   membersPerPage: ORGANIZATION_CONFIG.MEMBERS_PER_PAGE,
   itemsPerPage: ORGANIZATION_CONFIG.ITEMS_PER_PAGE || 10,
   backupReminderDays: ORGANIZATION_CONFIG.BACKUP_REMINDER_DAYS,
+  backupReminderTrigger: "age",
+  circularTemplate: DEFAULT_CIRCULAR,
   dateFormat: ORGANIZATION_CONFIG.DATE_FORMAT,
   currency: ORGANIZATION_CONFIG.CURRENCY,
   theme: ORGANIZATION_CONFIG.THEME || "system",

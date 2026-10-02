@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, TrendingDown, CheckCircle2, Loader2, HandCoins, AlertTriangle, CalendarClock, Ban, Percent, ArrowRight, Landmark } from "lucide-react";
+import { Plus, TrendingDown, CheckCircle2, Loader2, HandCoins, AlertTriangle, BookOpen, Ban, Percent, ArrowRight, Landmark } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { ORGANIZATION_CONFIG } from "@/config/organization";
@@ -19,8 +19,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { useLoans, DbLoanScheduleEntry, LoanWithMember, parseLocalDate } from "@/hooks/useLoans";
-import { loanDueDate } from "@/utils/loanPenalty";
+import { useLoans, LoanWithMember, parseLocalDate } from "@/hooks/useLoans";
+import { dueIn, loanDueDate } from "@/utils/loanPenalty";
 import { loanIncome } from "@/utils/loanInterest";
 import { useMembers } from "@/hooks/useMembers";
 import { useAuth } from "@/contexts/AuthContext";
@@ -50,16 +50,14 @@ const buildPaymentSchema = (maxAmount: number) =>
 type PaymentFormValues = z.infer<ReturnType<typeof buildPaymentSchema>>;
 
 export default function Loans() {
-  const { loans, installments, penalties, isLoading, issueLoan, recordPayment, markDefaulted, setBankCharge, fetchSchedule, getNextDueDate, getActiveLoans, getLoanStats, isOverdue } = useLoans();
+  const { loans, installments, penalties, isLoading, issueLoan, recordPayment, markDefaulted, setBankCharge, getActiveLoans, getLoanStats, isOverdue } = useLoans();
   const { members, isLoading: membersLoading } = useMembers();
   const { isAdmin } = useAuth();
   const { settings } = useSettings();
   const [openIssue, setOpenIssue] = useState(false);
   const [openCollection, setOpenCollection] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [scheduleLoan, setScheduleLoan] = useState<LoanWithMember | null>(null);
-  const [scheduleRows, setScheduleRows] = useState<DbLoanScheduleEntry[]>([]);
-  const [scheduleLoading, setScheduleLoading] = useState(false);
+  const [viewLoan, setViewLoan] = useState<LoanWithMember | null>(null);
   const [defaultOpen, setDefaultOpen] = useState(false);
   const [defaultDate, setDefaultDate] = useState<Date | undefined>(undefined);
   const [defaultSaving, setDefaultSaving] = useState(false);
@@ -115,33 +113,51 @@ export default function Loans() {
     issueForm.reset({ memberId: "", amount: 0, date: new Date(), bankCharge: undefined });
   };
 
-  const handleViewSchedule = async (loan: LoanWithMember) => {
-    setScheduleLoan(loan);
-    setScheduleLoading(true);
-    const rows = await fetchSchedule(loan.id);
-    setScheduleRows(rows);
-    setScheduleLoading(false);
-  };
+  const handleViewLoan = (loan: LoanWithMember) => setViewLoan(loan);
 
   const todayStr = format(new Date(), "yyyy-MM-dd");
   const defaultKey = defaultDate ? format(defaultDate, "yyyy-MM-dd") : "";
-  const defaultProblem = !scheduleLoan || !defaultKey
+  const defaultProblem = !viewLoan || !defaultKey
     ? "Pick the date the committee decided."
     : defaultKey > todayStr
       ? "The date can't be in the future."
-      : defaultKey < scheduleLoan.loan_date.slice(0, 10)
+      : defaultKey < viewLoan.loan_date.slice(0, 10)
         ? "The date can't be before the loan was issued."
         : null;
 
   const handleMarkDefaulted = async () => {
-    if (!scheduleLoan || defaultProblem) return;
+    if (!viewLoan || defaultProblem) return;
     setDefaultSaving(true);
-    const ok = await markDefaulted(scheduleLoan.id, defaultKey);
+    const ok = await markDefaulted(viewLoan.id, defaultKey);
     setDefaultSaving(false);
-    if (ok) { setDefaultOpen(false); setScheduleLoan(null); }
+    if (ok) { setDefaultOpen(false); setViewLoan(null); }
   };
-  const scheduleDueDate = scheduleLoan ? loanDueDate(scheduleLoan.loan_date) : null;
-  const schedulePenalties = scheduleLoan ? penalties.filter((p) => p.loan_id === scheduleLoan.id) : [];
+  const viewDueDate = viewLoan ? loanDueDate(viewLoan.loan_date) : null;
+  const viewPenalties = viewLoan ? penalties.filter((p) => p.loan_id === viewLoan.id) : [];
+  const viewRepayments = (() => {
+    if (!viewLoan) return [];
+    const rnd = (n: number) => Math.round(n * 100) / 100;
+    const owedBase = Number(viewLoan.total_payable) + (Number(viewLoan.bank_charge) || 0);
+    const penaltiesBy = (date: string) => viewPenalties.filter((p) => p.charge_date.slice(0, 10) <= date).reduce((sum, p) => sum + Number(p.amount), 0);
+    const paid = installments
+      .filter((i) => i.loan_id === viewLoan.id)
+      .sort((a, b) => a.payment_date.localeCompare(b.payment_date) || a.created_at.localeCompare(b.created_at));
+    // Repaid before payments were entered one by one (a loan brought in from the paper registers).
+    const repaidInAll = rnd(owedBase + (Number(viewLoan.penalty_total) || 0) - Number(viewLoan.remaining_amount));
+    const earlier = rnd(repaidInAll - paid.reduce((sum, i) => sum + Number(i.amount), 0));
+    let repaid = 0;
+    const rows: { key: string; date: string | null; amount: number; balance: number }[] = [];
+    if (earlier > 0.005) {
+      repaid = earlier;
+      const asAt = (viewLoan.opening_as_at ?? viewLoan.loan_date).slice(0, 10);
+      rows.push({ key: "earlier", date: null, amount: earlier, balance: rnd(owedBase + penaltiesBy(asAt) - repaid) });
+    }
+    for (const i of paid) {
+      repaid = rnd(repaid + Number(i.amount));
+      rows.push({ key: i.id, date: i.payment_date.slice(0, 10), amount: Number(i.amount), balance: rnd(owedBase + penaltiesBy(i.payment_date.slice(0, 10)) - repaid) });
+    }
+    return rows;
+  })();
 
   const handleCollectionSubmit = async (values: PaymentFormValues) => {
     setIsSubmitting(true);
@@ -198,8 +214,8 @@ export default function Loans() {
   );
   const activePaged = usePaged(activeLoans);
   const defaultedPaged = usePaged(defaultedLoans);
-  const schedulePaged = usePaged(scheduleRows, scheduleLoan?.id ?? null);
-  const penaltiesPaged = usePaged(schedulePenalties, scheduleLoan?.id ?? null);
+  const repaymentsPaged = usePaged(viewRepayments, viewLoan?.id ?? null);
+  const penaltiesPaged = usePaged(viewPenalties, viewLoan?.id ?? null);
   const cur = settings.currency;
 
   if (isLoading || membersLoading) return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
@@ -207,7 +223,7 @@ export default function Loans() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between border-b-2 border-primary/40 pb-4">
+      <div className="flex items-center justify-between border-b-2 border-accent/70 pb-4">
         <div className="flex items-center gap-4">
           <div className="w-11 h-11 rounded-sm border-2 border-primary/40 bg-primary/10 flex items-center justify-center">
             <HandCoins className="w-5 h-5 text-primary" />
@@ -219,7 +235,9 @@ export default function Loans() {
           </div>
         </div>
         {isAdmin && (
-          <div className="flex gap-2">
+          <div className="flex flex-wrap justify-end gap-2">
+            <ViewReportButton request={{ kind: "active-loans" }} label="Active Loans" size="default" />
+            <ViewReportButton request={{ kind: "paid-loans" }} label="Paid Loans" size="default" />
             <ViewReportButton request={{ kind: "loan-portfolio" }} label="Loan Portfolio" size="default" />
             {/* Issue Loan Dialog */}
             <Dialog open={openIssue} onOpenChange={(o) => { setOpenIssue(o); if (!o) issueForm.reset({ memberId: "", amount: 0, date: new Date() }); }}>
@@ -286,15 +304,13 @@ export default function Loans() {
                         </FormItem>
                       )} />
                       <div className="rounded-sm border bg-muted/30 px-3.5 py-3 space-y-1.5 text-xs text-muted-foreground">
-                        <p className="font-semibold text-foreground">Repayment terms · {ORGANIZATION_CONFIG.LOAN_PERIOD_MONTHS} months</p>
+                        <p className="font-semibold text-foreground">Repayment terms · within {ORGANIZATION_CONFIG.LOAN_PERIOD_MONTHS} months</p>
                         <p className="figure">
                           {issueRate > 0 ? `Interest ${issueRate}% flat · ` : ""}Total payable {settings.currency} {issueTotal.toLocaleString()}
                           {issueCharge > 0 && <> + bank charge {issueCharge.toLocaleString()} = {settings.currency} {issueOwed.toLocaleString()} owed</>}
                           {issueDueDate && <> · due by {format(parseLocalDate(issueDueDate), settings.dateFormat)}</>}
                         </p>
-                        <p className="figure">
-                          Repay in {ORGANIZATION_CONFIG.LOAN_PERIOD_MONTHS} monthly instalments of about {settings.currency} {(Math.round((issueOwed / ORGANIZATION_CONFIG.LOAN_PERIOD_MONTHS) * 100) / 100).toLocaleString()}, or as a lump sum at any time before the due date.
-                        </p>
+                        <p>Repaid in any amounts, at any time, until it is all paid by the due date.</p>
                         {settings.latePenaltyPerMonth > 0 && (
                           <p className="figure">
                             Late penalty: {settings.currency} {settings.latePenaltyPerMonth.toLocaleString()} for each full month unpaid after the due date.
@@ -399,14 +415,14 @@ export default function Loans() {
           { label: "Total Outstanding", value: `${settings.currency} ${loanStats.totalOutstanding.toLocaleString()}`, icon: TrendingDown, color: "border-destructive/40 bg-destructive/10 text-destructive" },
           { label: "Active Loans", value: `${loanStats.activeLoansCount} loan${loanStats.activeLoansCount === 1 ? "" : "s"} · ${loanStats.membersWithLoans} member${loanStats.membersWithLoans === 1 ? "" : "s"}`, icon: HandCoins, color: "border-primary/40 bg-primary/10 text-primary" },
           { label: "Total Recovered", value: `${settings.currency} ${loanStats.totalRecovered.toLocaleString()}`, icon: CheckCircle2, color: "border-secondary/40 bg-secondary/10 text-secondary" },
-          { label: "Overdue (past due date)", value: `${loanStats.overdueCount} loan${loanStats.overdueCount === 1 ? "" : "s"} · ${settings.currency} ${loanStats.overdueAmount.toLocaleString()}`, icon: AlertTriangle, color: "border-accent/50 bg-accent/15 text-accent-foreground" },
+          { label: "Overdue (past due date)", value: `${loanStats.overdueCount} loan${loanStats.overdueCount === 1 ? "" : "s"} · ${settings.currency} ${loanStats.overdueAmount.toLocaleString()}`, icon: AlertTriangle, color: "border-accent/60 bg-accent/15 text-accent-foreground dark:text-accent" },
         ].map(({ label, value, icon, color }) => (
           <StatCard key={label} title={label} value={value} icon={icon} iconColor={color} />
         ))}
       </div>
 
       {/* Active Loans Table */}
-      <Card className="shadow-sm rounded-sm border-t-2 border-primary/70">
+      <Card className="shadow-sm rounded-sm border-t-2 border-t-accent">
         <CardHeader className="pb-3 border-b border-border">
           <CardTitle className="flex items-center justify-between text-base">
             <div className="flex items-center gap-2">
@@ -437,15 +453,14 @@ export default function Loans() {
                     <TableHead className="text-xs font-semibold uppercase tracking-wider text-right"><span className="text-muted-foreground/60 mr-1">+</span>Penalties</TableHead>
                     <TableHead className="text-xs font-semibold uppercase tracking-wider text-right"><span className="text-muted-foreground/60 mr-1">−</span>Repaid</TableHead>
                     <TableHead className="text-xs font-semibold uppercase tracking-wider text-right text-destructive"><span className="text-muted-foreground/60 mr-1">=</span>Outstanding</TableHead>
-                    <TableHead className="text-xs font-semibold uppercase tracking-wider">Next Instalment</TableHead>
                     <TableHead className="text-xs font-semibold uppercase tracking-wider">Due By</TableHead>
-                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-right">Schedule</TableHead>
+                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-right">Account</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {activePaged.rows.map((loan) => {
-                    const nextDue = getNextDueDate(loan.id);
                     const overdue = isOverdue(loan);
+                    const due = dueIn(loanDueDate(loan.loan_date), todayStr);
                     const penaltyTotal = Number(loan.penalty_total) || 0;
                     const interest = Math.round((Number(loan.total_payable) - Number(loan.amount)) * 100) / 100;
                     return (
@@ -459,7 +474,7 @@ export default function Loans() {
                           {interest > 0.005 ? (
                             <>
                               {interest.toLocaleString()}
-                              <span className="block text-xs text-muted-foreground">{Number(loan.interest_rate)}% flat</span>
+                              {/* <span className="block text-xs text-muted-foreground">{Number(loan.interest_rate)}% flat</span> */}
                             </>
                           ) : "—"}
                         </TableCell>
@@ -468,20 +483,21 @@ export default function Loans() {
                         <TableCell className="text-sm figure text-right text-destructive font-bold whitespace-nowrap">
                           {settings.currency} {loan.remaining_amount.toLocaleString()}
                         </TableCell>
-                        <TableCell className="text-sm text-muted-foreground figure">
-                          {nextDue && !overdue ? format(parseLocalDate(nextDue), settings.dateFormat) : "—"}
-                        </TableCell>
                         <TableCell className="text-sm">
                           <div className="flex flex-col items-start gap-1">
                             <span className={cn("text-muted-foreground figure whitespace-nowrap", overdue && "text-destructive font-semibold")}>
                               {format(parseLocalDate(loanDueDate(loan.loan_date)), settings.dateFormat)}
                             </span>
-                            {overdue && <Badge variant="destructive" className="gap-1"><AlertTriangle className="w-3 h-3" />Overdue</Badge>}
+                            {overdue ? (
+                              <Badge variant="destructive" className="gap-1"><AlertTriangle className="w-3 h-3" />{due.text}</Badge>
+                            ) : (
+                              <span className="figure text-xs text-muted-foreground whitespace-nowrap">{due.text}</span>
+                            )}
                           </div>
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button variant="ghost" size="sm" className="gap-1.5 rounded-sm" onClick={() => handleViewSchedule(loan)}>
-                            <CalendarClock className="w-3.5 h-3.5" /> View
+                          <Button variant="ghost" size="sm" className="gap-1.5 rounded-sm" onClick={() => handleViewLoan(loan)}>
+                            <BookOpen className="w-3.5 h-3.5" /> View
                           </Button>
                         </TableCell>
                       </TableRow>
@@ -523,7 +539,7 @@ export default function Loans() {
                     <TableHead className="text-xs font-semibold uppercase tracking-wider text-right text-destructive"><span className="text-muted-foreground/60 mr-1">=</span>Still owed</TableHead>
                     <TableHead className="text-xs font-semibold uppercase tracking-wider">Due By</TableHead>
                     <TableHead className="text-xs font-semibold uppercase tracking-wider">Defaulted On</TableHead>
-                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-right">Schedule</TableHead>
+                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-right">Account</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -559,8 +575,8 @@ export default function Loans() {
                           ) : "—"}
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button variant="ghost" size="sm" className="gap-1.5 rounded-sm" onClick={() => handleViewSchedule(loan)}>
-                            <CalendarClock className="w-3.5 h-3.5" /> View
+                          <Button variant="ghost" size="sm" className="gap-1.5 rounded-sm" onClick={() => handleViewLoan(loan)}>
+                            <BookOpen className="w-3.5 h-3.5" /> View
                           </Button>
                         </TableCell>
                       </TableRow>
@@ -638,70 +654,73 @@ export default function Loans() {
         </CardContent>
       </Card>
 
-      {/* Schedule Dialog */}
-      <Dialog open={!!scheduleLoan} onOpenChange={(o) => { if (!o) setScheduleLoan(null); }}>
+      {/* Loan account dialog */}
+      <Dialog open={!!viewLoan} onOpenChange={(o) => { if (!o) setViewLoan(null); }}>
         <DialogContent className="sm:max-w-[520px] flex flex-col max-h-[85vh] p-0 gap-0 overflow-hidden rounded-sm">
           <div className="flex items-center gap-4 px-6 py-5 border-b bg-muted/30 flex-shrink-0">
             <div className="w-10 h-10 rounded-sm border-2 border-primary/40 bg-primary/10 flex items-center justify-center flex-shrink-0">
-              <CalendarClock className="w-5 h-5 text-primary" />
+              <BookOpen className="w-5 h-5 text-primary" />
             </div>
             <div>
-              <DialogTitle className="text-base font-bold text-foreground">Repayment Schedule</DialogTitle>
+              <DialogTitle className="text-base font-bold text-foreground">Loan Account</DialogTitle>
               <p className="text-xs text-muted-foreground figure">
-                {scheduleLoan?.member_name || "Unknown"} · Total Payable {settings.currency} {scheduleLoan?.total_payable?.toLocaleString()}
-                {Number(scheduleLoan?.bank_charge) > 0 && <> + bank charge {Number(scheduleLoan?.bank_charge).toLocaleString()}</>}
-                {scheduleDueDate && <> · Due by {format(parseLocalDate(scheduleDueDate), settings.dateFormat)}</>}
+                {viewLoan?.member_name || "Unknown"} · Total Payable {settings.currency} {viewLoan?.total_payable?.toLocaleString()}
+                {Number(viewLoan?.bank_charge) > 0 && <> + bank charge {Number(viewLoan?.bank_charge).toLocaleString()}</>}
+                {viewDueDate && <> · Due by {format(parseLocalDate(viewDueDate), settings.dateFormat)}</>}
+                {viewDueDate && viewLoan?.status === "active" && Number(viewLoan.remaining_amount) > 0.005 && <> ({dueIn(viewDueDate, todayStr).text})</>}
               </p>
             </div>
           </div>
           <div className="overflow-y-auto flex-1 px-6 py-5">
-            {scheduleLoading ? (
-              <div className="flex items-center justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+            {viewLoan && (
+              <div className="grid grid-cols-3 gap-3 mb-5">
+                {[
+                  { label: "Owed in all", value: Number(viewLoan.total_payable) + (Number(viewLoan.bank_charge) || 0) + (Number(viewLoan.penalty_total) || 0) },
+                  { label: "Repaid", value: Number(viewLoan.total_payable) + (Number(viewLoan.bank_charge) || 0) + (Number(viewLoan.penalty_total) || 0) - Number(viewLoan.remaining_amount) },
+                  { label: "Outstanding", value: Number(viewLoan.remaining_amount) },
+                ].map((f) => (
+                  <div key={f.label} className="rounded-sm border border-border/60 px-3 py-2">
+                    <p className="text-xs text-muted-foreground">{f.label}</p>
+                    <p className={cn("figure text-sm font-bold", f.label === "Outstanding" && f.value > 0.005 ? "text-destructive" : f.label === "Repaid" ? "text-secondary" : "text-foreground")}>
+                      {settings.currency} {(Math.round(f.value * 100) / 100).toLocaleString()}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">Repayments</p>
+            {viewRepayments.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-2">No repayments yet.</p>
             ) : (
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="text-xs">#</TableHead>
-                    <TableHead className="text-xs">Due Date</TableHead>
-                    <TableHead className="text-xs">Due</TableHead>
-                    <TableHead className="text-xs">Paid</TableHead>
-                    <TableHead className="text-xs">Status</TableHead>
+                    <TableHead className="text-xs">Date</TableHead>
+                    <TableHead className="text-xs text-right">Amount</TableHead>
+                    <TableHead className="text-xs text-right">Balance after</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {schedulePaged.rows.map((row) => {
-                    const overdue = row.status === 'pending' && !!scheduleDueDate && scheduleDueDate < todayStr;
-                    return (
-                      <TableRow key={row.id}>
-                        <TableCell className="text-sm figure">{row.installment_number}</TableCell>
-                        <TableCell className="text-sm figure">{format(parseLocalDate(row.due_date), settings.dateFormat)}</TableCell>
-                        <TableCell className="text-sm figure">{settings.currency} {Number(row.due_amount).toLocaleString()}</TableCell>
-                        <TableCell className="text-sm figure">{settings.currency} {Number(row.paid_amount).toLocaleString()}</TableCell>
-                        <TableCell className="text-sm">
-                          {row.status === 'paid' ? (
-                            <Badge variant="secondary">Paid</Badge>
-                          ) : overdue ? (
-                            <Badge variant="destructive">Overdue</Badge>
-                          ) : (
-                            <Badge variant="outline">Pending</Badge>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
+                  {repaymentsPaged.rows.map((row) => (
+                    <TableRow key={row.key}>
+                      <TableCell className="text-sm figure">{row.date ? format(parseLocalDate(row.date), settings.dateFormat) : "Before the cut-over"}</TableCell>
+                      <TableCell className="text-sm figure text-right text-secondary font-medium">{settings.currency} {row.amount.toLocaleString()}</TableCell>
+                      <TableCell className="text-sm figure text-right">{settings.currency} {Math.max(0, row.balance).toLocaleString()}</TableCell>
+                    </TableRow>
+                  ))}
                 </TableBody>
               </Table>
             )}
-            {!scheduleLoading && <TablePager paged={schedulePaged} noun="instalments" className="px-0" />}
-            {scheduleLoan && Number(scheduleLoan.penalty_per_month) > 0 && (
+            <TablePager paged={repaymentsPaged} noun="repayments" className="px-0" />
+            {viewLoan && Number(viewLoan.penalty_per_month) > 0 && (
               <p className="text-xs text-muted-foreground mt-3 figure">
-                Instalments are a guide; the loan may also be repaid as a lump sum before the due date. Late penalty after that: {settings.currency} {Number(scheduleLoan.penalty_per_month).toLocaleString()} for each full month unpaid.
-                {scheduleLoan.status === "defaulted" && scheduleLoan.defaulted_on && (
-                  <> Marked defaulted on {format(parseLocalDate(scheduleLoan.defaulted_on), settings.dateFormat)}: no penalties after that date.</>
+                Repaid in any amounts, at any time, until it is all paid by the due date. Late penalty after that: {settings.currency} {Number(viewLoan.penalty_per_month).toLocaleString()} for each full month unpaid.
+                {viewLoan.status === "defaulted" && viewLoan.defaulted_on && (
+                  <> Marked defaulted on {format(parseLocalDate(viewLoan.defaulted_on), settings.dateFormat)}: no penalties after that date.</>
                 )}
               </p>
             )}
-            {!scheduleLoading && schedulePenalties.length > 0 && (
+            {viewPenalties.length > 0 && (
               <div className="mt-5">
                 <p className="text-xs font-semibold uppercase tracking-wider text-destructive mb-1">Late Penalties</p>
                 <Table>
@@ -722,7 +741,7 @@ export default function Loans() {
                     ))}
                     <TableRow className="hover:bg-transparent">
                       <TableCell colSpan={2} className="text-sm font-semibold">Total penalties</TableCell>
-                      <TableCell className="text-sm figure font-semibold text-right">{settings.currency} {(Number(scheduleLoan?.penalty_total) || 0).toLocaleString()}</TableCell>
+                      <TableCell className="text-sm figure font-semibold text-right">{settings.currency} {(Number(viewLoan?.penalty_total) || 0).toLocaleString()}</TableCell>
                     </TableRow>
                   </TableBody>
                 </Table>
@@ -730,15 +749,15 @@ export default function Loans() {
               </div>
             )}
           </div>
-          {scheduleLoan && (
+          {viewLoan && (
             <div className="flex-shrink-0 flex justify-between gap-2 px-6 py-4 border-t bg-muted/20">
-              <ViewReportButton request={{ kind: "loan-statement", loanId: scheduleLoan.id }} label="Loan Account Statement" />
-              {isAdmin && scheduleLoan.status === 'active' && (scheduleLoan.amount > settings.bankChargeThreshold || Number(scheduleLoan.bank_charge) > 0) && (
-                <Button type="button" variant="outline" size="sm" className="gap-2 rounded-sm ml-auto" onClick={() => { setChargeText(Number(scheduleLoan.bank_charge) > 0 ? String(scheduleLoan.bank_charge) : ""); setChargeOpen(true); }}>
+              <ViewReportButton request={{ kind: "loan-statement", loanId: viewLoan.id }} label="Loan Account Statement" />
+              {isAdmin && viewLoan.status === 'active' && (viewLoan.amount > settings.bankChargeThreshold || Number(viewLoan.bank_charge) > 0) && (
+                <Button type="button" variant="outline" size="sm" className="gap-2 rounded-sm ml-auto" onClick={() => { setChargeText(Number(viewLoan.bank_charge) > 0 ? String(viewLoan.bank_charge) : ""); setChargeOpen(true); }}>
                   <Landmark className="w-3.5 h-3.5" /> Bank charge
                 </Button>
               )}
-              {isAdmin && scheduleLoan.status !== 'defaulted' && (
+              {isAdmin && viewLoan.status !== 'defaulted' && (
                 <Button type="button" variant="outline" size="sm" className="gap-2 rounded-sm text-destructive hover:text-destructive" onClick={() => { setDefaultDate(new Date()); setDefaultOpen(true); }}>
                   <Ban className="w-3.5 h-3.5" /> Mark as Defaulted
                 </Button>
@@ -753,8 +772,8 @@ export default function Loans() {
           <AlertDialogHeader>
             <AlertDialogTitle>Bank charge on this loan's withdrawal</AlertDialogTitle>
             <AlertDialogDescription>
-              The amount the bank took for the cheque, as the bank statement shows it. {scheduleLoan?.member_name || "The member"} repays it with the loan, with no
-              interest on it; it is added to the balance owed and to the last instalment.
+              The amount the bank took for the cheque, as the bank statement shows it. {viewLoan?.member_name || "The member"} repays it with the loan, with no
+              interest on it; it is added to the balance owed.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-1.5">
@@ -767,11 +786,11 @@ export default function Loans() {
               disabled={chargeSaving}
               onClick={async (e) => {
                 e.preventDefault();
-                if (!scheduleLoan) return;
+                if (!viewLoan) return;
                 setChargeSaving(true);
-                const ok = await setBankCharge(scheduleLoan.id, Number(chargeText.replace(/,/g, "")) || 0);
+                const ok = await setBankCharge(viewLoan.id, Number(chargeText.replace(/,/g, "")) || 0);
                 setChargeSaving(false);
-                if (ok) { setChargeOpen(false); setScheduleLoan(null); }
+                if (ok) { setChargeOpen(false); setViewLoan(null); }
               }}
               className="rounded-sm"
             >
@@ -788,8 +807,8 @@ export default function Loans() {
             <AlertDialogDescription asChild>
               <div className="space-y-2">
                 <p>
-                  {scheduleLoan?.member_name || "This member"}'s loan of {settings.currency} {Number(scheduleLoan?.amount ?? 0).toLocaleString()}, with{" "}
-                  <span className="figure">{settings.currency} {Number(scheduleLoan?.remaining_amount ?? 0).toLocaleString()}</span> still owed.
+                  {viewLoan?.member_name || "This member"}'s loan of {settings.currency} {Number(viewLoan?.amount ?? 0).toLocaleString()}, with{" "}
+                  <span className="figure">{settings.currency} {Number(viewLoan?.remaining_amount ?? 0).toLocaleString()}</span> still owed.
                 </p>
                 <p>
                   No late penalty is added after the date below. Penalties charged up to then stay in the balance, and the accounts

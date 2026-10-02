@@ -16,7 +16,7 @@ interface StatCardProps {
 
 export default function StatCard({ title, value, icon: Icon, trend, trendUp, note, bgColor, iconColor }: StatCardProps) {
   return (
-    <Card className={cn("card-hover border-0 border-t-2 border-t-primary/70 shadow-sm rounded-sm overflow-hidden relative bg-card", bgColor)}>
+    <Card className={cn("card-hover border-0 border-t-2 border-t-accent shadow-sm rounded-sm overflow-hidden relative bg-card", bgColor)}>
       <CardContent className="p-3.5">
         <div className="flex items-start justify-between gap-3">
           <p className="tracked-label min-w-0 pt-1 text-[10px] font-semibold uppercase text-muted-foreground">{title}</p>

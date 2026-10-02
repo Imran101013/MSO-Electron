@@ -213,7 +213,7 @@ export default function Dashboard() {
   return (
     <div className="space-y-4">
       {/* Page Header — statement letterhead */}
-      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-1 border-b-2 border-primary/40 pb-3">
+      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-1 border-b-2 border-accent/70 pb-3">
         <div>
           <p className="tracked-label text-[10px] font-semibold text-primary uppercase">Daily Statement</p>
           <h2 className="text-2xl font-bold text-foreground mt-1">Dashboard</h2>
@@ -251,7 +251,7 @@ export default function Dashboard() {
           title="Reserve Fund"
           value={isLoading ? "—" : `${settings.currency} ${reserveFund.toLocaleString()}`}
           icon={PiggyBank}
-          iconColor="border-accent/50 bg-accent/15 text-accent-foreground"
+          iconColor="border-accent/60 bg-accent/15 text-accent-foreground dark:text-accent"
         />
         <StatCard
           title="Overdue Loans"

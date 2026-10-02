@@ -169,40 +169,65 @@ ipcMain.handle('share-whatsapp', async (_, { text, phone }) => {
   return openWhatsApp(text, phone);
 });
 
-// Share a PDF report on WhatsApp. WhatsApp can't be handed a file through a link, so the PDF is
-// saved to a temporary folder and put on the clipboard as a file (as Explorer's Copy does), then
-// WhatsApp opens with a caption typed in; the user picks the chat and pastes the file (Ctrl+V).
+// Share a report on WhatsApp, as the PDF or as one picture per page. WhatsApp can't be handed
+// files through a link, so they are saved to a temporary folder and put on the clipboard as files
+// (as Explorer's Copy does), then WhatsApp opens with a caption typed in; the user picks the chat
+// and pastes them (Ctrl+V). Several pictures paste as one album.
 const sharedReportsDir = () => path.join(app.getPath('temp'), 'MSO Reports');
+const MAX_SHARED_FILES = 100; // WhatsApp sends at most 100 media in one go
 
-function copyFileToClipboard(file) {
+function copyFilesToClipboard(files) {
   if (process.platform !== 'win32') return Promise.resolve(false);
   return new Promise((resolve) => {
-    // The path goes in through the environment, never into the command text.
+    // The paths go in through the environment, never into the command text. "|" can't be in a path.
     execFile(
       'powershell.exe',
-      ['-NoProfile', '-NonInteractive', '-Command', 'Set-Clipboard -LiteralPath $env:MSO_SHARE_FILE'],
-      { env: { ...process.env, MSO_SHARE_FILE: file }, windowsHide: true, timeout: 15000 },
+      ['-NoProfile', '-NonInteractive', '-Command', "Set-Clipboard -LiteralPath ($env:MSO_SHARE_FILES -split '\\|')"],
+      { env: { ...process.env, MSO_SHARE_FILES: files.join('|') }, windowsHide: true, timeout: 20000 },
       (err) => resolve(!err),
     );
   });
 }
 
-ipcMain.handle('share-file-whatsapp', async (_, { filename, data, text, phone }) => {
-  const name = path.basename(String(filename || ''));
-  if (!/^[\w.-]+\.pdf$/i.test(name)) return { error: 'The report has no valid file name.' };
-  const bytes = data instanceof ArrayBuffer ? Buffer.from(data) : ArrayBuffer.isView(data) ? Buffer.from(data.buffer, data.byteOffset, data.byteLength) : null;
-  if (!bytes || bytes.length === 0 || bytes.length > 50 * 1024 * 1024) return { error: 'The report could not be prepared for sharing.' };
-  const file = path.join(sharedReportsDir(), name);
+const toBuffer = (data) =>
+  data instanceof ArrayBuffer ? Buffer.from(data) : ArrayBuffer.isView(data) ? Buffer.from(data.buffer, data.byteOffset, data.byteLength) : null;
+
+// Shared files are only needed until they are pasted: anything older than a day is cleared out.
+async function pruneSharedFiles() {
+  const dir = sharedReportsDir();
+  const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+  for (const name of await fs.promises.readdir(dir).catch(() => [])) {
+    const file = path.join(dir, name);
+    const stat = await fs.promises.stat(file).catch(() => null);
+    if (stat?.isFile() && stat.mtimeMs < cutoff) await fs.promises.unlink(file).catch(() => {});
+  }
+}
+
+async function shareFiles(items, text, phone) {
+  if (!Array.isArray(items) || items.length === 0 || items.length > MAX_SHARED_FILES) return { error: 'The report could not be prepared for sharing.' };
+  const files = [];
   try {
     await fs.promises.mkdir(sharedReportsDir(), { recursive: true });
-    await fs.promises.writeFile(file, bytes);
+    await pruneSharedFiles();
+    for (const item of items) {
+      const name = path.basename(String(item?.name || ''));
+      if (!/^[\w.-]+\.(pdf|png)$/i.test(name)) return { error: 'The report has no valid file name.' };
+      const bytes = toBuffer(item.data);
+      if (!bytes || bytes.length === 0 || bytes.length > 50 * 1024 * 1024) return { error: 'The report could not be prepared for sharing.' };
+      const file = path.join(sharedReportsDir(), name);
+      await fs.promises.writeFile(file, bytes);
+      files.push(file);
+    }
   } catch (err) {
     return { error: `The report could not be saved for sharing: ${err.message}` };
   }
-  const copied = await copyFileToClipboard(file);
+  const copied = await copyFilesToClipboard(files);
   const res = await openWhatsApp(typeof text === 'string' ? text : '', phone);
-  return { ...res, copied, file };
-});
+  return { ...res, copied, file: files[0], count: files.length };
+}
+
+ipcMain.handle('share-file-whatsapp', (_, { filename, data, text, phone }) => shareFiles([{ name: filename, data }], text, phone));
+ipcMain.handle('share-files-whatsapp', (_, { files, text, phone }) => shareFiles(files, text, phone));
 
 // Shows a shared report in Explorer (only files this app saved for sharing).
 ipcMain.handle('show-shared-file', async (_, { file }) => {
@@ -302,6 +327,8 @@ async function ensureSchema() {
       ALTER TABLE public.reserve_transactions ADD CONSTRAINT reserve_transactions_transaction_type_check
         CHECK (transaction_type IN ('donation', 'expense', 'profit_allocation', 'opening'));
 
+      -- Loans have no instalment plan any more (the whole balance is due by the due date, repaid in
+      -- any amounts). The table is kept, unused, so backups made before that still restore.
       CREATE TABLE IF NOT EXISTS public.loan_schedule (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         loan_id UUID REFERENCES public.loans(id) ON DELETE CASCADE NOT NULL,
@@ -324,24 +351,6 @@ async function ensureSchema() {
         old_data JSONB,
         new_data JSONB
       );
-    `);
-
-    // Backfill a single schedule row for pre-existing loans that predate this feature,
-    // so they still show up in overdue tracking without requiring re-entry. What has been paid is
-    // measured against the total payable (principal + interest fixed at issue), not the principal,
-    // and excludes penalties, which remaining_amount also carries.
-    await client.query(`
-      INSERT INTO public.loan_schedule (loan_id, installment_number, due_date, due_amount, paid_amount, status)
-      SELECT id, 1, loan_date, total_payable, paid,
-             CASE WHEN paid >= total_payable - 0.005 THEN 'paid' ELSE 'pending' END
-      FROM (
-        SELECT l.id, l.loan_date, l.total_payable,
-               LEAST(l.total_payable, GREATEST(0, l.total_payable
-                 + COALESCE((SELECT SUM(p.amount) FROM public.loan_penalties p WHERE p.loan_id = l.id), 0)
-                 - l.remaining_amount)) AS paid
-        FROM public.loans l
-        WHERE NOT EXISTS (SELECT 1 FROM public.loan_schedule s WHERE s.loan_id = l.id)
-      ) t;
     `);
 
     await client.query(`
@@ -385,33 +394,101 @@ async function ensureSchema() {
         FOR EACH ROW EXECUTE FUNCTION public.audit_trigger_fn();
       `);
     }
+
+    // When any record that a backup holds last changed, for the "After every change" backup
+    // reminder (src/lib/backup.ts). An update counts only if it changes the row (updated_at aside).
+    // Restoring runs with triggers off, so a restore is not a change. The row starts at the first
+    // run, so an install that already has records is reminded once.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS public.data_last_changed (
+        id BOOLEAN PRIMARY KEY DEFAULT true CHECK (id),
+        changed_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      INSERT INTO public.data_last_changed (id) VALUES (true) ON CONFLICT (id) DO NOTHING;
+      CREATE OR REPLACE FUNCTION public.note_data_change_fn()
+      RETURNS TRIGGER
+      LANGUAGE plpgsql
+      AS $$
+      BEGIN
+        UPDATE public.data_last_changed SET changed_at = clock_timestamp() WHERE id;
+        RETURN NULL;
+      END;
+      $$;
+    `);
+    for (const table of BACKUP_TABLES) {
+      const [{ exists }] = (await client.query('SELECT to_regclass($1) IS NOT NULL AS exists', [`public.${table}`])).rows;
+      if (!exists) continue;
+      await client.query(`
+        DROP TRIGGER IF EXISTS note_change_${table} ON public.${table};
+        CREATE TRIGGER note_change_${table}
+        AFTER INSERT OR DELETE ON public.${table}
+        FOR EACH ROW EXECUTE FUNCTION public.note_data_change_fn();
+        DROP TRIGGER IF EXISTS note_update_${table} ON public.${table};
+        CREATE TRIGGER note_update_${table}
+        AFTER UPDATE ON public.${table}
+        FOR EACH ROW WHEN ((to_jsonb(OLD) - 'updated_at') IS DISTINCT FROM (to_jsonb(NEW) - 'updated_at'))
+        EXECUTE FUNCTION public.note_data_change_fn();
+        DROP TRIGGER IF EXISTS note_truncate_${table} ON public.${table};
+        CREATE TRIGGER note_truncate_${table}
+        AFTER TRUNCATE ON public.${table}
+        FOR EACH STATEMENT EXECUTE FUNCTION public.note_data_change_fn();
+      `);
+    }
   } finally {
     client.release();
   }
 }
 
-// Auth: Login (Admin only)
+// Auth. MSO has one shared login and no roles: anyone with the username and password signs in
+// with full access. The username is kept in users.email (it may be an email address or not)
+// and is matched without regard to case.
+const signIn = (user) => {
+  const session = { id: user.id, email: user.email, fullName: user.full_name };
+  return { token: jwt.sign(session, JWT_SECRET, { expiresIn: '7d' }), user: session };
+};
+
 ipcMain.handle('auth-login', async (_, { email, password }) => {
   const client = await pool.connect();
   try {
     const result = await client.query(
-      'SELECT u.id, u.email, u.password_hash, u.full_name, r.role FROM public.users u LEFT JOIN public.user_roles r ON r.user_id = u.id WHERE u.email = $1 AND r.role = $2',
-      [email, 'admin']
+      'SELECT id, email, password_hash, full_name FROM public.users WHERE lower(email) = lower($1)',
+      [String(email || '').trim()]
     );
-
     const user = result.rows[0];
-    if (!user) return { error: 'Invalid admin credentials' };
+    if (!user || !(await bcrypt.compare(String(password || ''), user.password_hash))) {
+      return { error: 'Incorrect username or password.' };
+    }
+    return signIn(user);
+  } catch (err) {
+    return { error: err.message };
+  } finally {
+    client.release();
+  }
+});
 
-    const valid = await bcrypt.compare(password, user.password_hash);
-    if (!valid) return { error: 'Invalid admin credentials' };
-
-    const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role, fullName: user.full_name },
-      JWT_SECRET,
-      { expiresIn: '7d' }
+// Auth: change the login details (name shown in the app, username, password). The current
+// password is required for any change; a new session token is returned with the new details.
+ipcMain.handle('auth-update-account', async (_, { userId, currentPassword, username, fullName, newPassword }) => {
+  const name = String(username || '').trim();
+  const displayName = String(fullName || '').trim();
+  const password = newPassword ? String(newPassword) : '';
+  if (name.length < 3 || name.length > 64 || /\s/.test(name)) return { error: 'The username must be 3 to 64 characters, with no spaces.' };
+  if (displayName.length > 60) return { error: 'Keep the name to 60 characters or fewer.' };
+  if (password && password.length < 6) return { error: 'The new password must be at least 6 characters.' };
+  const client = await pool.connect();
+  try {
+    const result = await client.query('SELECT id, password_hash FROM public.users WHERE id = $1', [userId]);
+    const user = result.rows[0];
+    if (!user) return { error: 'This login no longer exists. Sign in again.' };
+    if (!(await bcrypt.compare(String(currentPassword || ''), user.password_hash))) return { error: 'The current password is incorrect.' };
+    const taken = await client.query('SELECT 1 FROM public.users WHERE lower(email) = lower($1) AND id <> $2', [name, userId]);
+    if (taken.rows.length) return { error: 'That username is already in use.' };
+    const hash = password ? await bcrypt.hash(password, 10) : null;
+    const updated = await client.query(
+      'UPDATE public.users SET email = $1, full_name = $2, password_hash = COALESCE($3, password_hash) WHERE id = $4 RETURNING id, email, full_name',
+      [name, displayName || null, hash, userId]
     );
-
-    return { token, user: { id: user.id, email: user.email, role: user.role, fullName: user.full_name } };
+    return { success: true, ...signIn(updated.rows[0]) };
   } catch (err) {
     return { error: err.message };
   } finally {

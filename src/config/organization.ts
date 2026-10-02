@@ -48,8 +48,8 @@ export const ORGANIZATION_CONFIG = {
     DEFAULTED: "Defaulted",
   } as const,
 
-  // Loans run for a fixed period and may be repaid in monthly instalments or as a lump sum
-  // at any point within it.
+  // Loans run for a fixed period; the whole balance is due by its end and may be repaid in any
+  // amounts, at any time, until then (there is no instalment plan).
   LOAN_PERIOD_MONTHS: 12,
   // Charged for each full month a loan is still unpaid after its period ends (see utils/loanPenalty.ts).
   LATE_PENALTY_PER_MONTH: 500,

@@ -7,7 +7,7 @@
 /*
   DIRECTION CONTRACT
   THESIS: The app reads as a trusted institutional counter, not another blue SaaS card grid — every screen behaves like a statement being printed at the window in front of you.
-  OWN-WORLD: charcoal-navy counter ground + brass grille accent + paper-white statement panels; IBM Plex Sans for chrome, IBM Plex Mono/tabular-nums for every figure; brass top-rules divide sections like a printed slip; status reads as an ink stamp, not a soft pill.
+  OWN-WORLD: the seal's navy counter ground + its rising-sun orange as the signature rule + white statement panels with steel-blue tints; IBM Plex Sans for chrome, IBM Plex Mono/tabular-nums for every figure; sunrise top-rules divide sections like a printed slip; status reads as an ink stamp, not a soft pill.
   STORY: an admin opens the app, immediately reads it as "the ledger, digitized" — trustworthy, precise, built for money — and finds today's numbers and next task at a glance.
   FIRST VIEWPORT: dark counter-grille sidebar (numbered nav) left, statement-letterhead header top, paper-white dashboard body with stamp-styled stat slips in a row and a brass-ruled "Upcoming" register beneath.
   FORM: Bank Teller Counter & Statement Register — grounded direction 4 of 7 (ledger/committee/institutional/instrument-panel families), seed key 3ad2975d, chosen over Ledger Bindery (skeuomorphic leather) challenger on product clarity for dense financial tables.
@@ -15,110 +15,122 @@
 */
 
 @layer base {
+  /* The seal's colours (src/assets/mso-logo.png): navy ring and wordmark, the sun rising over
+     the book, steel-blue pages on white. Navy carries action and ink; the sun is the signature
+     rule and the attention stamp; green and brick red keep their money meanings. */
   :root {
-    --background: 40 26% 95%;
-    --foreground: 222 32% 14%;
+    color-scheme: light;
 
-    --card: 42 38% 98%;
-    --card-foreground: 222 32% 14%;
+    --background: 216 33% 97%;
+    --foreground: 220 45% 13%;
 
-    --popover: 42 38% 98%;
-    --popover-foreground: 222 32% 14%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 45% 13%;
 
-    --primary: 38 58% 38%;
-    --primary-foreground: 42 45% 97%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 45% 13%;
 
-    --secondary: 150 38% 27%;
-    --secondary-foreground: 42 45% 97%;
+    /* Seal navy #244271 */
+    --primary: 217 52% 29%;
+    --primary-foreground: 0 0% 100%;
 
-    --muted: 36 18% 91%;
-    --muted-foreground: 30 10% 40%;
+    --secondary: 152 45% 26%;
+    --secondary-foreground: 0 0% 100%;
 
-    --accent: 38 68% 52%;
-    --accent-foreground: 222 32% 14%;
+    --muted: 216 28% 93%;
+    --muted-foreground: 217 18% 37%;
 
-    --destructive: 6 55% 40%;
-    --destructive-foreground: 42 45% 97%;
+    /* The sun #E79C2A: rules, attention washes and fills (navy text on it), never small text */
+    --accent: 36 80% 54%;
+    --accent-foreground: 220 45% 13%;
 
-    --border: 34 22% 84%;
-    --input: 34 22% 84%;
-    --ring: 38 58% 38%;
+    --destructive: 5 60% 41%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 216 24% 86%;
+    --input: 216 24% 84%;
+    --ring: 217 52% 29%;
 
     --radius: 0.625rem;
 
-    /* Dashboard loans chart. Stepped apart from brass/teller-green so the two series stay
-       distinct under colour-blind vision on the card surface (checked with a CVD validator). */
-    --chart-issued: 39 58% 44%;
-    --chart-recovered: 156 59% 30%;
+    /* Dashboard loans chart: navy blue against teller green, apart in hue and lightness so the
+       two series stay distinct under colour-blind vision. */
+    --chart-issued: 217 50% 42%;
+    --chart-recovered: 154 50% 30%;
 
-    --gradient-primary: linear-gradient(135deg, hsl(38 58% 36%), hsl(42 72% 52%));
-    --gradient-secondary: linear-gradient(135deg, hsl(150 40% 24%), hsl(150 44% 38%));
-    --gradient-accent: linear-gradient(135deg, hsl(6 50% 36%), hsl(14 55% 48%));
-    --gradient-hero: linear-gradient(135deg, hsl(222 42% 8%) 0%, hsl(222 34% 15%) 55%, hsl(38 48% 24%) 100%);
+    --gradient-primary: linear-gradient(135deg, hsl(219 55% 22%), hsl(215 46% 40%));
+    --gradient-secondary: linear-gradient(135deg, hsl(152 45% 22%), hsl(152 44% 36%));
+    --gradient-accent: linear-gradient(135deg, hsl(32 82% 50%), hsl(40 86% 62%));
+    /* The login panel: the seal's navy, with the sun rising from below. */
+    --gradient-hero: radial-gradient(60% 34% at 50% 104%, hsl(40 95% 64% / 0.62), hsl(33 90% 52% / 0.26) 45%, transparent 75%), linear-gradient(170deg, hsl(221 58% 9%) 0%, hsl(219 54% 15%) 58%, hsl(218 52% 22%) 100%);
 
-    --shadow-sm: 0 1px 2px hsl(30 30% 18% / 0.06);
-    --shadow-md: 0 6px 18px hsl(30 28% 18% / 0.10), 0 2px 6px hsl(30 24% 14% / 0.06);
-    --shadow-lg: 0 16px 36px hsl(30 28% 18% / 0.14), 0 4px 10px hsl(30 24% 14% / 0.08);
+    --shadow-sm: 0 1px 2px hsl(220 40% 20% / 0.07);
+    --shadow-md: 0 6px 18px hsl(220 40% 20% / 0.10), 0 2px 6px hsl(220 40% 16% / 0.06);
+    --shadow-lg: 0 16px 36px hsl(220 40% 20% / 0.14), 0 4px 10px hsl(220 40% 16% / 0.08);
 
-    --sidebar-background: 222 40% 9%;
-    --sidebar-foreground: 40 22% 88%;
-    --sidebar-primary: 38 68% 56%;
-    --sidebar-primary-foreground: 222 40% 9%;
-    --sidebar-accent: 222 30% 16%;
-    --sidebar-accent-foreground: 40 22% 92%;
-    --sidebar-border: 38 24% 20%;
-    --sidebar-ring: 38 68% 56%;
+    /* The counter: the seal's navy ring, the same in both themes. */
+    --sidebar-background: 219 54% 15%;
+    --sidebar-foreground: 214 32% 90%;
+    --sidebar-primary: 36 85% 57%;
+    --sidebar-primary-foreground: 221 55% 10%;
+    --sidebar-accent: 218 45% 22%;
+    --sidebar-accent-foreground: 214 35% 95%;
+    --sidebar-border: 218 40% 24%;
+    --sidebar-ring: 36 85% 57%;
   }
 
   .dark {
-    --background: 222 32% 8%;
-    --foreground: 40 22% 92%;
+    color-scheme: dark;
 
-    --card: 222 28% 11%;
-    --card-foreground: 40 22% 92%;
+    --background: 221 47% 7%;
+    --foreground: 214 32% 92%;
 
-    --popover: 222 28% 11%;
-    --popover-foreground: 40 22% 92%;
+    --card: 220 42% 11%;
+    --card-foreground: 214 32% 92%;
 
-    --primary: 38 70% 58%;
-    --primary-foreground: 222 32% 8%;
+    --popover: 220 42% 11%;
+    --popover-foreground: 214 32% 92%;
 
-    --secondary: 150 40% 42%;
-    --secondary-foreground: 222 32% 8%;
+    /* Navy lifted to the steel blue of the book's pages, so it reads on the dark ground */
+    --primary: 214 62% 72%;
+    --primary-foreground: 221 50% 10%;
 
-    --muted: 222 22% 16%;
-    --muted-foreground: 36 12% 65%;
+    --secondary: 152 44% 48%;
+    --secondary-foreground: 221 50% 8%;
 
-    --accent: 38 70% 58%;
-    --accent-foreground: 222 32% 8%;
+    --muted: 219 34% 16%;
+    --muted-foreground: 215 20% 68%;
 
-    --destructive: 6 60% 52%;
-    --destructive-foreground: 42 45% 97%;
+    --accent: 36 86% 58%;
+    --accent-foreground: 221 50% 8%;
 
-    --border: 222 22% 19%;
-    --input: 222 22% 19%;
-    --ring: 38 70% 58%;
+    --destructive: 4 76% 64%;
+    --destructive-foreground: 221 50% 8%;
 
-    --chart-issued: 38 60% 45%;
-    --chart-recovered: 158 42% 43%;
+    --border: 219 30% 20%;
+    --input: 219 30% 22%;
+    --ring: 214 62% 72%;
 
-    --gradient-primary: linear-gradient(135deg, hsl(38 65% 46%), hsl(42 75% 60%));
-    --gradient-secondary: linear-gradient(135deg, hsl(150 40% 32%), hsl(150 46% 46%));
-    --gradient-accent: linear-gradient(135deg, hsl(6 55% 42%), hsl(14 58% 54%));
-    --gradient-hero: linear-gradient(135deg, hsl(222 45% 5%) 0%, hsl(222 36% 11%) 55%, hsl(38 50% 20%) 100%);
+    --chart-issued: 214 62% 64%;
+    --chart-recovered: 154 44% 46%;
 
-    --shadow-sm: 0 1px 3px hsl(0 0% 0% / 0.35);
-    --shadow-md: 0 8px 20px hsl(0 0% 0% / 0.4);
-    --shadow-lg: 0 16px 40px hsl(0 0% 0% / 0.5);
+    --gradient-primary: linear-gradient(135deg, hsl(218 52% 28%), hsl(214 52% 44%));
+    --gradient-secondary: linear-gradient(135deg, hsl(152 40% 30%), hsl(152 44% 44%));
+    --gradient-accent: linear-gradient(135deg, hsl(32 84% 52%), hsl(40 88% 64%));
+    --gradient-hero: radial-gradient(60% 34% at 50% 104%, hsl(40 95% 62% / 0.50), hsl(33 90% 50% / 0.20) 45%, transparent 75%), linear-gradient(170deg, hsl(222 60% 5%) 0%, hsl(220 54% 10%) 58%, hsl(219 52% 17%) 100%);
 
-    --sidebar-background: 222 42% 7%;
-    --sidebar-foreground: 40 20% 88%;
-    --sidebar-primary: 38 70% 58%;
-    --sidebar-primary-foreground: 222 42% 7%;
-    --sidebar-accent: 222 30% 14%;
-    --sidebar-accent-foreground: 40 20% 90%;
-    --sidebar-border: 38 22% 16%;
-    --sidebar-ring: 38 70% 58%;
+    --shadow-sm: 0 1px 3px hsl(222 60% 3% / 0.45);
+    --shadow-md: 0 8px 20px hsl(222 60% 3% / 0.5);
+    --shadow-lg: 0 16px 40px hsl(222 60% 3% / 0.6);
+
+    --sidebar-background: 221 54% 9%;
+    --sidebar-foreground: 214 30% 88%;
+    --sidebar-primary: 36 86% 58%;
+    --sidebar-primary-foreground: 221 55% 8%;
+    --sidebar-accent: 219 42% 16%;
+    --sidebar-accent-foreground: 214 32% 94%;
+    --sidebar-border: 219 40% 17%;
+    --sidebar-ring: 36 86% 58%;
   }
 }
 
@@ -131,6 +143,33 @@
     font-family: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::selection {
+    background-color: hsl(var(--accent) / 0.35);
+    color: hsl(var(--foreground));
+  }
+
+  input,
+  textarea {
+    caret-color: hsl(var(--primary));
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--border));
+    border: 2px solid transparent;
+    border-radius: calc(var(--radius) * 0.5);
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--muted-foreground) / 0.55);
   }
 
   body {
@@ -164,6 +203,10 @@
     font-variant-numeric: tabular-nums;
     letter-spacing: -0.01em;
   }
+  /* Urdu text (the meeting circular): a Nastaliq face where one is installed, else Segoe UI's Naskh. */
+  .urdu {
+    font-family: 'Jameel Noori Nastaleeq', 'Noto Nastaliq Urdu', 'Urdu Typesetting', 'Segoe UI', Tahoma, system-ui, sans-serif;
+  }
   .tracked-label {
     font-family: 'IBM Plex Mono', ui-monospace, monospace;
     letter-spacing: 0.08em;
@@ -171,9 +214,9 @@
   .glass {
     @apply bg-white/10 backdrop-blur-xl border border-white/15;
   }
-  /* Brass rule: the signature divider of the counter/statement world. */
+  /* Sunrise rule: the signature divider, in the seal's sun. */
   .ledger-rule {
-    @apply border-t-2 border-primary/70;
+    @apply border-t-2 border-accent;
   }
   .card-hover {
     @apply transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5;

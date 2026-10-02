@@ -1,4 +1,4 @@
-import { addDays, addMonths, format } from "date-fns";
+import { addDays, addMonths, differenceInCalendarDays, differenceInMonths, format } from "date-fns";
 import { ORGANIZATION_CONFIG } from "@/config/organization";
 
 const toKey = (d: Date) => format(d, "yyyy-MM-dd");
@@ -12,6 +12,20 @@ const fromKey = (key: string) => {
 /** yyyy-MM-dd by which a loan must be repaid in full: one loan period after it was issued. */
 export function loanDueDate(loanDate: string): string {
   return toKey(addMonths(fromKey(loanDate), ORGANIZATION_CONFIG.LOAN_PERIOD_MONTHS));
+}
+
+/**
+ * How long until a loan's due date, or how late it is: "5 months left", "12 days left", "due
+ * today", "423 days late". There is no instalment plan, so this is the one date a loan works to.
+ */
+export function dueIn(dueDate: string, asOf: string): { late: boolean; text: string } {
+  const due = fromKey(dueDate);
+  const today = fromKey(asOf);
+  const days = differenceInCalendarDays(due, today);
+  if (days < 0) return { late: true, text: `${-days} day${days === -1 ? "" : "s"} late` };
+  if (days === 0) return { late: false, text: "due today" };
+  const months = differenceInMonths(due, today);
+  return { late: false, text: months >= 1 ? `${months} month${months === 1 ? "" : "s"} left` : `${days} day${days === 1 ? "" : "s"} left` };
 }
 
 export interface PenaltyCharge {
@@ -44,7 +58,7 @@ export interface PenaltyInput {
 /**
  * Late penalties a loan has incurred by `asOf` (yyyy-MM-dd).
  *
- * A loan may be repaid in instalments or as a lump sum at any time before its due date. For each
+ * A loan may be repaid in any amounts, at any time before its due date. For each
  * full month after the due date that the loan is still not cleared, a flat penalty is added to what
  * is owed: due 1 Jan and still unpaid at the end of 1 Feb gives the first charge on 2 Feb. "Cleared"
  * means everything owed — the total payable plus every penalty charged so far — so penalties keep

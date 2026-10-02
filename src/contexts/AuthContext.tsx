@@ -1,11 +1,19 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { setDbActor } from "@/lib/db";
 
+/** The one shared login. `email` holds the username (an email address or not). */
 interface AuthUser {
   id: string;
   email: string | null;
-  role: "admin";
   fullName: string | null;
+}
+
+export interface AccountUpdate {
+  currentPassword: string;
+  username: string;
+  fullName: string;
+  /** Empty keeps the current password. */
+  newPassword: string;
 }
 
 interface AuthContextType {
@@ -13,7 +21,10 @@ interface AuthContextType {
   session: null;
   login: (email: string, password: string) => Promise<{ error: string | null }>;
   logout: () => Promise<void>;
+  /** Changes the login details; the session continues with the new ones. */
+  updateAccount: (details: AccountUpdate) => Promise<{ error: string | null }>;
   isAuthenticated: boolean;
+  /** There are no roles: anyone signed in has full access. Kept for the controls that check it. */
   isAdmin: boolean;
   isLoading: boolean;
 }
@@ -36,7 +47,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       : (t: string) => fetch(`${apiBase}/api/verify`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: t }) }).then(r => r.json());
     doVerify(token).then((res: any) => {
       if (res.user) {
-        setUser({ id: res.user.id, email: res.user.email, role: res.user.role, fullName: res.user.fullName });
+        setUser({ id: res.user.id, email: res.user.email, fullName: res.user.fullName ?? null });
         setDbActor(res.user.email ?? res.user.id);
       } else {
         localStorage.removeItem(TOKEN_KEY);
@@ -56,10 +67,24 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     );
     const res = await Promise.race([doLogin(email, password), timeoutPromise]);
     if (res.error) return { error: res.error };
-    if ((res as any).user?.role !== 'admin') return { error: 'Only admin access is allowed.' };
-    localStorage.setItem(TOKEN_KEY, (res as any).token);
-    setUser((res as any).user);
-    setDbActor((res as any).user.email ?? (res as any).user.id);
+    startSession((res as any).token, (res as any).user);
+    return { error: null };
+  };
+
+  const startSession = (token: string, u: AuthUser) => {
+    localStorage.setItem(TOKEN_KEY, token);
+    setUser({ id: u.id, email: u.email, fullName: u.fullName ?? null });
+    setDbActor(u.email ?? u.id);
+  };
+
+  const updateAccount = async (details: AccountUpdate): Promise<{ error: string | null }> => {
+    type Bridge = { updateAccount?: (d: AccountUpdate & { userId: string }) => Promise<{ error?: string; token?: string; user?: AuthUser }> };
+    const api = (window as unknown as { electronAPI?: Bridge }).electronAPI;
+    if (!user) return { error: "Sign in first." };
+    if (!api?.updateAccount) return { error: "Login details can be changed in the desktop app." };
+    const res = await api.updateAccount({ userId: user.id, ...details });
+    if (res?.error || !res?.token || !res.user) return { error: res?.error ?? "The login details could not be saved." };
+    startSession(res.token, res.user);
     return { error: null };
   };
 
@@ -71,9 +96,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   return (
     <AuthContext.Provider value={{
-      user, session: null, login, logout,
+      user, session: null, login, logout, updateAccount,
       isAuthenticated: !!user,
-      isAdmin: user?.role === "admin",
+      isAdmin: !!user,
       isLoading,
     }}>
       {children}

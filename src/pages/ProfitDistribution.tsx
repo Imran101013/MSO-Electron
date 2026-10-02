@@ -226,7 +226,7 @@ export default function ProfitDistribution() {
   return (
     <div className="space-y-6">
       {/* Header — statement letterhead */}
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b-2 border-primary/40 pb-4">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b-2 border-accent/70 pb-4">
         <div>
           <p className="tracked-label text-[10px] font-semibold text-primary uppercase">Year-End Settlement</p>
           <h2 className="text-2xl font-bold text-foreground mt-1">Profit Distribution</h2>
@@ -237,7 +237,7 @@ export default function ProfitDistribution() {
       </div>
 
       {/* The year's profit: inputs (or the saved figures) beside the worked-out slip */}
-      <Card className="rounded-sm border-t-2 border-t-primary/70 shadow-sm overflow-hidden">
+      <Card className="rounded-sm border-t-2 border-t-accent shadow-sm overflow-hidden">
         <div className="grid lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
           <section className="space-y-4 p-5" aria-label="Distribution details">
             <h3 className="text-base font-bold text-foreground">{saved ? `The ${selectedYear} distribution` : "Distribute a year's profit"}</h3>

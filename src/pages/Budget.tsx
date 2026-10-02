@@ -95,7 +95,7 @@ export default function Budget() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between border-b-2 border-primary/40 pb-4">
+      <div className="flex items-center justify-between border-b-2 border-accent/70 pb-4">
         <div>
           <p className="tracked-label text-[10px] font-semibold text-primary uppercase">Contribution Ledger</p>
           <h2 className="text-2xl font-bold text-foreground mt-1">Monthly Budget</h2>
@@ -117,7 +117,7 @@ export default function Budget() {
           title={isLatestMeetingToday ? "Today's Meeting Total" : "Latest Meeting Total"}
           value={isLoading ? "—" : `${settings.currency} ${latestMeetingTotal.toLocaleString()}`}
           icon={DollarSign}
-          iconColor="border-accent/50 bg-accent/15 text-accent-foreground"
+          iconColor="border-accent/60 bg-accent/15 text-accent-foreground dark:text-accent"
           note={latestMeeting ? `Savings collected on ${format(new Date(latestMeeting.meeting_date), settings.dateFormat)}` : "No meeting yet"}
         />
         <StatCard

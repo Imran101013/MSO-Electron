@@ -10,7 +10,7 @@
  */
 import jsPDF from "jspdf";
 import { autoTable, type CellDef, type RowInput, type Styles } from "jspdf-autotable";
-import { format } from "date-fns";
+import { addMonths, differenceInCalendarDays, format } from "date-fns";
 import { timePattern } from "@/lib/utils";
 import logoUrl from "@/assets/mso-logo.png";
 import {
@@ -27,6 +27,7 @@ import {
   parseDay,
   r2,
 } from "./accounting";
+import { dueIn } from "./loanPenalty";
 
 export type ReportKind =
   | "financial-statements"
@@ -36,6 +37,8 @@ export type ReportKind =
   | "member-register"
   | "loan-portfolio"
   | "loan-statement"
+  | "active-loans"
+  | "paid-loans"
   | "contribution-register"
   | "reserve-ledger"
   | "profit-distribution"
@@ -821,8 +824,8 @@ function financialStatements(r: Report, books: Books, p: ReportPeriod) {
   r.subheading("2. Significant accounting policies");
   const fineText = amt(cur, r.ctx.absenceFine);
   const policies: Array<[string, string]> = [
-    ["2.1 Interest and late penalties on loans", "Loans are issued for one year and may be repaid in monthly instalments or as a lump sum within the year. Interest is a flat charge calculated once, on the amount lent, when the loan is issued; it is recognised as income on the issue date. The amount lent plus that interest is the loan's total payable. A late payment penalty, fixed per month when the loan is issued, is added to the balance owed for each full month after the due date that the loan has not been paid in full, penalties already added included, and is recognised as income when charged. No penalty is added after the date the committee marks a loan as defaulted. Repayments reduce the balance owed and are not split between the amount lent, interest and penalties; no interest is calculated on individual instalments. A loan's interest and penalties are collected when the loan is repaid in full; until then they are part of the balance owed, not an amount owed in addition to it. Interest and penalties charged, collected and still to collect are analysed in note 5."],
-    ["2.2 Loans to members and impairment", "Loans are stated at the balance still owed (the amount lent plus interest and penalties charged, less repayments) less an allowance for impairment. Loans marked defaulted by the committee are provided for in full from the date they were marked, including the interest and penalties already recognised. Loans are aged by the number of days since their one-year due date; instalments missed within the year are not treated as arrears, as the loan may be repaid as a lump sum."],
+    ["2.1 Interest and late penalties on loans", "Loans are issued for one year and may be repaid in any amounts, at any time, within the year; there is no instalment plan. Interest is a flat charge calculated once, on the amount lent, when the loan is issued; it is recognised as income on the issue date. The amount lent plus that interest is the loan's total payable. A late payment penalty, fixed per month when the loan is issued, is added to the balance owed for each full month after the due date that the loan has not been paid in full, penalties already added included, and is recognised as income when charged. No penalty is added after the date the committee marks a loan as defaulted. Repayments reduce the balance owed and are not split between the amount lent, interest and penalties; no interest is calculated on individual instalments. A loan's interest and penalties are collected when the loan is repaid in full; until then they are part of the balance owed, not an amount owed in addition to it. Interest and penalties charged, collected and still to collect are analysed in note 5."],
+    ["2.2 Loans to members and impairment", "Loans are stated at the balance still owed (the amount lent plus interest and penalties charged, less repayments) less an allowance for impairment. Loans marked defaulted by the committee are provided for in full from the date they were marked, including the interest and penalties already recognised. Loans are aged by the number of days since their one-year due date; nothing is in arrears before then, as there is no instalment plan."],
     ["2.3 Members' savings", "Members' savings comprise contributions received and profit shares credited to each member's account. Individual balances are set out in Schedule A."],
     ["2.4 Reserve fund", "The reserve fund is a restricted fund. It is credited with donations and with its share of each year's profit, and charged with expenses approved against it."],
     ["2.5 Annual profit and its distribution", `The profit for each year from January to December is shared out at the Annual General Meeting held in July of the following year. It is the bank's profit on the funds held in the account (recognised as income on the day the bank credits it, and recorded with the meeting at which it is reported), the interest and late penalties collected on loans repaid in full during the year, and the absence charges: ${fineText} for each meeting of the year a member was marked absent at. A fixed share of the total is credited to the reserve fund and the rest is shared among members in proportion to their savings on 31 December. Each member's absence charges are taken from their own share, never more than the share. The interest and penalties shared out were recognised as income when charged (policy 2.1), so their distribution is an appropriation of the accumulated surplus.`],
@@ -1160,7 +1163,7 @@ function memberStatement(r: Report, books: Books, p: ReportPeriod, memberId: str
   if (positions.length) {
     r.subheading("Loans summary");
     r.table({
-      head: ["Loan no.", "Disbursed", "Principal", "Rate", "Total payable", "Repaid", "Outstanding", "Next due", "Status"],
+      head: ["Loan no.", "Disbursed", "Principal", "Rate", "Total payable", "Repaid", "Outstanding", "Due date", "Status"],
       align: ["l", "l", "r", "r", "r", "r", "r", "l", "l"],
       widths: [18, 19, 22, 12, 24, 22, 24, "auto", 17],
       fontSize: 7.4,
@@ -1172,7 +1175,7 @@ function memberStatement(r: Report, books: Books, p: ReportPeriod, memberId: str
         money(x.loan.totalPayable),
         money(x.repaid),
         money(x.outstanding),
-        x.nextDueDate ? `${r.d(x.nextDueDate)} (${money(x.nextDueAmount)})` : "-",
+        x.state === "active" && x.daysPastDue === 0 ? `${r.d(x.loan.maturityDate)} (${dueIn(x.loan.maturityDate, p.to).text})` : r.d(x.loan.maturityDate),
         loanStatus(x),
       ]),
     });
@@ -1252,12 +1255,161 @@ function loanPortfolio(r: Report, books: Books, p: ReportPeriod) {
     empty: "No loans issued as at this date.",
   });
   r.note(
-    "Each loan is due one year after it is disbursed and may be repaid in instalments or as a lump sum by then; due dates already passed with money still owing are shown in red. After the due date a late penalty is added to the balance for each full month until the loan is paid in full, penalties included (Penalties column), so Outstanding = total payable + penalties - repaid. Total payable is the amount lent plus interest, plus the bank's charge on the withdrawal where there is one (repaid with the loan; no interest is charged on it). No penalty is added after a loan is marked defaulted; defaulted loans are provided for in full.",
+    "Each loan is due one year after it is disbursed and may be repaid in any amounts, at any time, by then; due dates already passed with money still owing are shown in red. After the due date a late penalty is added to the balance for each full month until the loan is paid in full, penalties included (Penalties column), so Outstanding = total payable + penalties - repaid. Total payable is the amount lent plus interest, plus the bank's charge on the withdrawal where there is one (repaid with the loan; no interest is charged on it). No penalty is added after a loan is marked defaulted; defaulted loans are provided for in full.",
   );
 
   r.heading("Interest and late penalties", 60);
   interestPenaltyTable(r, pf.positions, cur, { borrower: true });
   r.note(INTEREST_RULE_NOTE);
+}
+
+/** Loans still being repaid as at the date, soonest due first: the Treasurer's collection list. */
+function activeLoans(r: Report, books: Books, p: ReportPeriod) {
+  const cur = r.ctx.currency;
+  const pf = portfolio(books, p.to);
+  const byDue = (a: LoanPosition, b: LoanPosition) => a.loan.maturityDate.localeCompare(b.loan.maturityDate) || a.loan.loanNo.localeCompare(b.loan.loanNo);
+  const active = pf.open.filter((x) => x.state === "active").sort(byDue);
+  const defaulted = pf.open.filter((x) => x.state === "defaulted").sort(byDue);
+  const overdue = active.filter((x) => x.daysPastDue > 0);
+  const in3Months = format(addMonths(parseDay(p.to), 3), "yyyy-MM-dd");
+  const dueSoon = active.filter((x) => x.daysPastDue === 0 && x.loan.maturityDate <= in3Months);
+  const loansWord = (n: number) => `${n} loan${n === 1 ? "" : "s"}`;
+  r.kpis([
+    { label: "Active loans", value: String(active.length), sub: `${amt(cur, sumOf(active, (x) => x.loan.principal))} lent` },
+    { label: "Balance outstanding", value: amt(cur, sumOf(active, (x) => x.outstanding)), sub: "incl. interest and late penalties" },
+    { label: "Past due date", value: amt(cur, sumOf(overdue, (x) => x.outstanding)), sub: loansWord(overdue.length), tone: overdue.length ? "bad" : "good" },
+    { label: "Due in the next 3 months", value: amt(cur, sumOf(dueSoon, (x) => x.outstanding)), sub: loansWord(dueSoon.length) },
+  ]);
+
+  r.table({
+    head: ["Loan no.", "Borrower", "Disbursed", "Due date", "Principal", "Total payable", "Penalties", "Repaid", "Outstanding", "Time left", "Status"],
+    align: ["l", "l", "l", "l", "r", "r", "r", "r", "r", "l", "l"],
+    widths: [16, "auto", 18, 18, 22, 23, 19, 22, 23, 26, 21],
+    fontSize: 7.2,
+    body: active.map((x) => {
+      const late = x.daysPastDue > 0;
+      return [
+        x.loan.loanNo,
+        `${x.loan.memberNo} ${x.loan.memberName}`,
+        r.d(x.loan.date),
+        { content: r.d(x.loan.maturityDate), styles: late ? { fontStyle: "bold", textColor: C.bad } : {} },
+        money(x.loan.principal),
+        money(r2(x.loan.totalPayable + x.loan.bankCharge)),
+        money(x.penaltiesCharged),
+        money(x.repaid),
+        { content: money(x.outstanding), styles: { fontStyle: "bold" } },
+        // No instalment plan: the whole balance is due by the due date, repaid in any amounts until then.
+        late ? "Whole balance due" : dueIn(x.loan.maturityDate, p.to).text,
+        { content: late ? `${x.daysPastDue} days late` : "Current", styles: { fontStyle: "bold", textColor: late ? C.bad : C.good } },
+      ];
+    }),
+    foot: [[
+      "",
+      loansWord(active.length),
+      "",
+      "",
+      money(sumOf(active, (x) => x.loan.principal)),
+      money(sumOf(active, (x) => x.loan.totalPayable + x.loan.bankCharge)),
+      money(sumOf(active, (x) => x.penaltiesCharged)),
+      money(sumOf(active, (x) => x.repaid)),
+      money(sumOf(active, (x) => x.outstanding)),
+      "",
+      "",
+    ]],
+    empty: "No loans were being repaid as at this date.",
+  });
+  r.note(
+    "Each loan is due one year after it is disbursed and may be repaid in any amounts, at any time, by then; there is no instalment plan. Time left is until the due date. Once the due date has passed (shown in red) the whole balance is due, and a late penalty is added to it for each full month until the loan is paid in full. Outstanding = total payable + penalties - repaid; total payable includes interest and any bank charge on the withdrawal.",
+  );
+
+  if (defaulted.length) {
+    r.heading("Defaulted loans still owed", 40);
+    r.table({
+      head: ["Loan no.", "Borrower", "Disbursed", "Due date", "Marked defaulted", "Principal", "Penalties", "Repaid", "Outstanding"],
+      align: ["l", "l", "l", "l", "l", "r", "r", "r", "r"],
+      widths: [16, "auto", 18, 18, 24, 22, 19, 22, 23],
+      fontSize: 7.2,
+      body: defaulted.map((x) => [
+        x.loan.loanNo,
+        `${x.loan.memberNo} ${x.loan.memberName}`,
+        r.d(x.loan.date),
+        r.d(x.loan.maturityDate),
+        x.loan.defaultedOn ? r.d(x.loan.defaultedOn) : "-",
+        money(x.loan.principal),
+        money(x.penaltiesCharged),
+        money(x.repaid),
+        { content: money(x.outstanding), styles: { fontStyle: "bold", textColor: C.bad } },
+      ]),
+      foot: [["", loansWord(defaulted.length), "", "", "", money(sumOf(defaulted, (x) => x.loan.principal)), money(sumOf(defaulted, (x) => x.penaltiesCharged)), money(sumOf(defaulted, (x) => x.repaid)), money(sumOf(defaulted, (x) => x.outstanding))]],
+    });
+    r.note("Marked defaulted by the committee: no late penalty is added after that date, and the balance is provided for in full in the accounts. Any repayment received still reduces it.");
+  }
+}
+
+/** Loans repaid in full in the period, by the year they were repaid: when their interest and penalties were collected. */
+function paidLoans(r: Report, books: Books, p: ReportPeriod) {
+  const cur = r.ctx.currency;
+  const inP = (d: string) => (p.from === null || d >= p.from) && d <= p.to;
+  const paid = books.loans
+    .filter((l) => l.paidInFullOn && inP(l.paidInFullOn))
+    .map((l) => books.loanPositionAt(l, p.to))
+    .filter((x): x is LoanPosition => !!x)
+    .sort((a, b) => String(a.loan.paidInFullOn).localeCompare(String(b.loan.paidInFullOn)) || a.loan.loanNo.localeCompare(b.loan.loanNo));
+  const loansWord = (n: number) => `${n} loan${n === 1 ? "" : "s"}`;
+  const interest = (xs: LoanPosition[]) => sumOf(xs, (x) => x.loan.interest);
+  const penalties = (xs: LoanPosition[]) => sumOf(xs, (x) => x.penaltiesCharged);
+  r.kpis([
+    { label: "Loans repaid in full", value: String(paid.length) },
+    { label: "Amount lent", value: amt(cur, sumOf(paid, (x) => x.loan.principal)) },
+    { label: "Interest collected", value: amt(cur, interest(paid)), tone: "good" },
+    { label: "Late penalties collected", value: amt(cur, penalties(paid)), tone: "good" },
+  ]);
+
+  const years = [...new Set(paid.map((x) => String(x.loan.paidInFullOn).slice(0, 4)))];
+  const money6 = (xs: LoanPosition[]) => [
+    money(sumOf(xs, (x) => x.loan.principal)),
+    money(interest(xs)),
+    money(sumOf(xs, (x) => x.loan.bankCharge)),
+    money(penalties(xs)),
+    money(sumOf(xs, (x) => x.repaid)),
+    String(sumOf(xs, (x) => x.loan.receipts.filter((rc) => rc.date <= p.to).length)),
+  ];
+  const band = (label: string, xs: LoanPosition[] | null): RowInput => {
+    const style = { fontStyle: "bold" as const, fillColor: C.band };
+    if (!xs) return [{ content: label, colSpan: 12, styles: style }];
+    return [{ content: label, colSpan: 6, styles: style }, ...money6(xs).map((v) => ({ content: v, styles: style }))];
+  };
+  const body: RowInput[] = [];
+  for (const y of years) {
+    const xs = paid.filter((x) => String(x.loan.paidInFullOn).startsWith(y));
+    if (years.length > 1) body.push(band(`Repaid in full in ${y}`, null));
+    for (const x of xs) {
+      const on = x.loan.paidInFullOn as string;
+      const late = on > x.loan.maturityDate ? differenceInCalendarDays(parseDay(on), parseDay(x.loan.maturityDate)) : 0;
+      body.push([
+        x.loan.loanNo,
+        `${x.loan.memberNo} ${x.loan.memberName}`,
+        r.d(x.loan.date),
+        r.d(x.loan.maturityDate),
+        r.d(on),
+        { content: late ? `${late} days late` : "On time", styles: { textColor: late ? C.bad : C.good } },
+        ...money6([x]),
+      ]);
+    }
+    if (years.length > 1) body.push(band(`Total for ${y} (${loansWord(xs.length)})`, xs));
+  }
+  r.table({
+    head: ["Loan no.", "Borrower", "Disbursed", "Due date", "Repaid in full", "Timing", "Principal", "Interest", "Bank charge", "Penalties", "Total repaid", "Payments"],
+    align: ["l", "l", "l", "l", "l", "l", "r", "r", "r", "r", "r", "r"],
+    widths: [16, "auto", 18, 18, 20, 21, 23, 21, 19, 20, 24, 15],
+    fontSize: 7.2,
+    body,
+    foot: [[{ content: `Grand total (${loansWord(paid.length)})`, colSpan: 6 }, ...money6(paid)]],
+    empty: "No loans were repaid in full in the selected period.",
+  });
+  r.note(
+    `Total repaid = principal + interest + bank charge + penalties. Interest and late penalties are collected when a loan is repaid in full, so they count in the profit of the year the loan was repaid in full, shared at the following July AGM. ${INTEREST_RULE_NOTE}`,
+  );
 }
 
 function loanStatement(r: Report, books: Books, p: ReportPeriod, loanId: string) {
@@ -1266,7 +1418,6 @@ function loanStatement(r: Report, books: Books, p: ReportPeriod, loanId: string)
   if (!loan) throw new Error("Loan not found");
   const asAt = p.to < loan.date ? loan.date : p.to;
   const pos = books.loanPositionAt(loan, asAt)!;
-  const perInst = loan.schedule[0]?.dueAmount ?? loan.totalPayable;
   r.infoGrid([
     ["Loan no.", loan.loanNo],
     ["Borrower", `${loan.memberNo} ${loan.memberName}`],
@@ -1275,7 +1426,8 @@ function loanStatement(r: Report, books: Books, p: ReportPeriod, loanId: string)
     ["Interest (flat, charged at issue)", `${loan.interestRate}% = ${amt(cur, loan.interest)}`],
     ["Total payable", amt(cur, loan.totalPayable)],
     ...(loan.bankCharge > EPS ? [["Bank charge on the withdrawal", `${amt(cur, loan.bankCharge)}, repaid with the loan (no interest on it)`] as [string, string]] : []),
-    ["Due date", r.d(loan.maturityDate)],
+    ["Due date", `${r.d(loan.maturityDate)}${pos.state === "active" && pos.daysPastDue === 0 ? ` (${dueIn(loan.maturityDate, asAt).text})` : ""}`],
+    ["Repayment", "In any amounts, by the due date"],
     ["Late penalty", loan.penaltyPerMonth > EPS ? `${amt(cur, loan.penaltyPerMonth)} per full month unpaid after the due date${pos.state === "defaulted" && loan.defaultedOn ? `; stopped ${r.d(loan.defaultedOn)}, when marked defaulted` : ""}` : "None"],
     ["Status", `${loanStatus(pos)}${pos.daysPastDue > 0 ? ` - ${pos.daysPastDue} days past due` : ""}`],
   ], 2);
@@ -1317,24 +1469,6 @@ function loanStatement(r: Report, books: Books, p: ReportPeriod, loanId: string)
     foot: [["Outstanding", money(pos.outstanding), pos.outstanding > EPS ? "Interest and penalties are part of this balance, not owed on top of it" : "Repaid in full"]],
   });
 
-  r.heading("Repayment schedule");
-  r.table({
-    head: ["No.", "Due date", `Amount due (${cur})`, `Paid (${cur})`, `Balance due (${cur})`, "Status", "Days overdue"],
-    align: ["r", "l", "r", "r", "r", "l", "r"],
-    widths: [11, 24, 32, 30, 32, "auto", 22],
-    body: pos.schedule.map((s) => [
-      String(s.no),
-      r.d(s.dueDate),
-      money(s.dueAmount),
-      money(s.paid),
-      money(s.balance),
-      { content: s.status, styles: { fontStyle: "bold", textColor: s.status === "Overdue" ? C.bad : s.status === "Paid" ? C.good : C.ink } },
-      s.daysOverdue ? String(s.daysOverdue) : "-",
-    ]),
-    foot: [["", "Total", money(sumOf(pos.schedule, (s) => s.dueAmount)), money(sumOf(pos.schedule, (s) => s.paid)), money(sumOf(pos.schedule, (s) => s.balance)), "", ""]],
-  });
-  if (loan.scheduleIsDerived) r.note("No instalment plan was stored for this loan; the schedule above is derived from its term using equal monthly instalments.");
-
   r.heading("Loan account transactions");
   const receipts = loan.receipts.filter((rc) => rc.date <= asAt);
   const charges = loan.penalties.filter((pen) => pen.date <= asAt);
@@ -1370,7 +1504,7 @@ function loanStatement(r: Report, books: Books, p: ReportPeriod, loanId: string)
     `Position as at ${r.d(asAt)}. ${interestNote}${withPenalty ? " Each late penalty was added to the balance owed when charged." : ""} Repayments reduce the balance owed; they are not split between the amount lent, interest and penalties.`,
   );
   if (receipts.some((rc) => !rc.itemised)) {
-    r.note("\"Repayment b/f (not itemised)\" is the amount the loan record shows as repaid but for which no individual payments were entered (loans recorded before instalment tracking). It is dated at disbursement.");
+    r.note("\"Repayment b/f (not itemised)\" is the amount the loan record shows as repaid but for which no individual payments were entered (loans recorded before each repayment was entered). It is dated at disbursement.");
   }
 }
 
@@ -1840,6 +1974,8 @@ const META: Record<ReportKind, { code: string; title: string; stem: string; land
   "member-register": { code: "RM", title: "Register of Members", stem: "Register_of_Members", landscape: true, confidential: true, asAt: true },
   "loan-portfolio": { code: "LP", title: "Loan Portfolio Report", stem: "Loan_Portfolio", landscape: true, asAt: true },
   "loan-statement": { code: "LS", title: "Loan Account Statement", stem: "Loan_Statement", confidential: true, asAt: true },
+  "active-loans": { code: "AL", title: "Active Loans Report", stem: "Active_Loans", landscape: true, asAt: true },
+  "paid-loans": { code: "PL", title: "Paid Loans Report", stem: "Paid_Loans", landscape: true },
   "contribution-register": { code: "CR", title: "Contribution Register", stem: "Contribution_Register", landscape: true },
   "reserve-ledger": { code: "RF", title: "Reserve Fund Ledger", stem: "Reserve_Fund_Ledger" },
   "profit-distribution": { code: "PD", title: "Profit Distribution Statement", stem: "Profit_Distribution" },
@@ -1910,6 +2046,12 @@ export async function buildReport(books: Books, req: ReportRequest, settings: Re
       break;
     case "loan-statement":
       loanStatement(r, books, p, req.loanId!);
+      break;
+    case "active-loans":
+      activeLoans(r, books, p);
+      break;
+    case "paid-loans":
+      paidLoans(r, books, p);
       break;
     case "contribution-register":
       contributionRegister(r, books, p);

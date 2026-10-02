@@ -183,7 +183,7 @@ export default function Members() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between border-b-2 border-primary/40 pb-4">
+      <div className="flex items-center justify-between border-b-2 border-accent/70 pb-4">
         <div>
           <p className="tracked-label text-[10px] font-semibold text-primary uppercase">Membership Register</p>
           <h2 className="text-2xl font-bold text-foreground mt-1">Members</h2>
@@ -275,11 +275,11 @@ export default function Members() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <StatCard title="Total Members" value={members.length} icon={Users} iconColor="border-primary/40 bg-primary/10 text-primary" />
         <StatCard title="New This Month" value={newThisMonth} icon={UserPlus} iconColor="border-secondary/40 bg-secondary/10 text-secondary" />
-        <StatCard title="Members' Savings" value={`${settings.currency} ${totalContributions.toLocaleString()}`} icon={Wallet} iconColor="border-accent/50 bg-accent/15 text-accent-foreground" />
+        <StatCard title="Members' Savings" value={`${settings.currency} ${totalContributions.toLocaleString()}`} icon={Wallet} iconColor="border-accent/60 bg-accent/15 text-accent-foreground dark:text-accent" />
       </div>
 
       {/* Search + List */}
-      <Card className="shadow-sm rounded-sm border-t-2 border-t-primary/70">
+      <Card className="shadow-sm rounded-sm border-t-2 border-t-accent">
         <CardHeader className="pb-3">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -289,7 +289,7 @@ export default function Members() {
               onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
             />
             {showSuggestions && suggestions.length > 0 && (
-              <div className="absolute top-full left-0 right-0 mt-1 bg-background border-t-2 border-primary/60 border-x border-b border-border rounded-sm shadow-lg z-50 overflow-hidden" onMouseDown={(e) => e.preventDefault()}>
+              <div className="absolute top-full left-0 right-0 mt-1 bg-background border-t-2 border-t-accent border-x border-b border-border rounded-sm shadow-lg z-50 overflow-hidden" onMouseDown={(e) => e.preventDefault()}>
                 {suggestions.map((m) => (
                   <button key={m.id} type="button" onClick={() => { setSearchQuery(m.name); setShowSuggestions(false); setTimeout(() => handleViewDetails(m), 100); }}
                     className="w-full text-left px-4 py-2.5 hover:bg-muted transition-colors flex items-center gap-3 border-b border-border/50 last:border-0">

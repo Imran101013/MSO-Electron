@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { addMonths, format } from "date-fns";
+import { format } from "date-fns";
 import { dbQuery } from "@/lib/db";
 import { useToast } from "@/hooks/use-toast";
 import { useSettings } from "@/contexts/SettingsContext";
@@ -43,17 +43,6 @@ export interface DbLoanInstallment {
   loan_id: string;
   amount: number;
   payment_date: string;
-  created_at: string;
-}
-
-export interface DbLoanScheduleEntry {
-  id: string;
-  loan_id: string;
-  installment_number: number;
-  due_date: string;
-  due_amount: number;
-  paid_amount: number;
-  status: "pending" | "paid";
   created_at: string;
 }
 
@@ -180,7 +169,6 @@ export async function syncLoanPenalties(loanId?: string) {
 export function useLoans() {
   const [loans, setLoans] = useState<LoanWithMember[]>([]);
   const [installments, setInstallments] = useState<DbLoanInstallment[]>([]);
-  const [schedule, setSchedule] = useState<DbLoanScheduleEntry[]>([]);
   const [penalties, setPenalties] = useState<DbLoanPenalty[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
@@ -218,34 +206,19 @@ export function useLoans() {
     }
   };
 
-  // Without a loanId, fetches every schedule row (used for overdue stats across all loans).
-  // With one, returns just that loan's installment plan for the schedule dialog.
-  const fetchSchedule = async (loanId?: string) => {
-    try {
-      const sql = loanId
-        ? 'SELECT * FROM public.loan_schedule WHERE loan_id=$1 ORDER BY installment_number ASC'
-        : 'SELECT * FROM public.loan_schedule ORDER BY due_date ASC';
-      const data = await dbQuery<DbLoanScheduleEntry>(sql, loanId ? [loanId] : []);
-      if (!loanId) setSchedule(data);
-      return data;
-    } catch (err: any) {
-      console.error("Error fetching loan schedule:", err);
-      return [];
-    }
-  };
 
   const issueLoan = async (formData: LoanFormData) => {
     try {
       const block = await cutoverBlock(formData.loan_date, settings.dateFormat);
       if (block) { toast({ title: "Date is before the cut-over", description: block, variant: "destructive" }); return null; }
-      // Every loan runs for the full loan period. The schedule below is a monthly plan for members
-      // who repay in instalments; a lump sum any time before the due date is equally fine.
+      // Every loan runs for the full loan period: the whole amount owed is due by its due date, and
+      // it may be repaid in any amounts at any time before then. There is no instalment plan.
       const termMonths = ORGANIZATION_CONFIG.LOAN_PERIOD_MONTHS;
       const rate = settings.applyLoanInterest ? settings.loanInterestRate : 0;
       const totalPayable = Math.round(formData.amount * (1 + rate / 100) * 100) / 100;
       const penaltyPerMonth = Math.max(0, Number(settings.latePenaltyPerMonth) || 0);
-      // The bank's charge on the withdrawal is repaid with the loan, so it is in the balance and the
-      // instalment plan; interest is still worked out on the amount lent only.
+      // The bank's charge on the withdrawal is repaid with the loan, so it is in the balance owed;
+      // interest is still worked out on the amount lent only.
       const bankCharge = r2(Math.max(0, Number(formData.bank_charge) || 0));
       const owed = r2(totalPayable + bankCharge);
 
@@ -255,24 +228,8 @@ export function useLoans() {
       );
       const loan = rows[0];
 
-      if (loan) {
-        const baseDate = parseLocalDate(formData.loan_date);
-        const baseInstallment = Math.floor((owed / termMonths) * 100) / 100;
-        let allocated = 0;
-        for (let i = 1; i <= termMonths; i++) {
-          const dueAmount = i === termMonths ? Math.round((owed - allocated) * 100) / 100 : baseInstallment;
-          allocated += dueAmount;
-          const dueDate = format(addMonths(baseDate, i), "yyyy-MM-dd");
-          await dbQuery(
-            'INSERT INTO public.loan_schedule (loan_id, installment_number, due_date, due_amount) VALUES ($1,$2,$3,$4)',
-            [loan.id, i, dueDate, dueAmount]
-          );
-        }
-      }
-
       toast({ title: "Loan Issued", description: `Loan of ${settings.currency} ${formData.amount.toLocaleString()} has been issued.` });
       await fetchLoans();
-      await fetchSchedule();
       return loan;
     } catch (err: any) {
       toast({ title: "Error", description: err.message || "Failed to issue loan", variant: "destructive" });
@@ -303,23 +260,7 @@ export function useLoans() {
 
       await dbQuery('INSERT INTO public.loan_installments (loan_id, amount, payment_date) VALUES ($1,$2,$3)', [formData.loan_id, formData.amount, formData.payment_date]);
 
-      // Apply the payment as a waterfall across the earliest unpaid installments first.
-      const pendingRows = await dbQuery<DbLoanScheduleEntry>(
-        "SELECT * FROM public.loan_schedule WHERE loan_id=$1 AND status='pending' ORDER BY installment_number ASC",
-        [formData.loan_id]
-      );
-      let remainingPayment = formData.amount;
-      for (const row of pendingRows) {
-        if (remainingPayment <= 0) break;
-        const outstanding = Number(row.due_amount) - Number(row.paid_amount);
-        const applied = Math.min(outstanding, remainingPayment);
-        const newPaid = Number(row.paid_amount) + applied;
-        const newStatus = Math.abs(newPaid - Number(row.due_amount)) < 0.01 ? "paid" : "pending";
-        await dbQuery('UPDATE public.loan_schedule SET paid_amount=$1, status=$2 WHERE id=$3', [newPaid, newStatus, row.id]);
-        remainingPayment -= applied;
-      }
-
-      // Anything left after the schedule is covered pays off late penalties.
+      // A payment of any amount reduces the balance owed (penalties included); at zero the loan is repaid.
       await dbQuery(
         "UPDATE public.loans SET remaining_amount = remaining_amount - $1, status = CASE WHEN remaining_amount - $1 <= 0.005 THEN 'paid' ELSE 'active' END WHERE id = $2",
         [formData.amount, formData.loan_id]
@@ -330,7 +271,6 @@ export function useLoans() {
       await fetchLoans();
       // All loans' payments, not just this one's: the Loans page's interest & penalties section needs every loan's.
       await fetchInstallments();
-      await fetchSchedule();
       return true;
     } catch (err: any) {
       toast({ title: "Error", description: err.message || "Failed to record payment", variant: "destructive" });
@@ -342,7 +282,7 @@ export function useLoans() {
   // any already charged for later months (the decision entered after the fact) are taken off.
   /**
    * Sets the bank charge on a loan's withdrawal once the bank statement shows it (or corrects it).
-   * The difference goes on the balance owed and on the last instalment, in one statement.
+   * The difference goes on the balance owed.
    */
   const setBankCharge = async (loanId: string, charge: number) => {
     const value = r2(Number(charge));
@@ -358,14 +298,7 @@ export function useLoans() {
          u AS (
            UPDATE public.loans SET bank_charge = $2, remaining_amount = loans.remaining_amount + ($2 - l.bank_charge)
            FROM l WHERE loans.id = l.id AND loans.remaining_amount + ($2 - l.bank_charge) >= 0
-           RETURNING loans.id, ($2 - l.bank_charge) AS delta
-         ),
-         s AS (
-           UPDATE public.loan_schedule SET due_amount = loan_schedule.due_amount + u.delta,
-             status = CASE WHEN loan_schedule.paid_amount >= loan_schedule.due_amount + u.delta - 0.005 THEN 'paid' ELSE 'pending' END
-           FROM u WHERE loan_schedule.loan_id = u.id
-             AND loan_schedule.installment_number = (SELECT MAX(installment_number) FROM public.loan_schedule WHERE loan_id = u.id)
-           RETURNING 1
+           RETURNING loans.id
          )
          SELECT (SELECT COUNT(*) FROM u)::int AS n`,
         [loanId, value]
@@ -377,7 +310,6 @@ export function useLoans() {
       await syncLoanPenalties(loanId);
       toast({ title: "Bank charge saved", description: `${settings.currency} ${value.toLocaleString()} is owed with the loan.` });
       await fetchLoans();
-      await fetchSchedule();
       return true;
     } catch (err: unknown) {
       toast({ title: "Error", description: err instanceof Error ? err.message : "Failed to save the bank charge", variant: "destructive" });
@@ -415,8 +347,8 @@ export function useLoans() {
 
   const getActiveLoans = () => loans.filter(l => l.status === 'active');
 
-  // A loan is overdue only once its one-year period has ended with money still owed. Missed
-  // monthly instalments within the year don't count: the member may repay as a lump sum instead.
+  // A loan is overdue only once its one-year period has ended with money still owed; before then
+  // it may be repaid in any amounts, at any time.
   const isOverdue = (loan: DbLoan) =>
     loan.status === 'active' && Number(loan.remaining_amount) > 0.005 && loanDueDate(loan.loan_date) < todayKey();
 
@@ -426,13 +358,6 @@ export function useLoans() {
       overdueCount: overdue.length,
       overdueAmount: r2(overdue.reduce((sum, l) => sum + Number(l.remaining_amount), 0)),
     };
-  };
-
-  const getNextDueDate = (loanId: string) => {
-    const upcoming = schedule
-      .filter(s => s.loan_id === loanId && s.status === 'pending')
-      .sort((a, b) => a.installment_number - b.installment_number);
-    return upcoming[0]?.due_date ?? null;
   };
 
   const getLoanStats = () => {
@@ -449,12 +374,12 @@ export function useLoans() {
     };
   };
 
-  useEffect(() => { fetchLoans(); fetchInstallments(); fetchSchedule(); }, []);
+  useEffect(() => { fetchLoans(); fetchInstallments(); }, []);
 
   return {
-    loans, installments, schedule, penalties, isLoading,
-    fetchLoans, fetchInstallments, fetchSchedule,
+    loans, installments, penalties, isLoading,
+    fetchLoans, fetchInstallments,
     issueLoan, recordPayment, markDefaulted, setBankCharge,
-    getLoansByMember, getActiveLoans, getLoanStats, getNextDueDate, isOverdue,
+    getLoansByMember, getActiveLoans, getLoanStats, isOverdue,
   };
 }

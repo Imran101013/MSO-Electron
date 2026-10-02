@@ -31,6 +31,8 @@ import {
   BookText,
   PieChart,
   CalendarRange,
+  Clock,
+  CheckCircle2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -236,13 +238,23 @@ export default function ReportsPage() {
           title: "Loan Portfolio",
           description: "All loans with due dates, penalties and balances, plus interest and penalties charged, received and outstanding.",
         })}
+        {card("active-loans", "as-at", {
+          icon: Clock,
+          title: "Active Loans",
+          description: "Loans still being repaid, soonest due first, with the time left to each due date and anything overdue; defaulted loans listed separately.",
+        })}
+        {card("paid-loans", "period", {
+          icon: CheckCircle2,
+          title: "Paid Loans",
+          description: "Loans repaid in full in the period, by year, with the interest and late penalties collected on each.",
+        })}
         {card(
           "loan-statement",
           "as-at",
           {
             icon: BookOpen,
             title: "Loan Account Statement",
-            description: "Terms, interest and penalties, repayment schedule and account transactions for one loan.",
+            description: "Terms, interest and penalties, and every repayment and charge on one loan.",
           },
           { loanId: selectedLoanId ?? undefined },
           <Select value={selectedLoanId ?? undefined} onValueChange={(v) => setSelectedLoanId(v || null)}>

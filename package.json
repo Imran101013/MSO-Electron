@@ -44,6 +44,7 @@
     "exceljs": "^4.4.0",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
+    "pdfjs-dist": "^4.10.38",
     "pg": "^8.20.0"
   },
   "devDependencies": {

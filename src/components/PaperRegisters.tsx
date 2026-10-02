@@ -483,8 +483,8 @@ export function ClearRecordsStrip() {
       <div>
         <p className="text-sm font-medium text-foreground">Clear all records</p>
         <p className="text-xs text-muted-foreground mt-0.5 max-w-[68ch]">
-          Deletes every member, meeting, contribution, loan and reserve entry, for removing test data before the real start. The admin
-          login, the settings and the cut-over date stay.
+          Deletes every member, meeting, contribution, loan and reserve entry, for removing test data before the real start. The login
+          details, the settings and the cut-over date stay.
         </p>
       </div>
       <Button

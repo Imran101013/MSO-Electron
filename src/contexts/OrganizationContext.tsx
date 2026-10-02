@@ -37,14 +37,6 @@ export interface LoanInstallment {
   amount: number;
 }
 
-export interface LoanScheduleEntry {
-  installmentNumber: number;
-  dueDate: string;
-  dueAmount: number;
-  paidAmount: number;
-  status: "pending" | "paid";
-}
-
 export interface LoanPenalty {
   month: number;
   chargeDate: string;
@@ -69,7 +61,6 @@ export interface Loan {
   defaultedOn?: string | null;
   /** The bank's charge on the cheque withdrawal, repaid by the member with the loan. */
   bankCharge?: number;
-  schedule: LoanScheduleEntry[];
   /** Late penalties charged after the loan period ended, oldest first. */
   penalties: LoanPenalty[];
 }
@@ -272,7 +263,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
 
   // Load data from Postgres via the Electron IPC bridge
   const { members: dbMembers, fetchMembers: refetchMembers } = useMembers();
-  const { loans: dbLoans, installments: dbInstallments, schedule: dbSchedule, penalties: dbPenalties, fetchLoans, fetchInstallments, fetchSchedule } = useLoans();
+  const { loans: dbLoans, installments: dbInstallments, penalties: dbPenalties, fetchLoans, fetchInstallments } = useLoans();
   const { contributions: dbContributions, fetchContributions: refetchContributions } = useContributions();
   const { attendance: dbAttendance, fetchAttendance } = useAttendance();
   const { meetings: dbMeetings, upcomingMeetings: dbUpcomingMeetings, fetchMeetings } = useMeetings();
@@ -315,7 +306,6 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       refetchMembers(),
       fetchLoans(),
       fetchInstallments(),
-      fetchSchedule(),
       refetchContributions(),
       fetchAttendance(),
       fetchMeetings(),
@@ -346,17 +336,6 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
                 amount: inst.amount,
               }));
 
-            const loanSchedule = dbSchedule
-              .filter((row) => row.loan_id === loan.id)
-              .sort((a, b) => a.installment_number - b.installment_number)
-              .map((row) => ({
-                installmentNumber: row.installment_number,
-                dueDate: row.due_date,
-                dueAmount: Number(row.due_amount),
-                paidAmount: Number(row.paid_amount),
-                status: row.status,
-              }));
-
             return {
               id: parseInt(loan.id),
               dbId: loan.id,
@@ -371,7 +350,6 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
               penaltyPerMonth: Number(loan.penalty_per_month) || 0,
               defaultedOn: loan.defaulted_on ?? null,
               bankCharge: Number(loan.bank_charge) || 0,
-              schedule: loanSchedule,
               penalties: dbPenalties
                 .filter((p) => p.loan_id === loan.id)
                 .map((p) => ({ month: p.penalty_month, chargeDate: p.charge_date, amount: Number(p.amount) })),
@@ -422,7 +400,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
 
       setMembers(transformedMembers);
     }
-  }, [dbMembers, dbLoans, dbInstallments, dbSchedule, dbPenalties, dbContributions, dbAttendance]);
+  }, [dbMembers, dbLoans, dbInstallments, dbPenalties, dbContributions, dbAttendance]);
 
   // Transform meetings data
   useEffect(() => {
@@ -748,7 +726,6 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       totalPayable: loanWithInterest,
       termMonths: ORGANIZATION_CONFIG.LOAN_PERIOD_MONTHS,
       penaltyPerMonth: settings.latePenaltyPerMonth,
-      schedule: [],
       penalties: [],
     };
 
@@ -830,7 +807,6 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       totalPayable: Math.max(amount, remainingAmount),
       termMonths: ORGANIZATION_CONFIG.LOAN_PERIOD_MONTHS,
       penaltyPerMonth: settings.latePenaltyPerMonth,
-      schedule: [],
       penalties: [],
     };
 

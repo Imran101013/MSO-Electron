@@ -59,7 +59,7 @@ export default function AuditLog() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between border-b-2 border-primary/40 pb-4">
+      <div className="flex items-center justify-between border-b-2 border-accent/70 pb-4">
         <div className="flex items-center gap-4">
           <div className="w-11 h-11 rounded-sm border-2 border-primary/40 bg-primary/10 flex items-center justify-center">
             <History className="w-5 h-5 text-primary" />
@@ -78,7 +78,7 @@ export default function AuditLog() {
         </Select>
       </div>
 
-      <Card className="shadow-sm rounded-sm border-t-2 border-primary/70">
+      <Card className="shadow-sm rounded-sm border-t-2 border-t-accent">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
             <div className="w-7 h-7 rounded-sm border-2 border-primary/40 bg-primary/10 flex items-center justify-center">

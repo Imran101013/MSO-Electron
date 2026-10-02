@@ -7,7 +7,7 @@ import { Mail } from "lucide-react";
 export default function ForgetPassword() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4">
-      <Card className="w-full max-w-md rounded-sm border-t-2 border-primary/70 shadow-lg">
+      <Card className="w-full max-w-md rounded-sm border-t-2 border-t-accent shadow-lg">
         <CardHeader className="text-center">
           <div className="w-14 h-14 rounded-sm border-2 border-primary/50 bg-primary/10 flex items-center justify-center mx-auto mb-4">
             <Mail className="w-6 h-6 text-primary" />

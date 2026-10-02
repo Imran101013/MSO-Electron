@@ -116,7 +116,7 @@ export default function MemberDetailsDialog({ memberId, open, onOpenChange, onCh
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[900px] flex flex-col max-h-[90vh] p-0 gap-0 overflow-hidden rounded-sm border-t-2 border-t-primary/70">
+      <DialogContent className="sm:max-w-[900px] flex flex-col max-h-[90vh] p-0 gap-0 overflow-hidden rounded-sm border-t-2 border-t-accent">
         {!ready ? (
           <>
             <DialogTitle className="sr-only">Member Details</DialogTitle>
@@ -292,8 +292,8 @@ export default function MemberDetailsDialog({ memberId, open, onOpenChange, onCh
                                 {l.penaltyTotal > 0 && <> · incl. {money(l.penaltyTotal)} late penalty</>}
                               </p>
                             )}
-                            {l.nextDue && (
-                              <p className="figure text-xs text-foreground">{l.nextDue.date === l.dueDate ? "Due" : "Next instalment"}: {day(l.nextDue.date)} · {money(l.nextDue.amount)}</p>
+                            {l.timeLeft && (
+                              <p className="figure text-xs text-foreground">Due by {day(l.dueDate)} · {l.timeLeft} · {money(l.remaining)} to repay, in any amounts</p>
                             )}
                             {/* How the balance is made up. Interest and penalties are part of it, not an
                                 extra amount, and are collected together when the loan is repaid in full. */}
@@ -371,7 +371,7 @@ function Empty({ children }: { children: ReactNode }) {
 
 function SummaryTile({ label, value, unit, sub, tone }: { label: string; value: string; unit?: string; sub: string; tone?: "good" | "bad" }) {
   return (
-    <div className="rounded-sm border border-border/60 border-t-2 border-t-primary/70 bg-card px-3 py-3 min-w-0">
+    <div className="rounded-sm border border-border/60 border-t-2 border-t-accent bg-card px-3 py-3 min-w-0">
       <p className="tracked-label text-[10px] font-semibold uppercase text-muted-foreground">{label}</p>
       <p className={cn("figure text-lg font-bold mt-1 leading-tight break-all", tone === "good" ? "text-secondary" : tone === "bad" ? "text-destructive" : "text-foreground")}>
         {unit && <span className="text-[11px] font-semibold text-muted-foreground mr-1">{unit}</span>}

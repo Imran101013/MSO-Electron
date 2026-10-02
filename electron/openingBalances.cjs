@@ -18,13 +18,6 @@ const r2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
 const pad = (n) => String(n).padStart(2, '0');
 const isoDay = (d) => `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
 const displayDay = (key) => `${key.slice(8, 10)}/${key.slice(5, 7)}/${key.slice(0, 4)}`;
-const addMonthsKey = (key, months) => {
-  const [y, m, d] = key.split('-').map(Number);
-  const target = new Date(Date.UTC(y, m - 1 + months, 1));
-  const last = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
-  target.setUTCDate(Math.min(d, last));
-  return isoDay(target);
-};
 
 /** The year whose profit is still to be shared at the July AGM after a 31 December cut-over (else null). */
 const openingProfitYear = (cutoverDate) => (String(cutoverDate).slice(5, 10) === '12-31' ? Number(String(cutoverDate).slice(0, 4)) : null);
@@ -257,24 +250,6 @@ async function readTemplate(filePath) {
 
 // ───────────────────────── Loading opening balances ─────────────────────────
 
-/** Equal monthly plan (as useLoans.issueLoan writes), with `paid` applied to the earliest first. */
-async function writeSchedule(client, loanId, loanDate, totalPayable, termMonths, paid) {
-  await client.query('DELETE FROM public.loan_schedule WHERE loan_id = $1', [loanId]);
-  const base = Math.floor((totalPayable / termMonths) * 100) / 100;
-  let allocated = 0;
-  let left = paid;
-  for (let i = 1; i <= termMonths; i++) {
-    const due = i === termMonths ? r2(totalPayable - allocated) : base;
-    allocated = r2(allocated + due);
-    const applied = r2(Math.max(0, Math.min(due, left)));
-    left = r2(left - applied);
-    await client.query(
-      'INSERT INTO public.loan_schedule (loan_id, installment_number, due_date, due_amount, paid_amount, status) VALUES ($1,$2,$3,$4,$5,$6)',
-      [loanId, i, addMonthsKey(loanDate, i), due, applied, Math.abs(applied - due) < 0.01 ? 'paid' : 'pending'],
-    );
-  }
-}
-
 async function importOpening(client, p) {
   const cfg = await getConfig(client);
   if (!cfg.cutover_date) return { error: 'Set the cut-over date in Settings before importing opening balances.' };
@@ -402,7 +377,6 @@ async function importOpening(client, p) {
         [loanId, C, openingPenalty],
       );
     }
-    await writeSchedule(client, loanId, ln.loanDate, totalPayable, termMonths, Math.min(totalPayable, r2(repaid + paidAfter)));
     loanCount++;
   }
   for (const prev of prevLoans) {

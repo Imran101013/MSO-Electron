@@ -59,7 +59,7 @@ export default function MemberSearch() {
         />
         {showSuggestions && suggestions.length > 0 && (
           <div
-            className="absolute top-full left-0 right-0 mt-2 bg-card border-t-2 border-primary/60 border-x border-b border-border rounded-sm shadow-lg z-50 max-h-60 overflow-y-auto"
+            className="absolute top-full left-0 right-0 mt-2 bg-card border-t-2 border-t-accent border-x border-b border-border rounded-sm shadow-lg z-50 max-h-60 overflow-y-auto"
             onMouseDown={(e) => e.preventDefault()}>
             {suggestions.map((member) => (
               <button

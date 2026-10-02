@@ -202,7 +202,7 @@ export default function Meetings() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b-2 border-primary/40 pb-4">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b-2 border-accent/70 pb-4">
         <div className="flex shrink-0 items-center gap-4">
           <div className="w-11 h-11 rounded-sm border-2 border-primary/40 bg-primary/10 flex items-center justify-center">
             <CalendarDays className="w-5 h-5 text-primary" />
@@ -376,7 +376,7 @@ export default function Meetings() {
 
       {/* Upcoming Meetings */}
       {upcomingMeetings.length > 0 && (
-        <Card className="shadow-sm rounded-sm border-t-2 border-primary/70">
+        <Card className="shadow-sm rounded-sm border-t-2 border-t-accent">
           <CardHeader className="pb-3 border-b border-border">
             <CardTitle className="flex items-center gap-2 text-base">
               <div className="w-7 h-7 rounded-sm border-2 border-primary/40 bg-primary/10 flex items-center justify-center">
