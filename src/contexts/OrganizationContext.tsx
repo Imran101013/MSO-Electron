@@ -26,6 +26,8 @@ export interface MonthlyContribution {
 export interface Attendance {
   date: string;
   present: boolean;
+  /** Not at the meeting but excused (present is false): not an absence. */
+  onLeave?: boolean;
   meetingId?: string;
 }
 
@@ -395,6 +397,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
           .map((att: DbAttendance) => ({
             date: att.created_at.substring(0, 10),
             present: att.present,
+            onLeave: !!att.on_leave,
             meetingId: att.meeting_id,
           }));
 

@@ -174,6 +174,7 @@ export default function ProfitDistribution() {
   const loanPenaltiesListed = r2(view.collectedLoans.reduce((s, l) => s + l.penalties, 0));
   const membersPaged = usePaged(view.rows, selectedYear);
   const historyPaged = usePaged(history);
+  const bankProfitsPaged = usePaged(yearBankProfits, selectedYear);
 
   // The AGM is held in July of the following year: default to a July meeting if one is recorded.
   const agmYear = selectedYear + 1;
@@ -274,42 +275,45 @@ export default function ProfitDistribution() {
                       No bank profit recorded for {selectedYear} yet.
                     </p>
                   ) : (
-                    <ul className="divide-y divide-border/60 rounded-sm border border-border text-sm">
-                      {yearBankProfits.map((b) => (
-                        <li key={b.id} className="flex items-center gap-3 px-3 py-2">
-                          <Landmark className="w-4 h-4 shrink-0 text-primary" />
-                          <div className="min-w-0 flex-1">
-                            <p className="figure font-semibold text-foreground">{money(b.amount)}</p>
-                            <p className="text-xs text-muted-foreground">
-                              Credited <span className="figure">{fmt(b.creditedOn)}</span> ·{" "}
-                              {b.isOpening
-                                ? "from the paper registers"
-                                : b.meetingDate
-                                  ? <>recorded at the meeting on <span className="figure">{fmt(b.meetingDate)}</span></>
-                                  : "its meeting was deleted"}
-                            </p>
-                          </div>
-                          {isAdmin && !b.isOpening && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 rounded-sm text-destructive hover:text-destructive"
-                              onClick={() => setRemoving({ id: b.id, amount: b.amount, creditedOn: b.creditedOn })}
-                              title="Remove this bank profit"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          )}
-                        </li>
-                      ))}
-                      {yearBankProfits.length > 1 && (
-                        <li className="flex items-center justify-between px-3 py-2 text-sm font-semibold">
-                          <span>Total</span>
-                          <span className="figure">{money(bankProfit)}</span>
-                        </li>
-                      )}
-                    </ul>
+                    <div className="rounded-sm border border-border text-sm">
+                      <ul className="divide-y divide-border/60">
+                        {bankProfitsPaged.rows.map((b) => (
+                          <li key={b.id} className="flex items-center gap-3 px-3 py-2">
+                            <Landmark className="w-4 h-4 shrink-0 text-primary" />
+                            <div className="min-w-0 flex-1">
+                              <p className="figure font-semibold text-foreground">{money(b.amount)}</p>
+                              <p className="text-xs text-muted-foreground">
+                                Credited <span className="figure">{fmt(b.creditedOn)}</span> ·{" "}
+                                {b.isOpening
+                                  ? "from the paper registers"
+                                  : b.meetingDate
+                                    ? <>recorded at the meeting on <span className="figure">{fmt(b.meetingDate)}</span></>
+                                    : "its meeting was deleted"}
+                              </p>
+                            </div>
+                            {isAdmin && !b.isOpening && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 rounded-sm text-destructive hover:text-destructive"
+                                onClick={() => setRemoving({ id: b.id, amount: b.amount, creditedOn: b.creditedOn })}
+                                title="Remove this bank profit"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            )}
+                          </li>
+                        ))}
+                        {yearBankProfits.length > 1 && (
+                          <li className="flex items-center justify-between px-3 py-2 text-sm font-semibold">
+                            <span>Total</span>
+                            <span className="figure">{money(bankProfit)}</span>
+                          </li>
+                        )}
+                      </ul>
+                      <TablePager paged={bankProfitsPaged} noun="bank profits" />
+                    </div>
                   )}
                 </Field>
 

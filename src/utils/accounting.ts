@@ -92,6 +92,12 @@ export const dayBefore = (key: string) => format(addDays(parseDay(key), -1), "yy
 
 export const todayKey = () => format(new Date(), "yyyy-MM-dd");
 
+/** 1 January of this year to today: the period the yearly registers open with. */
+export const thisYearToDate = (): ReportPeriod => {
+  const today = todayKey();
+  return { from: `${today.slice(0, 4)}-01-01`, to: today };
+};
+
 const inPeriod = (date: string, p: ReportPeriod) =>
   (p.from === null || date >= p.from) && date <= p.to;
 
@@ -375,6 +381,8 @@ export interface MeetingRecord {
   decisions: string;
   present: number;
   absent: number;
+  /** Excused: not at the meeting, but not counted as absent. */
+  leave: number;
   recorded: boolean;
   collections: number;
   contributionCount: number;
@@ -385,6 +393,8 @@ export interface AttendanceSummaryRow {
   eligible: number;
   present: number;
   absent: number;
+  /** Meetings on leave: left out of the rate. */
+  leave: number;
   rate: number | null;
 }
 
@@ -753,12 +763,13 @@ export function buildBooks(input: AccountingInput): Books {
   }
 
   // ── Meetings, attendance and meeting-linked collections
-  const attendanceByMeeting = new Map<string, { present: number; absent: number }>();
+  const attendanceByMeeting = new Map<string, { present: number; absent: number; leave: number }>();
   for (const mr of members) {
     for (const a of mr.source.attendance) {
       if (!a.meetingId) continue;
-      const agg = attendanceByMeeting.get(a.meetingId) ?? { present: 0, absent: 0 };
+      const agg = attendanceByMeeting.get(a.meetingId) ?? { present: 0, absent: 0, leave: 0 };
       if (a.present) agg.present++;
+      else if (a.onLeave) agg.leave++;
       else agg.absent++;
       attendanceByMeeting.set(a.meetingId, agg);
     }
@@ -775,6 +786,7 @@ export function buildBooks(input: AccountingInput): Books {
         decisions: m.decisions || "",
         present: att?.present ?? 0,
         absent: att?.absent ?? 0,
+        leave: att?.leave ?? 0,
         recorded: !!att,
         collections: sum(linked, (e) => e.amount),
         contributionCount: linked.length,
@@ -961,9 +973,12 @@ export function buildBooks(input: AccountingInput): Books {
     return members.map((mr) => {
       const eligibleMeetings = held.filter((m) => m.date >= mr.joinDate);
       const ids = new Set(eligibleMeetings.map((m) => m.dbId));
-      const present = mr.source.attendance.filter((a) => a.present && a.meetingId && ids.has(a.meetingId)).length;
+      const marked = mr.source.attendance.filter((a) => a.meetingId && ids.has(a.meetingId));
+      const present = marked.filter((a) => a.present).length;
+      const leave = marked.filter((a) => !a.present && a.onLeave).length;
       const eligible = eligibleMeetings.length;
-      return { member: mr, eligible, present, absent: eligible - present, rate: eligible ? present / eligible : null };
+      const counted = eligible - leave;
+      return { member: mr, eligible, present, absent: counted - present, leave, rate: counted ? present / counted : null };
     });
   };
 

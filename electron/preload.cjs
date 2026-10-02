@@ -8,6 +8,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   backupDatabase: () => ipcRenderer.invoke('db-backup'),
   restoreDatabase: () => ipcRenderer.invoke('db-restore'),
   shareWhatsApp: (text, phone) => ipcRenderer.invoke('share-whatsapp', { text, phone }),
+  shareFileWhatsApp: (filename, data, text, phone) => ipcRenderer.invoke('share-file-whatsapp', { filename, data, text, phone }),
+  showSharedFile: (file) => ipcRenderer.invoke('show-shared-file', { file }),
   openingTemplate: (cutoverDate, currency) => ipcRenderer.invoke('opening-template', { cutoverDate, currency }),
   openingRead: () => ipcRenderer.invoke('opening-read'),
   openingImport: (payload) => ipcRenderer.invoke('opening-import', payload),

@@ -29,6 +29,7 @@ const AUDITED_TABLES = [
   { value: "loan_schedule", label: "Loan Schedule" },
   { value: "loan_penalties", label: "Loan Penalties" },
   { value: "monthly_contributions", label: "Contributions" },
+  { value: "attendance", label: "Attendance" },
   { value: "reserve_transactions", label: "Reserve Transactions" },
   { value: "profit_distributions", label: "Profit Distributions" },
   { value: "profit_allocations", label: "Profit Allocations" },

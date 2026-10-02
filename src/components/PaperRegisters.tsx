@@ -36,6 +36,7 @@ import {
 } from "@/lib/books";
 import { checkOpeningFile, type OpeningCheck, type OpeningIssue } from "@/utils/openingBalances";
 import { cn } from "@/lib/utils";
+import { TablePager, usePaged } from "@/components/TablePager";
 
 const keyOf = (d: Date) => format(d, "yyyy-MM-dd");
 const dayOf = (key: string) => {
@@ -413,18 +414,20 @@ function Total({ label, note, value, strong }: { label: string; note?: string; v
 
 function IssueList({ tone, title, items }: { tone: "bad" | "warn"; title: string; items: OpeningIssue[] }) {
   const Icon = tone === "bad" ? XCircle : AlertTriangle;
+  const paged = usePaged(items);
   return (
     <div className={cn("rounded-sm border px-4 py-3", tone === "bad" ? "border-destructive/40 bg-destructive/[0.04]" : "border-accent/50 bg-accent/10")}>
       <p className={cn("flex items-center gap-2 text-sm font-semibold", tone === "bad" ? "text-destructive" : "text-primary")}>
         <Icon className="w-4 h-4 shrink-0" /> {title}
       </p>
-      <ul className="mt-2 max-h-48 space-y-1 overflow-y-auto text-xs text-foreground">
-        {items.map((it, i) => (
-          <li key={i}>
+      <ul className="mt-2 space-y-1 text-xs text-foreground">
+        {paged.rows.map((it, i) => (
+          <li key={paged.offset + i}>
             <span className="font-medium">{it.sheet}{it.row ? `, row ${it.row}` : ""}:</span> {it.message}
           </li>
         ))}
       </ul>
+      <TablePager paged={paged} noun={tone === "bad" ? "problems" : "things to check"} className="mt-2 px-0" />
     </div>
   );
 }

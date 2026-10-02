@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { execFile } = require('child_process');
 const { Pool, types } = require('pg');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
@@ -142,8 +143,7 @@ require('./openingBalances.cjs').register({ ipcMain, dialog, pool });
 // otherwise WhatsApp Web. With a phone number the chat with that number opens; without one
 // the user picks the recipient. The renderer supplies only the message and number; the URL
 // is built here so this can't be used to open arbitrary links.
-ipcMain.handle('share-whatsapp', async (_, { text, phone }) => {
-  if (typeof text !== 'string' || !text.trim()) return { error: 'There is nothing to share.' };
+async function openWhatsApp(text, phone) {
   let number = '';
   if (phone) {
     // Accept 03001234567, +92 300 1234567 or 923001234567; WhatsApp wants 923001234567.
@@ -162,6 +162,54 @@ ipcMain.handle('share-whatsapp', async (_, { text, phone }) => {
   } catch (err) {
     return { error: err.message };
   }
+}
+
+ipcMain.handle('share-whatsapp', async (_, { text, phone }) => {
+  if (typeof text !== 'string' || !text.trim()) return { error: 'There is nothing to share.' };
+  return openWhatsApp(text, phone);
+});
+
+// Share a PDF report on WhatsApp. WhatsApp can't be handed a file through a link, so the PDF is
+// saved to a temporary folder and put on the clipboard as a file (as Explorer's Copy does), then
+// WhatsApp opens with a caption typed in; the user picks the chat and pastes the file (Ctrl+V).
+const sharedReportsDir = () => path.join(app.getPath('temp'), 'MSO Reports');
+
+function copyFileToClipboard(file) {
+  if (process.platform !== 'win32') return Promise.resolve(false);
+  return new Promise((resolve) => {
+    // The path goes in through the environment, never into the command text.
+    execFile(
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-Command', 'Set-Clipboard -LiteralPath $env:MSO_SHARE_FILE'],
+      { env: { ...process.env, MSO_SHARE_FILE: file }, windowsHide: true, timeout: 15000 },
+      (err) => resolve(!err),
+    );
+  });
+}
+
+ipcMain.handle('share-file-whatsapp', async (_, { filename, data, text, phone }) => {
+  const name = path.basename(String(filename || ''));
+  if (!/^[\w.-]+\.pdf$/i.test(name)) return { error: 'The report has no valid file name.' };
+  const bytes = data instanceof ArrayBuffer ? Buffer.from(data) : ArrayBuffer.isView(data) ? Buffer.from(data.buffer, data.byteOffset, data.byteLength) : null;
+  if (!bytes || bytes.length === 0 || bytes.length > 50 * 1024 * 1024) return { error: 'The report could not be prepared for sharing.' };
+  const file = path.join(sharedReportsDir(), name);
+  try {
+    await fs.promises.mkdir(sharedReportsDir(), { recursive: true });
+    await fs.promises.writeFile(file, bytes);
+  } catch (err) {
+    return { error: `The report could not be saved for sharing: ${err.message}` };
+  }
+  const copied = await copyFileToClipboard(file);
+  const res = await openWhatsApp(typeof text === 'string' ? text : '', phone);
+  return { ...res, copied, file };
+});
+
+// Shows a shared report in Explorer (only files this app saved for sharing).
+ipcMain.handle('show-shared-file', async (_, { file }) => {
+  const resolved = path.resolve(String(file || ''));
+  if (path.dirname(resolved) !== path.resolve(sharedReportsDir()) || !fs.existsSync(resolved)) return { error: 'The file is no longer there.' };
+  shell.showItemInFolder(resolved);
+  return {};
 });
 
 // Idempotently create/alter tables this app owns on its local Postgres instance.
@@ -177,6 +225,10 @@ async function ensureSchema() {
       UPDATE public.loans SET total_payable = amount WHERE total_payable IS NULL;
       ALTER TABLE public.loans ALTER COLUMN total_payable SET NOT NULL;
       ALTER TABLE public.loans ADD COLUMN IF NOT EXISTS penalty_per_month DECIMAL(12,2) NOT NULL DEFAULT 500;
+
+      -- A member not at a meeting is either absent or on leave (excused: their contribution was
+      -- sent, and the absence charge and attendance figures don't count it). present stays false.
+      ALTER TABLE public.attendance ADD COLUMN IF NOT EXISTS on_leave BOOLEAN NOT NULL DEFAULT false;
 
       -- Late penalties charged after a loan's one-year period ends; remaining_amount includes them.
       CREATE TABLE IF NOT EXISTS public.loan_penalties (
@@ -322,6 +374,8 @@ async function ensureSchema() {
       'loans', 'loan_installments', 'loan_schedule', 'loan_penalties',
       'monthly_contributions', 'reserve_transactions',
       'profit_distributions', 'profit_allocations', 'bank_profits',
+      // Attendance decides each member's absence charge, so changes to it are kept too.
+      'attendance',
     ];
     for (const table of auditedTables) {
       await client.query(`DROP TRIGGER IF EXISTS audit_${table} ON public.${table};`);

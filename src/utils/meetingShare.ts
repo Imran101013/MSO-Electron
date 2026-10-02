@@ -14,8 +14,11 @@ type ShareSettings = FormatSettings & Pick<Settings, "organizationName">;
 export interface MeetingRecord {
   meeting: DbMeeting;
   venue: string | null;
-  attendance: { memberId: string; name: string; present: boolean }[];
+  attendance: { memberId: string; name: string; present: boolean; onLeave: boolean }[];
+  presentCount: number;
   absent: string[];
+  /** Not at the meeting but excused (their contribution was sent); not counted as absent. */
+  onLeave: string[];
   /** Every member who had joined by the meeting, with 0 for those who paid nothing. */
   savings: AmountRow[];
   /** Loan repayments since the previous meeting, up to and including this one. */
@@ -58,8 +61,8 @@ export async function getMeetingRecord(meeting: DbMeeting): Promise<MeetingRecor
   const since = (col: string) => `${col} <= $1::date AND ($2::date IS NULL OR ${col} > $2::date)`;
 
   const [attendance, savings, collected, newLoans, reserve, venueRows, nextRows, bankProfits] = await Promise.all([
-    dbQuery<{ memberId: string; name: string; present: boolean }>(
-      `SELECT m.id AS "memberId", m.name, a.present FROM public.attendance a JOIN public.members m ON m.id = a.member_id WHERE a.meeting_id = $1 ${byMember}`,
+    dbQuery<{ memberId: string; name: string; present: boolean; onLeave: boolean }>(
+      `SELECT m.id AS "memberId", m.name, a.present, a.on_leave AS "onLeave" FROM public.attendance a JOIN public.members m ON m.id = a.member_id WHERE a.meeting_id = $1 ${byMember}`,
       [meeting.id],
     ),
     dbQuery<AmountRow>(
@@ -104,7 +107,9 @@ export async function getMeetingRecord(meeting: DbMeeting): Promise<MeetingRecor
     meeting,
     venue: venueRows[0]?.venue ?? null,
     attendance,
-    absent: attendance.filter((a) => !a.present).map((a) => a.name),
+    presentCount: attendance.filter((a) => a.present).length,
+    absent: attendance.filter((a) => !a.present && !a.onLeave).map((a) => a.name),
+    onLeave: attendance.filter((a) => !a.present && a.onLeave).map((a) => a.name),
     savings,
     collected,
     newLoans,
@@ -125,7 +130,7 @@ export async function getMeetingRecord(meeting: DbMeeting): Promise<MeetingRecor
  * ```monospace``` so names and amounts line up).
  */
 export function formatMeetingMessage(record: MeetingRecord, settings: ShareSettings): string {
-  const { meeting, savings, collected, newLoans, reserve, attendance, absent, next, totals } = record;
+  const { meeting, savings, collected, newLoans, reserve, attendance, presentCount, absent, onLeave, next, totals } = record;
   const cur = settings.currency || "PKR";
   const money = (v: number) => `${cur} ${formatAmount(v)}`;
   const date = (key: string) => formatDay(key, settings);
@@ -158,12 +163,13 @@ export function formatMeetingMessage(record: MeetingRecord, settings: ShareSetti
   if (meeting.decisions?.trim()) out.push("", "✅ *Decisions*", meeting.decisions.trim());
 
   if (attendance.length) {
-    out.push("", `*Attendance: ${attendance.length - absent.length} of ${attendance.length} present*`);
+    out.push("", `*Attendance: ${presentCount} of ${attendance.length} present${onLeave.length ? `, ${onLeave.length} on leave` : ""}*`);
     out.push(
       "",
       `*Absent members (${absent.length})*`,
-      absent.length ? absent.map((n, i) => `${i + 1}. ${n}`).join("\n") : "None - all members were present.",
+      absent.length ? absent.map((n, i) => `${i + 1}. ${n}`).join("\n") : onLeave.length ? "None." : "None - all members were present.",
     );
+    if (onLeave.length) out.push("", `*On leave (${onLeave.length})*`, onLeave.map((n, i) => `${i + 1}. ${n}`).join("\n"));
   }
 
   out.push("", "*Savings*", savings.length ? table(savings, "Total savings") : "No members recorded.");

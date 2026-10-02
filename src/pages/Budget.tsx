@@ -4,6 +4,7 @@ import { TablePager, usePaged } from "@/components/TablePager";
 import { useMemo, useEffect } from "react";
 import StatCard from "@/components/StatCard";
 import ViewReportButton from "@/components/ViewReportButton";
+import { thisYearToDate } from "@/utils/accounting";
 import { format } from "date-fns";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -100,7 +101,7 @@ export default function Budget() {
           <h2 className="text-2xl font-bold text-foreground mt-1">Monthly Budget</h2>
           <p className="text-sm text-muted-foreground mt-0.5">The fund's running total and the latest meeting's collection</p>
         </div>
-        <ViewReportButton request={{ kind: "contribution-register" }} label="Contribution Register" size="default" />
+        <ViewReportButton request={{ kind: "contribution-register", period: thisYearToDate() }} label="Contribution Register" size="default" />
       </div>
 
       {/* Stat cards */}

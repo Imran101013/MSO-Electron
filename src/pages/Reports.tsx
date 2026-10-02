@@ -269,7 +269,7 @@ export default function ReportsPage() {
         {card("contribution-register", "period", {
           icon: ClipboardList,
           title: "Contribution Register",
-          description: "Receipts by month with subtotals, plus a per-member summary.",
+          description: "One page a year: what each member paid at each meeting, with member and meeting totals.",
         })}
         {card("reserve-ledger", "period", {
           icon: PiggyBank,
@@ -309,7 +309,7 @@ export default function ReportsPage() {
         {card("meetings-register", "period", {
           icon: CalendarDays,
           title: "Meetings & Attendance Register",
-          description: "Agenda, resolutions, attendance and collections for each meeting.",
+          description: "Year by year: each meeting's agenda, resolutions and collections, and an attendance grid (present, absent, on leave) by member.",
         })}
       </Section>
     </div>

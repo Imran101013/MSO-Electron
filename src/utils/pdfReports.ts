@@ -169,6 +169,8 @@ interface TableSpec {
   empty?: string;
   /** Double rule under numeric footer cells (grand totals). Default true. */
   doubleRule?: boolean;
+  /** Tighter rows, for the yearly registers so a year's members fit on one page. */
+  compact?: boolean;
 }
 
 type Line =
@@ -391,7 +393,7 @@ class Report {
         font: "helvetica",
         fontSize: fs,
         textColor: C.ink,
-        cellPadding: { top: 1.45, bottom: 1.45, left: 1.7, right: 1.7 },
+        cellPadding: spec.compact ? { top: 0.95, bottom: 0.95, left: 1.5, right: 1.5 } : { top: 1.45, bottom: 1.45, left: 1.7, right: 1.7 },
         lineColor: C.rule,
         lineWidth: { top: 0, right: 0, bottom: 0.1, left: 0 },
         valign: "middle",
@@ -1183,7 +1185,8 @@ function memberStatement(r: Report, books: Books, p: ReportPeriod, memberId: str
 
   const att = books.attendanceSummary(p).find((a) => a.member.dbId === m.dbId);
   if (att && att.eligible > 0) {
-    r.paragraph(`Meeting attendance in the period: present at ${att.present} of ${att.eligible} recorded meetings (${pct(att.rate, 0)}).`, { size: 7.8 });
+    const leave = att.leave ? `, not counting ${att.leave} on leave` : "";
+    r.paragraph(`Meeting attendance in the period: present at ${att.present} of ${att.eligible - att.leave} recorded meetings${leave} (${pct(att.rate, 0)}).`, { size: 7.8 });
   }
   r.gap(2);
   r.note(
@@ -1371,10 +1374,44 @@ function loanStatement(r: Report, books: Books, p: ReportPeriod, loanId: string)
   }
 }
 
+// ── Yearly registers: members down the side, the year's meetings across, one page per year.
+
+type YearPart = { year: number; from: string; to: string; whole: boolean };
+
+/** The calendar years a period covers, each clipped to it. From inception, it starts with the year of `first`. */
+function periodYears(p: ReportPeriod, first: string | null): YearPart[] {
+  const start = p.from ?? (first ? `${first.slice(0, 4)}-01-01` : p.to);
+  const out: YearPart[] = [];
+  for (let y = Number(start.slice(0, 4)); y <= Number(p.to.slice(0, 4)); y++) {
+    const from = start > `${y}-01-01` ? start : `${y}-01-01`;
+    const to = p.to < `${y}-12-31` ? p.to : `${y}-12-31`;
+    out.push({ year: y, from, to, whole: from === `${y}-01-01` && to === `${y}-12-31` });
+  }
+  return out;
+}
+
+const yearTitle = (r: Report, label: string, y: YearPart) => `${label} ${y.year}${y.whole ? "" : ` (${r.d(y.from)} to ${r.d(y.to)})`}`;
+
+/** At most this many meeting columns side by side; a year with more is split into parts. */
+const MAX_GRID_COLS = 13;
+
+function splitColumns<T>(items: T[]): T[][] {
+  if (items.length <= MAX_GRID_COLS) return [items];
+  const size = Math.ceil(items.length / Math.ceil(items.length / MAX_GRID_COLS));
+  return Array.from({ length: Math.ceil(items.length / size) }, (_, i) => items.slice(i * size, (i + 1) * size));
+}
+
+const gridDay = (key: string) => format(parseDay(key), "d MMM");
+
+/** Registers list members by member number. */
+const byMemberNo = (a: { memberNo: string }, b: { memberNo: string }) => a.memberNo.localeCompare(b.memberNo, undefined, { numeric: true });
+
+/** Whole rupees without decimals, so a year's meetings fit across the page. */
+const whole = (n: number) => (Math.abs(n) < EPS ? "-" : Math.abs(n - Math.round(n)) < EPS ? Math.round(n).toLocaleString("en-US") : money(n));
+
 function contributionRegister(r: Report, books: Books, p: ReportPeriod) {
   const cur = r.ctx.currency;
   const es = entriesInPeriod(books, p).filter((e) => e.kind === "contribution");
-  const meetingDate = new Map(books.meetings.map((m) => [m.dbId, m.date]));
   const total = sumOf(es, (e) => e.amount);
   const contributors = new Set(es.map((e) => e.memberId)).size;
   r.kpis([
@@ -1384,56 +1421,84 @@ function contributionRegister(r: Report, books: Books, p: ReportPeriod) {
     { label: "Average per receipt", value: amt(cur, es.length ? total / es.length : 0) },
   ]);
 
-  const body: RowInput[] = [];
-  let month = "";
-  let monthTotal = 0;
-  let monthCount = 0;
-  const flush = () => {
-    if (!month) return;
-    body.push([
-      { content: `Total for ${format(parseDay(`${month}-01`), "MMMM yyyy")} (${monthCount} receipts)`, colSpan: 5, styles: { fontStyle: "bold", fillColor: C.band } },
-      { content: money(monthTotal), styles: { fontStyle: "bold", fillColor: C.band } },
-    ]);
-  };
-  for (const e of es) {
-    const m = e.date.slice(0, 7);
-    if (m !== month) {
-      flush();
-      month = m;
-      monthTotal = 0;
-      monthCount = 0;
+  const first = [es[0]?.date, books.meetings[0]?.date].filter((d): d is string => !!d).sort()[0] ?? null;
+  let shown = 0;
+  for (const y of periodYears(p, first)) {
+    const held = books.meetings.filter((m) => m.date >= y.from && m.date <= y.to);
+    const received = es.filter((e) => e.date >= y.from && e.date <= y.to);
+    if (!held.length && !received.length) continue;
+    // Each receipt goes under the meeting it was received at; any other receipt goes under "Other".
+    const atMeeting = new Set(held.map((m) => m.dbId));
+    const cells = new Map<string, number>();
+    let other = false;
+    for (const e of received) {
+      const col = e.meetingId && atMeeting.has(e.meetingId) ? e.meetingId : "other";
+      if (col === "other") other = true;
+      const k = `${e.memberId}|${col}`;
+      cells.set(k, r2((cells.get(k) ?? 0) + e.amount));
     }
-    monthTotal = r2(monthTotal + e.amount);
-    monthCount++;
-    const md = e.meetingId ? meetingDate.get(e.meetingId) : undefined;
-    body.push([r.d(e.date), e.voucher, e.memberNo ?? "", e.memberName ?? "", md ? r.d(md) : "-", money(e.amount)]);
-  }
-  flush();
-  r.table({
-    head: ["Date", "Voucher", "Member no.", "Member", "Meeting", `Amount (${cur})`],
-    align: ["l", "l", "l", "l", "l", "r"],
-    widths: [21, 23, 19, "auto", 23, 30],
-    body,
-    foot: [[{ content: `Grand total (${es.length} receipts)`, colSpan: 5 }, money(total)]],
-    empty: "No contributions were received in the selected period.",
-  });
+    const columns = [
+      ...held.map((m) => ({ id: m.dbId, label: gridDay(m.date), date: m.date })),
+      ...(other ? [{ id: "other", label: "Other", date: y.from }] : []),
+    ];
+    const members = books.members.filter((m) => m.joinDate <= y.to || received.some((e) => e.memberId === m.dbId)).sort(byMemberNo);
+    const cell = (memberId: string, col: string) => cells.get(`${memberId}|${col}`) ?? 0;
+    const memberTotal = (memberId: string) => sumOf(received.filter((e) => e.memberId === memberId), (e) => e.amount);
+    const columnTotal = (col: string) => sumOf(members, (m) => cell(m.dbId, col));
 
-  r.heading("Summary by member");
-  const rows = books.members
-    .filter((m) => m.joinDate <= p.to)
-    .map((m) => {
-      const mine = es.filter((e) => e.memberId === m.dbId);
-      return { m, count: mine.length, amount: sumOf(mine, (e) => e.amount) };
+    if (shown++ > 0) r.newPage();
+    r.heading(yearTitle(r, "Contributions", y));
+    const parts = splitColumns(columns);
+    parts.forEach((part, i) => {
+      const last = i === parts.length - 1;
+      if (parts.length > 1) r.subheading(`Part ${i + 1} of ${parts.length}`);
+      const colW = Math.min(22, (r.cw - 14 - 46 - 26) / Math.max(1, part.length));
+      r.table({
+        head: ["No.", "Member", ...part.map((c) => c.label), ...(last ? [`Total (${cur})`] : [])],
+        align: ["l", "l", ...part.map((): Align => "r"), ...(last ? (["r"] as Align[]) : [])],
+        widths: [14, "auto", ...part.map(() => colW), ...(last ? [26] : [])],
+        fontSize: 7,
+        compact: true,
+        body: members.map((m) => [
+          m.memberNo,
+          m.name,
+          ...part.map((c) => {
+            const v = cell(m.dbId, c.id);
+            // Blank: not yet a member at that meeting; "-": a member who paid nothing there.
+            return v > EPS ? whole(v) : c.id !== "other" && c.date < m.joinDate ? "" : "-";
+          }),
+          ...(last ? [{ content: whole(memberTotal(m.dbId)), styles: { fontStyle: "bold" as const } }] : []),
+        ]),
+        foot: [["", "Total", ...part.map((c) => whole(columnTotal(c.id))), ...(last ? [whole(sumOf(received, (e) => e.amount))] : [])]],
+        empty: "No members recorded.",
+      });
     });
-  r.table({
-    head: ["Member no.", "Member", "Receipts", `Amount (${cur})`, "% of total"],
-    align: ["l", "l", "r", "r", "r"],
-    widths: [21, "auto", 20, 32, 22],
-    body: rows.map((x) => [x.m.memberNo, x.m.name, x.count ? String(x.count) : "-", money(x.amount), pct(total > 0 ? x.amount / total : null, 1)]),
-    foot: [["", "Total", String(es.length), money(total), total > 0 ? "100.0%" : "-"]],
-    empty: "No members recorded.",
-  });
-  r.note("Members shown with \"-\" made no contribution in the period and may require follow-up. Voucher numbers refer to the receipt voucher (RV) series used across all MSO reports.");
+  }
+  if (!shown) {
+    r.table({ head: ["Member", `Amount (${cur})`], align: ["l", "r"], body: [], empty: "No contributions were received in the selected period." });
+  }
+
+  // Over several years, each member's total for the whole period.
+  if (shown > 1) {
+    r.newPage();
+    r.heading("Summary by member for the period");
+    const rows = books.members
+      .filter((m) => m.joinDate <= p.to)
+      .sort(byMemberNo)
+      .map((m) => {
+        const mine = es.filter((e) => e.memberId === m.dbId);
+        return { m, count: mine.length, amount: sumOf(mine, (e) => e.amount) };
+      });
+    r.table({
+      head: ["Member no.", "Member", "Receipts", `Amount (${cur})`, "% of total"],
+      align: ["l", "l", "r", "r", "r"],
+      widths: [24, "auto", 24, 36, 26],
+      body: rows.map((x) => [x.m.memberNo, x.m.name, x.count ? String(x.count) : "-", money(x.amount), pct(total > 0 ? x.amount / total : null, 1)]),
+      foot: [["", "Total", String(es.length), money(total), total > 0 ? "100.0%" : "-"]],
+      empty: "No members recorded.",
+    });
+  }
+  r.note("Each column is a meeting and shows what each member paid at it. \"-\" means a member paid nothing at that meeting; a blank cell means they had not yet joined. \"Other\" is money received outside a meeting. Every receipt, with its voucher number, is listed in the Cash Book.");
 }
 
 function reserveLedger(r: Report, books: Books, p: ReportPeriod) {
@@ -1641,7 +1706,6 @@ function meetingsRegister(r: Report, books: Books, p: ReportPeriod) {
   const cur = r.ctx.currency;
   const inP = (d: string) => (p.from === null || d >= p.from) && d <= p.to;
   const meetings = books.meetings.filter((m) => inP(m.date));
-  const summary = books.attendanceSummary(p);
   const recorded = meetings.filter((m) => m.recorded);
   const totPresent = recorded.reduce((s, m) => s + m.present, 0);
   const totMarked = recorded.reduce((s, m) => s + m.present + m.absent, 0);
@@ -1650,35 +1714,121 @@ function meetingsRegister(r: Report, books: Books, p: ReportPeriod) {
     { label: "Average attendance", value: pct(totMarked ? totPresent / totMarked : null, 0) },
     { label: "Collected at meetings", value: amt(cur, sumOf(meetings, (m) => m.collections)), tone: "good" },
   ]);
-  r.table({
-    head: ["No.", "Date", "Agenda", "Decisions / resolutions", "Present", "Absent", `Collections (${cur})`],
-    align: ["r", "l", "l", "l", "r", "r", "r"],
-    widths: [9, 20, 48, "auto", 14, 14, 27],
-    fontSize: 7.4,
-    body: meetings.map((m, i) => [String(i + 1), r.d(m.date), m.agenda || "-", m.decisions || "-", m.recorded ? String(m.present) : "n/r", m.recorded ? String(m.absent) : "n/r", money(m.collections)]),
-    foot: [["", "", `${meetings.length} meetings`, "", String(totPresent), String(totMarked - totPresent), money(sumOf(meetings, (m) => m.collections))]],
-    empty: "No meetings were held in the selected period.",
-  });
-  r.heading("Attendance by member");
-  r.table({
-    head: ["Member no.", "Member", "Eligible", "Present", "Absent", "Attendance"],
-    align: ["l", "l", "r", "r", "r", "r"],
-    widths: [21, "auto", 28, 18, 18, 22],
-    body: summary
-      .filter((s) => s.eligible > 0)
-      .map((s) => [
-        s.member.memberNo,
-        s.member.name,
-        String(s.eligible),
-        String(s.present),
-        String(s.absent),
-        { content: pct(s.rate, 0), styles: { fontStyle: "bold", textColor: (s.rate ?? 1) < 0.5 ? C.bad : C.ink } },
+
+  // Each member's mark at each meeting: P present, A absent, L on leave.
+  const marks = new Map<string, Map<string, Mark>>();
+  for (const mr of books.members) {
+    const mine = new Map<string, Mark>();
+    for (const a of mr.source.attendance) if (a.meetingId) mine.set(a.meetingId, a.present ? "P" : a.onLeave ? "L" : "A");
+    marks.set(mr.dbId, mine);
+  }
+  const markCell = (m: Mark | undefined): CellDef | string =>
+    m === "A" ? { content: "A", styles: { textColor: C.bad, fontStyle: "bold" } } : m === "L" ? { content: "L", styles: { textColor: C.gold, fontStyle: "bold" } } : m ?? "–";
+
+  let shown = 0;
+  for (const y of periodYears(p, meetings[0]?.date ?? null)) {
+    const held = meetings.filter((m) => m.date >= y.from && m.date <= y.to);
+    if (!held.length) continue;
+    const marked = held.filter((m) => m.recorded);
+    const yearTot = (pick: (m: (typeof held)[number]) => number) => marked.reduce((s, m) => s + pick(m), 0);
+
+    if (shown++ > 0) r.newPage();
+    r.heading(yearTitle(r, "Meetings", y));
+    r.table({
+      head: ["No.", "Date", "Agenda", "Decisions / resolutions", "Present", "Absent", "On leave", `Collections (${cur})`],
+      align: ["r", "l", "l", "l", "r", "r", "r", "r"],
+      widths: [9, 20, 62, "auto", 15, 15, 15, 28],
+      fontSize: 7.4,
+      body: held.map((m, i) => [
+        String(i + 1),
+        r.d(m.date),
+        m.agenda || "-",
+        m.decisions || "-",
+        m.recorded ? String(m.present) : "n/r",
+        m.recorded ? String(m.absent) : "n/r",
+        m.recorded ? String(m.leave) : "n/r",
+        money(m.collections),
       ]),
-    doubleRule: false,
-    empty: "No attendance was recorded in the selected period.",
-  });
-  r.note("n/r = attendance not recorded. A member is eligible for meetings with recorded attendance held on or after their date of admission. Collections are contributions linked to the meeting at which they were received.");
+      foot: [["", "", `${held.length} meetings`, "", String(yearTot((m) => m.present)), String(yearTot((m) => m.absent)), String(yearTot((m) => m.leave)), money(sumOf(held, (m) => m.collections))]],
+    });
+
+    r.heading(yearTitle(r, "Attendance", y), 40);
+    if (!marked.length) {
+      r.note("Attendance was not recorded at this year's meetings.");
+      continue;
+    }
+    const members = books.members.filter((m) => m.joinDate <= y.to).sort(byMemberNo);
+    const count = (memberId: string, mark: Mark) => marked.filter((mt) => marks.get(memberId)?.get(mt.dbId) === mark).length;
+    const parts = splitColumns(marked);
+    parts.forEach((part, i) => {
+      const last = i === parts.length - 1;
+      if (parts.length > 1) r.subheading(`Part ${i + 1} of ${parts.length}`);
+      const colW = Math.min(16, (r.cw - 14 - 46 - (last ? 45 : 0)) / Math.max(1, part.length));
+      const yearRate = yearTot((m) => m.present + m.absent) ? yearTot((m) => m.present) / yearTot((m) => m.present + m.absent) : null;
+      r.table({
+        head: ["No.", "Member", ...part.map((mt) => gridDay(mt.date)), ...(last ? ["P", "A", "L", "Attendance"] : [])],
+        align: ["l", "l", ...part.map((): Align => "c"), ...(last ? (["r", "r", "r", "r"] as Align[]) : [])],
+        widths: [14, "auto", ...part.map(() => colW), ...(last ? [9, 9, 9, 18] : [])],
+        fontSize: 7,
+        compact: true,
+        body: members.map((mr) => {
+          const present = count(mr.dbId, "P");
+          const absent = count(mr.dbId, "A");
+          const rate = present + absent ? present / (present + absent) : null;
+          return [
+            mr.memberNo,
+            mr.name,
+            // Blank: not yet a member at that meeting; "–": a member not marked at it.
+            ...part.map((mt) => (mt.date < mr.joinDate ? "" : markCell(marks.get(mr.dbId)?.get(mt.dbId)))),
+            ...(last
+              ? [String(present), String(absent), String(count(mr.dbId, "L")), { content: pct(rate, 0), styles: { fontStyle: "bold" as const, textColor: (rate ?? 1) < 0.5 ? C.bad : C.ink } }]
+              : []),
+          ];
+        }),
+        foot: [[
+          "",
+          "Present",
+          ...part.map((mt) => String(mt.present)),
+          ...(last ? [String(yearTot((m) => m.present)), String(yearTot((m) => m.absent)), String(yearTot((m) => m.leave)), pct(yearRate, 0)] : []),
+        ]],
+        doubleRule: false,
+        empty: "No members recorded.",
+      });
+    });
+  }
+  if (!shown) {
+    r.table({ head: ["Date", "Agenda"], align: ["l", "l"], body: [], empty: "No meetings were held in the selected period." });
+  }
+
+  // Over several years, each member's attendance for the whole period.
+  if (shown > 1) {
+    r.newPage();
+    r.heading("Attendance by member for the period");
+    r.table({
+      head: ["Member no.", "Member", "Eligible", "Present", "Absent", "On leave", "Attendance"],
+      align: ["l", "l", "r", "r", "r", "r", "r"],
+      widths: [24, "auto", 28, 22, 22, 22, 26],
+      body: books
+        .attendanceSummary(p)
+        .filter((s) => s.eligible > 0)
+        .sort((a, b) => byMemberNo(a.member, b.member))
+        .map((s) => [
+          s.member.memberNo,
+          s.member.name,
+          String(s.eligible),
+          String(s.present),
+          String(s.absent),
+          String(s.leave),
+          { content: pct(s.rate, 0), styles: { fontStyle: "bold", textColor: (s.rate ?? 1) < 0.5 ? C.bad : C.ink } },
+        ]),
+      doubleRule: false,
+      empty: "No attendance was recorded in the selected period.",
+    });
+  }
+  r.note("P present, A absent, L on leave. A member on leave is excused: there is no absence charge and those meetings are left out of their attendance. \"–\" means a member was not marked at that meeting; a blank cell means they had not yet joined. n/r = attendance not recorded; such meetings are left out of the attendance grid. Collections are contributions linked to the meeting at which they were received.");
 }
+
+type Mark = "P" | "A" | "L";
 
 // ───────────────────────── Public API ─────────────────────────
 
@@ -1690,16 +1840,16 @@ const META: Record<ReportKind, { code: string; title: string; stem: string; land
   "member-register": { code: "RM", title: "Register of Members", stem: "Register_of_Members", landscape: true, confidential: true, asAt: true },
   "loan-portfolio": { code: "LP", title: "Loan Portfolio Report", stem: "Loan_Portfolio", landscape: true, asAt: true },
   "loan-statement": { code: "LS", title: "Loan Account Statement", stem: "Loan_Statement", confidential: true, asAt: true },
-  "contribution-register": { code: "CR", title: "Contribution Register", stem: "Contribution_Register" },
+  "contribution-register": { code: "CR", title: "Contribution Register", stem: "Contribution_Register", landscape: true },
   "reserve-ledger": { code: "RF", title: "Reserve Fund Ledger", stem: "Reserve_Fund_Ledger" },
   "profit-distribution": { code: "PD", title: "Profit Distribution Statement", stem: "Profit_Distribution" },
-  "meetings-register": { code: "MR", title: "Meetings and Attendance Register", stem: "Meetings_Register" },
+  "meetings-register": { code: "MR", title: "Meetings and Attendance Register", stem: "Meetings_Register", landscape: true },
 };
 
 export const reportTitle = (kind: ReportKind) => META[kind].title;
 
 /** Builds a report without saving it (used by the download action and for previews/tests). */
-export async function buildReport(books: Books, req: ReportRequest, settings: ReportSettings, now = new Date()): Promise<{ doc: jsPDF; filename: string }> {
+export async function buildReport(books: Books, req: ReportRequest, settings: ReportSettings, now = new Date()): Promise<{ doc: jsPDF; filename: string; subtitle: string }> {
   const meta = META[req.kind];
   if (!meta) throw new Error("Invalid report type");
   const ctx: ReportContext = {
@@ -1774,7 +1924,7 @@ export async function buildReport(books: Books, req: ReportRequest, settings: Re
       meetingsRegister(r, books, p);
       break;
   }
-  return { doc: r.finalize(), filename: `MSO_${meta.stem}_${tag}.pdf` };
+  return { doc: r.finalize(), filename: `MSO_${meta.stem}_${tag}.pdf`, subtitle };
 }
 
 /** Generates the report and triggers the download/save dialog. Returns the file name. */

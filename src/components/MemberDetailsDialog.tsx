@@ -12,6 +12,7 @@ import { useSettings } from "@/contexts/SettingsContext";
 import { dbQuery } from "@/lib/db";
 import { cn } from "@/lib/utils";
 import { parseLocalDate } from "@/hooks/useLoans";
+import { ATTENDANCE_LABEL, type AttendanceStatus } from "@/hooks/useAttendance";
 import ViewReportButton from "@/components/ViewReportButton";
 import { TablePager, usePaged } from "@/components/TablePager";
 import { supabase } from "@/integrations/supabase/client";
@@ -33,6 +34,7 @@ interface MemberDetailsDialogProps {
 
 /** Member Details: profile, account summary, savings account (with meeting attendance) and loans. */
 const NO_SAVINGS: MemberRecord["savings"] = [];
+const NO_LOANS: MemberRecord["loans"] = [];
 
 export default function MemberDetailsDialog({ memberId, open, onOpenChange, onChanged }: MemberDetailsDialogProps) {
   const { isAdmin } = useAuth();
@@ -43,6 +45,7 @@ export default function MemberDetailsDialog({ memberId, open, onOpenChange, onCh
   const [sharing, setSharing] = useState(false);
   // Savings history, newest first, paged like the app's other tables.
   const savingsPaged = usePaged(record?.savings ?? NO_SAVINGS, memberId ?? null);
+  const loansPaged = usePaged(record?.loans ?? NO_LOANS, memberId ?? null);
 
   const load = async (id: string) => {
     setLoadError(null);
@@ -113,7 +116,7 @@ export default function MemberDetailsDialog({ memberId, open, onOpenChange, onCh
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[780px] flex flex-col max-h-[90vh] p-0 gap-0 overflow-hidden rounded-sm border-t-2 border-t-primary/70">
+      <DialogContent className="sm:max-w-[900px] flex flex-col max-h-[90vh] p-0 gap-0 overflow-hidden rounded-sm border-t-2 border-t-primary/70">
         {!ready ? (
           <>
             <DialogTitle className="sr-only">Member Details</DialogTitle>
@@ -159,14 +162,14 @@ export default function MemberDetailsDialog({ memberId, open, onOpenChange, onCh
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <SummaryTile
                   label="Savings balance"
-                  unit={cur}
+                  // unit={cur}
                   value={amount(record.savingsBalance)}
-                  sub={record.profitTotal > 0 ? `Contributions ${amount(record.contributionsTotal)} + profit ${amount(record.profitTotal)}` : "Total contributions"}
-                  tone="good"
+                  // sub={record.profitTotal > 0 ? `Contributions ${amount(record.contributionsTotal)} + profit ${amount(record.profitTotal)}` : "Total contributions"}
+                  // tone="good"
                 />
                 <SummaryTile
                   label="Loan outstanding"
-                  unit={cur}
+                  // unit={cur}
                   value={amount(record.loanOutstanding)}
                   sub={loanStateNote(record)}
                   tone={record.loans.some((l) => l.state === "Overdue" || l.state === "Defaulted") ? "bad" : undefined}
@@ -174,11 +177,17 @@ export default function MemberDetailsDialog({ memberId, open, onOpenChange, onCh
                 <SummaryTile
                   label="Attendance"
                   value={record.recordedMeetings ? `${Math.round((record.attended / record.recordedMeetings) * 100)}%` : "-"}
-                  sub={record.recordedMeetings ? `${record.attended} of ${record.recordedMeetings} meetings` : "No attendance recorded"}
+                  sub={
+                    record.recordedMeetings
+                      ? `${record.attended} of ${record.recordedMeetings} meetings${record.onLeaveMeetings ? ` · ${record.onLeaveMeetings} on leave` : ""}`
+                      : record.onLeaveMeetings
+                        ? `${record.onLeaveMeetings} on leave`
+                        : "No attendance recorded"
+                  }
                 />
                 <SummaryTile
                   label="Last dividend"
-                  unit={record.lastDividend ? cur : undefined}
+                  // unit={record.lastDividend ? cur : undefined}
                   value={record.lastDividend ? amount(record.lastDividend.amount) : "-"}
                   sub={
                     !record.lastDividend
@@ -222,7 +231,7 @@ export default function MemberDetailsDialog({ memberId, open, onOpenChange, onCh
                     <Empty>No contributions recorded yet.</Empty>
                   ) : (
                     <div className="rounded-sm border border-border/60 overflow-hidden">
-                      <div className="grid grid-cols-12 px-4 py-2 bg-muted/50 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      <div className="grid grid-cols-12 px-3 py-2 bg-muted/50 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                         <span className="col-span-3">Date</span>
                         <span className="col-span-3">Particulars</span>
                         <span className="col-span-2">Attendance</span>
@@ -231,11 +240,11 @@ export default function MemberDetailsDialog({ memberId, open, onOpenChange, onCh
                       </div>
                       <div className="divide-y divide-border/60">
                         {savingsPaged.rows.map((s, i) => (
-                          <div key={i} className="grid grid-cols-12 items-center px-4 py-2.5 text-sm hover:bg-muted/30 transition-colors">
+                          <div key={i} className="grid grid-cols-12 items-center px-3 py-2 text-sm hover:bg-muted/30 transition-colors">
                             <span className="col-span-3 figure">{day(s.date)}</span>
                             <span className={cn("col-span-3", s.kind !== "contribution" && "text-primary font-medium")}>{s.kind === "profit" ? "Profit share" : s.kind === "opening" ? "Brought forward" : "Contribution"}</span>
                             <span className="col-span-2">
-                              {s.present === null ? <span className="text-xs text-muted-foreground">-</span> : <PresenceBadge present={s.present} />}
+                              {s.attendance === null ? <span className="text-xs text-muted-foreground">-</span> : <PresenceBadge status={s.attendance} />}
                             </span>
                             <span className="col-span-2 figure text-right font-semibold">{amount(s.amount)}</span>
                             <span className="col-span-2 figure text-right text-muted-foreground">{amount(s.balance)}</span>
@@ -251,7 +260,7 @@ export default function MemberDetailsDialog({ memberId, open, onOpenChange, onCh
                   {record.loans.length === 0 ? (
                     <Empty>No loans taken.</Empty>
                   ) : (
-                    record.loans.map((l) => {
+                    loansPaged.rows.map((l) => {
                       const owedInAll = l.totalPayable + l.bankCharge + l.penaltyTotal;
                       const progress = owedInAll > 0 ? Math.min(100, (l.repaid / owedInAll) * 100) : 0;
                       return (
@@ -341,6 +350,7 @@ export default function MemberDetailsDialog({ memberId, open, onOpenChange, onCh
                       );
                     })
                   )}
+                  <TablePager paged={loansPaged} noun="loans" className="rounded-sm border border-border/60" />
                 </TabsContent>
               </Tabs>
             </div>
@@ -393,8 +403,9 @@ function Figure({ label, value, tone }: { label: string; value: string; tone?: "
   );
 }
 
-function PresenceBadge({ present }: { present: boolean }) {
-  return <Badge variant={present ? "secondary" : "destructive"} className="text-[10px]">{present ? "Present" : "Absent"}</Badge>;
+function PresenceBadge({ status }: { status: AttendanceStatus }) {
+  const variant = status === "present" ? "secondary" : status === "leave" ? "outline" : "destructive";
+  return <Badge variant={variant} className="text-[10px] whitespace-nowrap">{ATTENDANCE_LABEL[status]}</Badge>;
 }
 
 function StateBadge({ state }: { state: LoanState }) {

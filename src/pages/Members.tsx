@@ -36,7 +36,7 @@ const formSchema = z.object({
   name: z.string().min(ORGANIZATION_CONFIG.MINIMUM_NAME_LENGTH, `Name must be at least ${ORGANIZATION_CONFIG.MINIMUM_NAME_LENGTH} characters`),
   fatherName: z.string().min(ORGANIZATION_CONFIG.MINIMUM_NAME_LENGTH, `Father name must be at least ${ORGANIZATION_CONFIG.MINIMUM_NAME_LENGTH} characters`),
   dob: z.date({ required_error: "Date of birth is required" }),
-  email: z.string().email("Invalid email address"),
+  email: z.string().email("Invalid email address").optional().or(z.literal("")),
   phone: z
     .string()
     .trim()
@@ -235,7 +235,7 @@ export default function Members() {
                         <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Contact Details</p>
                         <div className="grid grid-cols-2 gap-3">
                           <FormField control={form.control} name="email" render={({ field }) => (
-                            <FormItem><FormLabel className="text-xs font-medium">Email</FormLabel><FormControl><Input placeholder="email@example.com" {...field} className="h-9" /></FormControl><FormMessage className="text-xs" /></FormItem>
+                            <FormItem><FormLabel className="text-xs font-medium">Email <span className="text-muted-foreground font-normal">(optional)</span></FormLabel><FormControl><Input placeholder="email@example.com" {...field} className="h-9" /></FormControl><FormMessage className="text-xs" /></FormItem>
                           )} />
                           <FormField control={form.control} name="phone" render={({ field }) => (
                             <FormItem><FormLabel className="text-xs font-medium">Phone</FormLabel><FormControl><Input placeholder="0300 1234567" {...field} className="h-9" /></FormControl><FormMessage className="text-xs" /></FormItem>

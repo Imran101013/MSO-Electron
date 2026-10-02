@@ -463,7 +463,7 @@ export default function SettingsPage() {
                 {...register("membersPerPage", { setValueAs: asNumber })}
               />
             </SettingRow>
-            <SettingRow label="Rows per page elsewhere" help="Every other table longer than this is split into pages: loans, meetings, the reserve fund, profit distribution, contributions, a member's savings history and the Audit Log." htmlFor="itemsPerPage" error={errors.itemsPerPage?.message}>
+            <SettingRow label="Rows per page elsewhere" help="Every other table or list longer than this is split into pages: loans, meetings (with the attendance and contributions lists when adding or editing one), the reserve fund, profit distribution, contributions, a member's savings history and loans, the opening-balance import checks and the Audit Log." htmlFor="itemsPerPage" error={errors.itemsPerPage?.message}>
               <UnitInput
                 id="itemsPerPage"
                 suffix="rows"

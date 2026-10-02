@@ -226,7 +226,7 @@ export default function Loans() {
               <DialogTrigger asChild>
                 <Button className="gap-2 shadow-sm rounded-sm"><Plus className="w-4 h-4" /> Issue Loan</Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-[460px] flex flex-col max-h-[90vh] p-0 gap-0 overflow-hidden rounded-sm">
+              <DialogContent className="sm:max-w-[540px] flex flex-col max-h-[90vh] p-0 gap-0 overflow-hidden rounded-sm">
                 {/* Header */}
                 <div className="flex items-center gap-4 px-6 py-5 border-b bg-muted/30 flex-shrink-0">
                   <div className="w-10 h-10 rounded-sm border-2 border-primary/40 bg-primary/10 flex items-center justify-center flex-shrink-0">

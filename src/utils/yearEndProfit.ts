@@ -128,12 +128,12 @@ export function planYearEnd(
   const base = r2(bankProfit + loanInterest + loanPenalties);
 
   // Absences at the year's meetings, from the attendance marked at each meeting (for a year in the
-  // paper registers, the counts entered from them).
+  // paper registers, the counts entered from them). A member on leave is excused, not absent.
   const meetingDate = new Map(books.meetings.map((m) => [m.dbId, m.date]));
   const absencesOf = (memberId: string) => {
     if (registers) return Math.max(0, Math.floor(Number(registers.absences[memberId]) || 0));
     const mr = books.memberById.get(memberId);
-    return (mr?.source.attendance ?? []).filter((a) => a.meetingId && a.present === false && inYear(meetingDate.get(a.meetingId) ?? null)).length;
+    return (mr?.source.attendance ?? []).filter((a) => a.meetingId && a.present === false && !a.onLeave && inYear(meetingDate.get(a.meetingId) ?? null)).length;
   };
 
   // Savings on 31 December; members with nothing saved get no share (and so pay no charges).

@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import type { jsPDF } from "jspdf";
-import { AlertTriangle, Download, FileText, Loader2 } from "lucide-react";
+import { AlertTriangle, Download, FileText, Loader2, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -17,15 +17,22 @@ interface ReportViewerContextType {
 
 const ReportViewerContext = createContext<ReportViewerContextType | undefined>(undefined);
 
+type ShareFileResult = { opened?: "app" | "web"; copied?: boolean; file?: string; error?: string };
+type ShareBridge = {
+  shareFileWhatsApp?: (filename: string, data: ArrayBuffer, text: string, phone?: string | null) => Promise<ShareFileResult>;
+  showSharedFile?: (file: string) => Promise<{ error?: string }>;
+};
+
 type Viewing =
   | { request: ReportRequest; stage: "loading" }
-  | { request: ReportRequest; stage: "ready"; doc: jsPDF; filename: string; url: string }
+  | { request: ReportRequest; stage: "ready"; doc: jsPDF; filename: string; subtitle: string; phone: string | null; url: string }
   | { request: ReportRequest; stage: "error"; error: string };
 
 export function ReportViewerProvider({ children }: { children: ReactNode }) {
   const { members, meetings, reserveTransactions, profitDistributions, bankProfits, openingProfit, refreshData } = useOrganization();
   const { settings } = useSettings();
   const [viewing, setViewing] = useState<Viewing | null>(null);
+  const [sharing, setSharing] = useState(false);
   const [refreshed, setRefreshed] = useState<{ id: number; request: ReportRequest } | null>(null);
   // Identifies the latest request, so a report still building when the viewer is closed or
   // another report is opened is discarded.
@@ -69,9 +76,12 @@ export function ReportViewerProvider({ children }: { children: ReactNode }) {
     (async () => {
       try {
         const books = buildBooks({ members, meetings, reserveTransactions, profitDistributions, bankProfits, openingProfit });
-        const { doc, filename } = await buildReport(books, request, settings);
+        const { doc, filename, subtitle } = await buildReport(books, request, settings);
         if (requestId.current !== id) return;
-        setViewing({ request, stage: "ready", doc, filename, url: URL.createObjectURL(doc.output("blob")) });
+        // A member's or a loan's statement is shared straight to that member's chat.
+        const memberId = request.kind === "member-statement" ? request.memberId : request.kind === "loan-statement" && request.loanId ? books.loanById.get(request.loanId)?.memberId : undefined;
+        const phone = (memberId && books.memberById.get(memberId)?.phone) || null;
+        setViewing({ request, stage: "ready", doc, filename, subtitle, phone, url: URL.createObjectURL(doc.output("blob")) });
       } catch (err: unknown) {
         if (requestId.current !== id) return;
         setViewing({ request, stage: "error", error: err instanceof Error ? err.message : "Failed to generate report" });
@@ -98,6 +108,40 @@ export function ReportViewerProvider({ children }: { children: ReactNode }) {
 
   const title = viewing ? reportTitle(viewing.request.kind) : "";
 
+  const share = async () => {
+    if (viewing?.stage !== "ready") return;
+    const api = (window as unknown as { electronAPI?: ShareBridge }).electronAPI;
+    if (!api?.shareFileWhatsApp) {
+      toast.error("Unable to open WhatsApp", { description: "Sharing is available in the desktop app." });
+      return;
+    }
+    setSharing(true);
+    try {
+      const caption = `*MSO ${title}*
+${viewing.subtitle}`;
+      const res = await api.shareFileWhatsApp(viewing.filename, viewing.doc.output("arraybuffer"), caption, viewing.phone);
+      if (res.error) {
+        toast.error("Unable to share the report", { description: res.error });
+        return;
+      }
+      const showFile = () => { if (res.file) api.showSharedFile?.(res.file); };
+      if (res.copied) {
+        toast.success("Report copied: paste it in WhatsApp", {
+          description: `${viewing.phone ? "In the member's chat" : "Choose the chat, then"} press Ctrl+V to attach the PDF, or drag it in from Show file.`,
+          action: { label: "Show file", onClick: showFile },
+          duration: 15000,
+        });
+      } else {
+        showFile();
+        toast.success("WhatsApp opened", { description: "Drag the PDF from the folder that opened into the chat.", duration: 15000 });
+      }
+    } catch (err) {
+      toast.error("Unable to share the report", { description: err instanceof Error ? err.message : String(err) });
+    } finally {
+      setSharing(false);
+    }
+  };
+
   return (
     <ReportViewerContext.Provider value={{ openReport }}>
       {children}
@@ -113,6 +157,9 @@ export function ReportViewerProvider({ children }: { children: ReactNode }) {
                 {viewing?.stage === "ready" ? viewing.filename : viewing?.stage === "error" ? "Could not generate this report" : "Loading the latest records…"}
               </DialogDescription>
             </div>
+            <Button variant="outline" size="sm" className="gap-2 rounded-sm flex-shrink-0" onClick={share} disabled={viewing?.stage !== "ready" || sharing}>
+              {sharing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <MessageCircle className="w-3.5 h-3.5" />} Share on WhatsApp
+            </Button>
             <Button size="sm" className="gap-2 rounded-sm flex-shrink-0" onClick={download} disabled={viewing?.stage !== "ready"}>
               <Download className="w-3.5 h-3.5" /> Download PDF
             </Button>

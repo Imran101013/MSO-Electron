@@ -4,6 +4,7 @@ import { parseLocalDate, syncLoanPenalties } from "@/hooks/useLoans";
 import { loanDueDate } from "@/utils/loanPenalty";
 import { loanIncome, type LoanIncome } from "@/utils/loanInterest";
 import type { DbMember } from "@/hooks/useMembers";
+import { attendanceStatus, type AttendanceStatus } from "@/hooks/useAttendance";
 import type { Settings } from "@/contexts/SettingsContext";
 import { memberNumber, registerOrder } from "@/utils/accounting";
 
@@ -42,7 +43,7 @@ export interface SavingsEntry {
   kind: "contribution" | "profit" | "opening";
   amount: number;
   /** Attendance at the meeting the contribution was collected in (null when not recorded / not a meeting). */
-  present: boolean | null;
+  attendance: AttendanceStatus | null;
   /** Balance after this entry. */
   balance: number;
 }
@@ -64,7 +65,9 @@ export interface MemberRecord {
   openLoans: number;
   /** Meetings (since the member joined) with attendance recorded, and how many they attended. */
   attended: number;
+  /** Not counting the meetings they were on leave for (excused). */
   recordedMeetings: number;
+  onLeaveMeetings: number;
 }
 
 const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
@@ -75,8 +78,8 @@ export async function getMemberRecord(memberId: string): Promise<MemberRecord> {
   const [memberRows, allMembers, contributions, profits, loans, installments, schedule, meetings] = await Promise.all([
     dbQuery<DbMember>("SELECT * FROM public.members WHERE id = $1", [memberId]),
     dbQuery<{ id: string; name: string; join_date: string }>("SELECT id, name, join_date::text AS join_date FROM public.members"),
-    dbQuery<{ amount: number; contribution_date: string; present: boolean | null; created_at: string; is_opening: boolean }>(
-      `SELECT c.amount, c.contribution_date::text AS contribution_date, a.present, c.created_at::text AS created_at, c.is_opening
+    dbQuery<{ amount: number; contribution_date: string; present: boolean | null; on_leave: boolean | null; created_at: string; is_opening: boolean }>(
+      `SELECT c.amount, c.contribution_date::text AS contribution_date, a.present, a.on_leave, c.created_at::text AS created_at, c.is_opening
        FROM public.monthly_contributions c
        LEFT JOIN public.attendance a ON a.meeting_id = c.meeting_id AND a.member_id = c.member_id
        WHERE c.member_id = $1`,
@@ -104,8 +107,8 @@ export async function getMemberRecord(memberId: string): Promise<MemberRecord> {
        JOIN public.loans l ON l.id = s.loan_id WHERE l.member_id = $1 ORDER BY s.installment_number`,
       [memberId],
     ),
-    dbQuery<{ present: boolean | null }>(
-      `SELECT a.present FROM public.meetings mt
+    dbQuery<{ present: boolean | null; on_leave: boolean | null }>(
+      `SELECT a.present, a.on_leave FROM public.meetings mt
        JOIN public.members m ON m.id = $1
        LEFT JOIN public.attendance a ON a.meeting_id = mt.id AND a.member_id = m.id
        WHERE mt.meeting_date >= m.join_date OR a.id IS NOT NULL`,
@@ -124,13 +127,13 @@ export async function getMemberRecord(memberId: string): Promise<MemberRecord> {
 
   // Savings account: contributions and profit shares, oldest first for the running balance.
   const entries = [
-    ...contributions.map((c) => ({ date: c.contribution_date, kind: c.is_opening ? ("opening" as const) : ("contribution" as const), amount: Number(c.amount), present: c.present, order: c.is_opening ? "" : c.created_at })),
-    ...profits.map((p) => ({ date: p.distribution_date, kind: "profit" as const, amount: Number(p.amount), present: null, order: "~" })),
+    ...contributions.map((c) => ({ date: c.contribution_date, kind: c.is_opening ? ("opening" as const) : ("contribution" as const), amount: Number(c.amount), attendance: c.present === null ? null : attendanceStatus({ present: c.present, on_leave: c.on_leave }), order: c.is_opening ? "" : c.created_at })),
+    ...profits.map((p) => ({ date: p.distribution_date, kind: "profit" as const, amount: Number(p.amount), attendance: null, order: "~" })),
   ].sort((a, b) => a.date.localeCompare(b.date) || a.order.localeCompare(b.order));
   let running = 0;
   const savings: SavingsEntry[] = entries.map((e) => {
     running = r2(running + e.amount);
-    return { date: e.date, kind: e.kind, amount: e.amount, present: e.present, balance: running };
+    return { date: e.date, kind: e.kind, amount: e.amount, attendance: e.attendance, balance: running };
   });
   const contributionsTotal = r2(contributions.reduce((s, c) => s + Number(c.amount), 0));
   const profitTotal = r2(profits.reduce((s, p) => s + Number(p.amount), 0));
@@ -174,6 +177,7 @@ export async function getMemberRecord(memberId: string): Promise<MemberRecord> {
   });
 
   const recorded = meetings.filter((m) => m.present !== null);
+  const onLeave = recorded.filter((m) => !m.present && m.on_leave).length;
   const last = profits[profits.length - 1];
 
   return {
@@ -190,7 +194,8 @@ export async function getMemberRecord(memberId: string): Promise<MemberRecord> {
     loanOutstanding: r2(memberLoans.filter((l) => l.state !== "Paid").reduce((s, l) => s + l.remaining, 0)),
     openLoans: memberLoans.filter((l) => l.state !== "Paid").length,
     attended: recorded.filter((m) => m.present).length,
-    recordedMeetings: recorded.length,
+    recordedMeetings: recorded.length - onLeave,
+    onLeaveMeetings: onLeave,
   };
 }
 
@@ -242,7 +247,8 @@ export function formatMemberSummary(record: MemberRecord, settings: Pick<Setting
     out.push(`- Loan of ${date(l.date)}: ${cur} ${num(l.remaining)} remaining, ${detail}`);
   }
   if (record.recordedMeetings) {
-    out.push("", `*Attendance:* ${record.attended} of ${record.recordedMeetings} meetings (${Math.round((record.attended / record.recordedMeetings) * 100)}%)`);
+    const leave = record.onLeaveMeetings ? `, ${record.onLeaveMeetings} on leave` : "";
+    out.push("", `*Attendance:* ${record.attended} of ${record.recordedMeetings} meetings (${Math.round((record.attended / record.recordedMeetings) * 100)}%)${leave}`);
   }
   return out.join("\n");
 }
