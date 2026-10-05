@@ -84,7 +84,6 @@ export default function Reserve() {
             <PiggyBank className="w-5 h-5 text-primary" />
           </div>
           <div>
-            <p className="tracked-label text-[10px] font-semibold text-primary uppercase">Fund Ledger</p>
             <h2 className="text-2xl font-bold text-foreground mt-1">Reserve Fund</h2>
             <p className="text-sm text-muted-foreground mt-0.5">Track donations and fund allocation</p>
           </div>

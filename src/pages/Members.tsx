@@ -177,7 +177,6 @@ export default function Members() {
       {/* Header */}
       <div className="flex items-center justify-between border-b-2 border-accent/70 pb-4">
         <div>
-          <p className="tracked-label text-[10px] font-semibold text-primary uppercase">Membership Register</p>
           <h2 className="text-2xl font-bold text-foreground mt-1">Members</h2>
           <p className="text-sm text-muted-foreground mt-0.5">Manage organisation members</p>
         </div>

@@ -230,7 +230,6 @@ export default function Dashboard() {
       {/* Page Header — statement letterhead */}
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-1 border-b-2 border-accent/70 pb-3">
         <div>
-          <p className="tracked-label text-[10px] font-semibold text-primary uppercase">Daily Statement</p>
           <h2 className="text-2xl font-bold text-foreground mt-1">Dashboard</h2>
         </div>
         <p className="text-sm text-muted-foreground sm:text-right">

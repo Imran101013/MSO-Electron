@@ -208,7 +208,6 @@ export default function Meetings() {
             <CalendarDays className="w-5 h-5 text-primary" />
           </div>
           <div>
-            <p className="tracked-label text-[10px] font-semibold text-primary uppercase">Meeting Register</p>
             <h2 className="text-2xl font-bold text-foreground mt-1">Meeting Records</h2>
             <p className="text-sm text-muted-foreground mt-0.5">Schedule and document meetings</p>
           </div>

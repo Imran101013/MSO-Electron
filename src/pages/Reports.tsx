@@ -118,28 +118,27 @@ export default function ReportsPage() {
     openReport({ kind, period, ...extra });
   };
 
-  const card = (kind: ReportKind, scope: Scope, props: Omit<ReportCardProps, "scope" | "action">, extra?: Omit<ReportRequest, "kind" | "period">, selector?: React.ReactNode, disabled?: boolean) => (
-    <ReportCard
+  const card = (kind: ReportKind, scope: Scope, props: Omit<ReportRowProps, "scope" | "action">, extra?: Omit<ReportRequest, "kind" | "period">, selector?: React.ReactNode, disabled?: boolean) => (
+    <ReportRow
       {...props}
       scope={scopeText(scope)}
       action={
-        <div className="flex flex-col sm:flex-row gap-3">
+        <>
           {selector}
           <ViewButton disabled={disabled} onClick={() => view(kind, extra)} />
-        </div>
+        </>
       }
     />
   );
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center gap-4">
         <div className="w-11 h-11 rounded-sm border-2 border-primary/50 bg-primary/10 flex items-center justify-center">
           <FileText className="w-5 h-5 text-primary" />
         </div>
         <div>
-          <p className="tracked-label text-[10px] font-semibold text-primary uppercase">Reports & Documents</p>
           <h2 className="text-2xl font-bold text-foreground mt-1">Reports</h2>
           <p className="text-sm text-muted-foreground mt-0.5">
             Financial statements, ledgers and registers on the MSO letterhead. View a report, then download it from the viewer.
@@ -148,10 +147,10 @@ export default function ReportsPage() {
       </div>
 
       {/* Reporting period */}
-      <Card className="border border-border/60 shadow-sm rounded-sm ledger-rule">
-        <CardContent className="p-5 space-y-4">
-          <div className="flex items-start gap-3">
-            <div className="w-9 h-9 rounded-sm border-2 border-primary/40 bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
+      <Card className="border border-border/60 border-t-2 border-t-accent shadow-sm rounded-sm">
+        <CardContent className="flex flex-wrap items-center gap-x-6 gap-y-3 px-5 py-4">
+          <div className="flex min-w-[18rem] flex-1 items-start gap-3">
+            <div className="w-8 h-8 rounded-sm border-2 border-primary/40 bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
               <CalendarRange className="w-4 h-4" />
             </div>
             <div>
@@ -161,7 +160,7 @@ export default function ReportsPage() {
               </p>
             </div>
           </div>
-          <div className="pl-12 flex flex-col lg:flex-row lg:items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <Select value={preset} onValueChange={(v) => setPreset(v as PeriodPreset)}>
               <SelectTrigger className="w-full lg:w-56 h-9 text-sm rounded-sm">
                 <SelectValue />
@@ -178,7 +177,7 @@ export default function ReportsPage() {
                 <DatePicker date={customTo} onDateChange={setCustomTo} placeholder="To (today)" className="h-9 sm:w-52 rounded-sm" />
               </div>
             )}
-            <p className={cn("figure text-xs lg:ml-auto", periodInvalid ? "text-destructive" : "text-muted-foreground")}>
+            <p className={cn("figure text-xs", periodInvalid ? "text-destructive" : "text-muted-foreground")}>
               {refreshing ? "Loading latest records…" : periodInvalid ? "Start date is after end date" : periodText}
             </p>
           </div>
@@ -343,22 +342,21 @@ function Section({
   icon: React.ElementType;
   children: React.ReactNode;
 }) {
+  // One card per section, a row per report. The rows lay out by the card's width, not the window's.
   return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-2">
-        <div className="w-8 h-8 rounded-sm border-2 border-primary/40 bg-primary/10 text-primary flex items-center justify-center">
-          <Icon className="w-4 h-4" />
+    <Card className="border border-border/60 shadow-sm rounded-sm overflow-hidden [container-type:inline-size]">
+      <div className="flex items-center gap-2.5 border-b border-border px-5 py-3">
+        <div className="w-7 h-7 rounded-sm border-2 border-primary/40 bg-primary/10 text-primary flex items-center justify-center">
+          <Icon className="w-3.5 h-3.5" />
         </div>
         <h3 className="text-base font-semibold text-foreground">{title}</h3>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {children}
-      </div>
-    </div>
+      <div className="divide-y divide-border">{children}</div>
+    </Card>
   );
 }
 
-interface ReportCardProps {
+interface ReportRowProps {
   icon: React.ElementType;
   title: string;
   description: string;
@@ -366,23 +364,24 @@ interface ReportCardProps {
   action: React.ReactNode;
 }
 
-function ReportCard({ icon: Icon, title, description, scope, action }: ReportCardProps) {
+/**
+ * One report, read across like a line of an index: name with its period, what it contains, then
+ * the picker (for one member, loan or distribution) and View at the right edge. How it wraps on
+ * narrower cards is in index.css (.report-row).
+ */
+function ReportRow({ icon: Icon, title, description, scope, action }: ReportRowProps) {
   return (
-    <Card className="card-hover border border-border/60 shadow-sm rounded-sm">
-      <CardContent className="p-5 h-full flex flex-col">
-        <div className="flex items-start gap-3 mb-4">
-          <div className="w-9 h-9 rounded-sm border-2 border-primary/40 bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
-            <Icon className="w-4 h-4" />
-          </div>
-          <div>
-            <p className="font-semibold text-sm text-foreground">{title}</p>
-            <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{description}</p>
-            <p className="tracked-label text-[10px] text-primary uppercase mt-2">{scope}</p>
-          </div>
-        </div>
-        <div className="pl-12 mt-auto">{action}</div>
-      </CardContent>
-    </Card>
+    <div className="report-row px-5 py-3">
+      <div className="report-icon w-8 h-8 rounded-sm border-2 border-primary/40 bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
+        <Icon className="w-4 h-4" />
+      </div>
+      <div className="min-w-0">
+        <p className="font-semibold text-sm text-foreground">{title}</p>
+        <p className="tracked-label text-[10px] text-primary uppercase mt-0.5">{scope}</p>
+      </div>
+      <p className="report-desc text-xs text-muted-foreground leading-relaxed">{description}</p>
+      <div className="report-actions flex flex-wrap items-center gap-2">{action}</div>
+    </div>
   );
 }
 

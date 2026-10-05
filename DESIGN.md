@@ -205,6 +205,11 @@ The top app bar and every page's own header both carry the "letterhead" pattern:
 - **Content:** on the left, a live status line (`aria-live="polite"`): "Unsaved changes in Money rules and Display & lists", naming the dirty sections, or a teller-green check with "All settings saved". On the right, a ghost **Discard** and the primary **Save changes**, both disabled while clean.
 - **Rule:** settings are staged, never applied on change; "Reset to defaults" only fills the form, and Save or Discard still decides.
 
+### Report Index (Reports page)
+Reports are listed like the index of a register, not as a grid of equal cards: each section is one card (a header with its stamp icon and title over a hairline), and each report is a row in it.
+- **Row:** a 32px stamp icon; the report's name (14px semibold) with its scope under it ("PERIOD · INCEPTION – 05/10/2026", tracked mono 10px, navy); the description (12px muted); then the picker, when the report is for one member, loan or distribution, and the **View** button at the right edge. Rows are 12px top and bottom with hairline dividers.
+- **Widths:** the row follows its section card's width (`.report-row` in `index.css`, a container query), not the window's: from `54rem` the name, description and actions read across in columns, so descriptions and View buttons line up down the page; from `36rem` the description sits under the name with the actions on the right; narrower, everything stacks.
+
 ### Attention Strip
 - **Style:** a full-width `rounded-sm` strip in the Attention Stamp colours (sun border at 50%, sun wash at 10%), led by a 36px square stamp icon box (`border-2`, sun at 50%, navy icon; sun in dark mode), with a semibold one-line statement plus a muted explanation, and actions on the right (a ghost link to the relevant settings, then the primary action). Used for the Dashboard backup reminder; it renders only while the condition holds rather than sitting as a permanent banner.
 - **Badge form:** the same colours on an outline `<Badge>` ("Backup due", "No backup"); the resolved state switches to the teller-green `secondary` badge ("Backed up").

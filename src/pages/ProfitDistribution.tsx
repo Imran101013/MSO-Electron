@@ -227,7 +227,6 @@ export default function ProfitDistribution() {
       {/* Header — statement letterhead */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-b-2 border-accent/70 pb-4">
         <div>
-          <p className="tracked-label text-[10px] font-semibold text-primary uppercase">Year-End Settlement</p>
           <h2 className="text-2xl font-bold text-foreground mt-1">Profit Distribution</h2>
           <p className="text-sm text-muted-foreground mt-0.5">
             Each year's profit, from January to December, shared at the Annual General Meeting in July: {settings.reservePercent}% to the reserve fund, the rest to members

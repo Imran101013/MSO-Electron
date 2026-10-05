@@ -247,7 +247,6 @@ export default function SettingsPage() {
             <Settings className="w-5 h-5 text-primary" />
           </div>
           <div>
-            <p className="tracked-label text-[10px] font-semibold text-primary uppercase">Configuration</p>
             <h2 className="text-2xl font-bold text-foreground mt-1">Settings</h2>
             <p className="text-sm text-muted-foreground mt-0.5">Lending rules, display preferences and backups</p>
           </div>

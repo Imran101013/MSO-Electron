@@ -97,7 +97,6 @@ export default function Budget() {
       {/* Header */}
       <div className="flex items-center justify-between border-b-2 border-accent/70 pb-4">
         <div>
-          <p className="tracked-label text-[10px] font-semibold text-primary uppercase">Contribution Ledger</p>
           <h2 className="text-2xl font-bold text-foreground mt-1">Monthly Budget</h2>
           <p className="text-sm text-muted-foreground mt-0.5">The fund's running total and the latest meeting's collection</p>
         </div>

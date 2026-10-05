@@ -227,4 +227,55 @@
   .sidebar-nav-item {
     @apply text-sidebar-foreground/65 hover:text-sidebar-foreground hover:bg-sidebar-accent/70 transition-all duration-150 border-l-2 border-transparent;
   }
+  /* Reports: one report per row, laid out by its section card's width (a container query), so it
+     holds whatever the window size. Narrow: stacked. Medium: name and description on the left,
+     picker and View on the right. Wide: name, description and actions read across in columns. */
+  .report-row {
+    display: grid;
+    grid-template-columns: 2rem minmax(0, 1fr);
+    column-gap: 0.75rem;
+    row-gap: 0.5rem;
+    align-items: start;
+  }
+  .report-row > .report-desc,
+  .report-row > .report-actions {
+    grid-column: 2;
+  }
+  @container (min-width: 36rem) {
+    .report-row {
+      grid-template-columns: 2rem minmax(0, 1fr) auto;
+      row-gap: 0.25rem;
+    }
+    .report-row > .report-icon {
+      grid-row: 1 / span 2;
+    }
+    .report-row > .report-desc {
+      grid-column: 2;
+      grid-row: 2;
+    }
+    .report-row > .report-actions {
+      grid-column: 3;
+      grid-row: 1 / span 2;
+      align-self: center;
+      justify-content: flex-end;
+    }
+  }
+  @container (min-width: 54rem) {
+    .report-row {
+      grid-template-columns: 2rem 15rem minmax(0, 1fr) auto;
+      column-gap: 1.25rem;
+      align-items: center;
+    }
+    .report-row > .report-icon {
+      grid-row: auto;
+    }
+    .report-row > .report-desc {
+      grid-column: 3;
+      grid-row: 1;
+    }
+    .report-row > .report-actions {
+      grid-column: 4;
+      grid-row: 1;
+    }
+  }
 }
