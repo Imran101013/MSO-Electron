@@ -668,7 +668,7 @@ function interestPenaltyTable(r: Report, positions: LoanPosition[], cur: string,
   const collectedOn = (x: LoanPosition) => (x.loan.paidInFullOn && x.loan.paidInFullOn <= x.asAt ? r.d(x.loan.paidInFullOn) : "-");
   const collected = (x: LoanPosition) => r2(x.interestReceived + x.penaltyReceived);
   const toCollect = (x: LoanPosition) => r2(x.interestOutstanding + x.penaltyOutstanding);
-  const lead = (x: LoanPosition) => (o.borrower ? [x.loan.loanNo, `${x.loan.memberNo} ${x.loan.memberName}`] : [x.loan.loanNo]);
+  const lead = (x: LoanPosition) => (o.borrower ? [x.loan.loanNo, x.loan.memberName] : [x.loan.loanNo]);
   const blank = o.borrower ? ["", `${rows.length} loans`] : ["Total"];
   r.table({
     head: [...(o.borrower ? ["Loan no.", "Borrower"] : ["Loan no."]), "Rate", "Interest charged", "Penalties charged", "Collected on (paid in full)", "Collected", "Still to collect (in balance)"],
@@ -959,11 +959,11 @@ function financialStatements(r: Report, books: Books, p: ReportPeriod) {
     return { m, opening, contrib, profit, closing };
   });
   r.table({
-    head: ["No.", "Member", "Opening", "Contributions", "Profit share", "Closing", "Share"],
-    align: ["l", "l", "r", "r", "r", "r", "r"],
-    widths: [15, "auto", 26, 28, 26, 27, 15],
-    body: schedRows.map((x) => [x.m.memberNo, x.m.name, money(x.opening), money(x.contrib), money(x.profit), money(x.closing), pct(cb.savings > 0 ? x.closing / cb.savings : null, 1)]),
-    foot: [["", "Total members' savings", money(sumOf(schedRows, (x) => x.opening)), money(sumOf(schedRows, (x) => x.contrib)), money(sumOf(schedRows, (x) => x.profit)), money(sumOf(schedRows, (x) => x.closing)), cb.savings > 0 ? "100.0%" : "-"]],
+    head: ["Member", "Opening", "Contributions", "Profit share", "Closing", "Share"],
+    align: ["l", "r", "r", "r", "r", "r"],
+    widths: ["auto", 26, 28, 26, 27, 15],
+    body: schedRows.map((x) => [x.m.name, money(x.opening), money(x.contrib), money(x.profit), money(x.closing), pct(cb.savings > 0 ? x.closing / cb.savings : null, 1)]),
+    foot: [["Total members' savings", money(sumOf(schedRows, (x) => x.opening)), money(sumOf(schedRows, (x) => x.contrib)), money(sumOf(schedRows, (x) => x.profit)), money(sumOf(schedRows, (x) => x.closing)), cb.savings > 0 ? "100.0%" : "-"]],
     empty: "No members recorded.",
   });
 
@@ -1037,7 +1037,7 @@ function cashBook(r: Report, books: Books, p: ReportPeriod) {
   for (const e of es) {
     bal = r2(bal + e.cashIn - e.cashOut);
     const particulars = e.kind === "donation" || e.kind === "expense" ? (e.detail ? `${KIND_LABELS[e.kind]} - ${e.detail}` : KIND_LABELS[e.kind]) : e.particulars;
-    body.push([r.d(e.date), e.voucher, particulars, e.memberName ? `${e.memberNo ?? ""} ${e.memberName}`.trim() : "-", money(e.cashIn), money(e.cashOut), money(bal)]);
+    body.push([r.d(e.date), e.voucher, particulars, e.memberName || "-", money(e.cashIn), money(e.cashOut), money(bal)]);
   }
   const rec = sumOf(es, (e) => e.cashIn);
   const pay = sumOf(es, (e) => e.cashOut);
@@ -1093,7 +1093,6 @@ function memberStatement(r: Report, books: Books, p: ReportPeriod, memberId: str
   const totalSavings = books.balancesAt(p.to).savings;
 
   r.infoGrid([
-    ["Member no.", m.memberNo],
     ["Member name", m.name],
     ["Father's name", m.fatherName],
     ["Phone", m.phone],
@@ -1209,15 +1208,15 @@ function memberRegister(r: Report, books: Books, p: ReportPeriod) {
     { label: "Loans owed by members", value: amt(cur, sumOf(rows, (x) => x.owed)), sub: `${rows.filter((x) => x.owed > EPS).length} member(s) with loans` },
   ]);
   r.table({
-    head: ["Reg. no.", "Member name", "Father's name", "Phone", "Address", "Admitted", `Savings (${cur})`, `Loan owed (${cur})`],
-    align: ["l", "l", "l", "l", "l", "l", "r", "r"],
-    widths: [15, 36, 32, 25, "auto", 19, 25, 25],
+    head: ["Member name", "Father's name", "Phone", "Address", "Admitted", `Savings (${cur})`, `Loan owed (${cur})`],
+    align: ["l", "l", "l", "l", "l", "r", "r"],
+    widths: [36, 32, 25, "auto", 19, 25, 25],
     fontSize: 7.4,
-    body: rows.map((x) => [x.m.memberNo, x.m.name, x.m.fatherName || "-", x.m.phone || "-", x.m.address || "-", r.d(x.m.joinDate), money(x.savings), money(x.owed)]),
-    foot: [["", `${rows.length} members`, "", "", "", "", money(sumOf(rows, (x) => x.savings)), money(sumOf(rows, (x) => x.owed))]],
+    body: rows.map((x) => [x.m.name, x.m.fatherName || "-", x.m.phone || "-", x.m.address || "-", r.d(x.m.joinDate), money(x.savings), money(x.owed)]),
+    foot: [[`${rows.length} members`, "", "", "", "", money(sumOf(rows, (x) => x.savings)), money(sumOf(rows, (x) => x.owed))]],
     empty: "No members on the register at this date.",
   });
-  r.note("Register numbers are assigned in order of admission. Savings balances are per the members' ledger; loan balances include flat interest charged at disbursement and any late payment penalties. Personal data in this register must be handled in confidence.");
+  r.note("Members are listed in order of admission. Savings balances are per the members' ledger; loan balances include flat interest charged at disbursement and any late payment penalties. Personal data in this register must be handled in confidence.");
 }
 
 function loanPortfolio(r: Report, books: Books, p: ReportPeriod) {
@@ -1239,7 +1238,7 @@ function loanPortfolio(r: Report, books: Books, p: ReportPeriod) {
       const late = x.daysPastDue > 0;
       return [
         x.loan.loanNo,
-        `${x.loan.memberNo} ${x.loan.memberName}`,
+        x.loan.memberName,
         r.d(x.loan.date),
         { content: r.d(x.loan.maturityDate), styles: late ? { fontStyle: "bold", textColor: C.bad } : {} },
         money(x.loan.principal),
@@ -1290,7 +1289,7 @@ function activeLoans(r: Report, books: Books, p: ReportPeriod) {
       const late = x.daysPastDue > 0;
       return [
         x.loan.loanNo,
-        `${x.loan.memberNo} ${x.loan.memberName}`,
+        x.loan.memberName,
         r.d(x.loan.date),
         { content: r.d(x.loan.maturityDate), styles: late ? { fontStyle: "bold", textColor: C.bad } : {} },
         money(x.loan.principal),
@@ -1331,7 +1330,7 @@ function activeLoans(r: Report, books: Books, p: ReportPeriod) {
       fontSize: 7.2,
       body: defaulted.map((x) => [
         x.loan.loanNo,
-        `${x.loan.memberNo} ${x.loan.memberName}`,
+        x.loan.memberName,
         r.d(x.loan.date),
         r.d(x.loan.maturityDate),
         x.loan.defaultedOn ? r.d(x.loan.defaultedOn) : "-",
@@ -1388,7 +1387,7 @@ function paidLoans(r: Report, books: Books, p: ReportPeriod) {
       const late = on > x.loan.maturityDate ? differenceInCalendarDays(parseDay(on), parseDay(x.loan.maturityDate)) : 0;
       body.push([
         x.loan.loanNo,
-        `${x.loan.memberNo} ${x.loan.memberName}`,
+        x.loan.memberName,
         r.d(x.loan.date),
         r.d(x.loan.maturityDate),
         r.d(on),
@@ -1420,7 +1419,7 @@ function loanStatement(r: Report, books: Books, p: ReportPeriod, loanId: string)
   const pos = books.loanPositionAt(loan, asAt)!;
   r.infoGrid([
     ["Loan no.", loan.loanNo],
-    ["Borrower", `${loan.memberNo} ${loan.memberName}`],
+    ["Borrower", loan.memberName],
     ["Disbursement date", `${r.d(loan.date)} (${loan.disbursementVoucher})`],
     ["Principal", amt(cur, loan.principal)],
     ["Interest (flat, charged at issue)", `${loan.interestRate}% = ${amt(cur, loan.interest)}`],
@@ -1537,9 +1536,6 @@ function splitColumns<T>(items: T[]): T[][] {
 
 const gridDay = (key: string) => format(parseDay(key), "d MMM");
 
-/** Registers list members by member number. */
-const byMemberNo = (a: { memberNo: string }, b: { memberNo: string }) => a.memberNo.localeCompare(b.memberNo, undefined, { numeric: true });
-
 /** Whole rupees without decimals, so a year's meetings fit across the page. */
 const whole = (n: number) => (Math.abs(n) < EPS ? "-" : Math.abs(n - Math.round(n)) < EPS ? Math.round(n).toLocaleString("en-US") : money(n));
 
@@ -1575,7 +1571,8 @@ function contributionRegister(r: Report, books: Books, p: ReportPeriod) {
       ...held.map((m) => ({ id: m.dbId, label: gridDay(m.date), date: m.date })),
       ...(other ? [{ id: "other", label: "Other", date: y.from }] : []),
     ];
-    const members = books.members.filter((m) => m.joinDate <= y.to || received.some((e) => e.memberId === m.dbId)).sort(byMemberNo);
+    // books.members is in the order members are listed in (date of admission, then name).
+    const members = books.members.filter((m) => m.joinDate <= y.to || received.some((e) => e.memberId === m.dbId));
     const cell = (memberId: string, col: string) => cells.get(`${memberId}|${col}`) ?? 0;
     const memberTotal = (memberId: string) => sumOf(received.filter((e) => e.memberId === memberId), (e) => e.amount);
     const columnTotal = (col: string) => sumOf(members, (m) => cell(m.dbId, col));
@@ -1586,15 +1583,14 @@ function contributionRegister(r: Report, books: Books, p: ReportPeriod) {
     parts.forEach((part, i) => {
       const last = i === parts.length - 1;
       if (parts.length > 1) r.subheading(`Part ${i + 1} of ${parts.length}`);
-      const colW = Math.min(22, (r.cw - 14 - 46 - 26) / Math.max(1, part.length));
+      const colW = Math.min(22, (r.cw - 46 - 26) / Math.max(1, part.length));
       r.table({
-        head: ["No.", "Member", ...part.map((c) => c.label), ...(last ? [`Total (${cur})`] : [])],
-        align: ["l", "l", ...part.map((): Align => "r"), ...(last ? (["r"] as Align[]) : [])],
-        widths: [14, "auto", ...part.map(() => colW), ...(last ? [26] : [])],
+        head: ["Member", ...part.map((c) => c.label), ...(last ? [`Total (${cur})`] : [])],
+        align: ["l", ...part.map((): Align => "r"), ...(last ? (["r"] as Align[]) : [])],
+        widths: ["auto", ...part.map(() => colW), ...(last ? [26] : [])],
         fontSize: 7,
         compact: true,
         body: members.map((m) => [
-          m.memberNo,
           m.name,
           ...part.map((c) => {
             const v = cell(m.dbId, c.id);
@@ -1603,7 +1599,7 @@ function contributionRegister(r: Report, books: Books, p: ReportPeriod) {
           }),
           ...(last ? [{ content: whole(memberTotal(m.dbId)), styles: { fontStyle: "bold" as const } }] : []),
         ]),
-        foot: [["", "Total", ...part.map((c) => whole(columnTotal(c.id))), ...(last ? [whole(sumOf(received, (e) => e.amount))] : [])]],
+        foot: [["Total", ...part.map((c) => whole(columnTotal(c.id))), ...(last ? [whole(sumOf(received, (e) => e.amount))] : [])]],
         empty: "No members recorded.",
       });
     });
@@ -1618,17 +1614,16 @@ function contributionRegister(r: Report, books: Books, p: ReportPeriod) {
     r.heading("Summary by member for the period");
     const rows = books.members
       .filter((m) => m.joinDate <= p.to)
-      .sort(byMemberNo)
       .map((m) => {
         const mine = es.filter((e) => e.memberId === m.dbId);
         return { m, count: mine.length, amount: sumOf(mine, (e) => e.amount) };
       });
     r.table({
-      head: ["Member no.", "Member", "Receipts", `Amount (${cur})`, "% of total"],
-      align: ["l", "l", "r", "r", "r"],
-      widths: [24, "auto", 24, 36, 26],
-      body: rows.map((x) => [x.m.memberNo, x.m.name, x.count ? String(x.count) : "-", money(x.amount), pct(total > 0 ? x.amount / total : null, 1)]),
-      foot: [["", "Total", String(es.length), money(total), total > 0 ? "100.0%" : "-"]],
+      head: ["Member", "Receipts", `Amount (${cur})`, "% of total"],
+      align: ["l", "r", "r", "r"],
+      widths: ["auto", 24, 36, 26],
+      body: rows.map((x) => [x.m.name, x.count ? String(x.count) : "-", money(x.amount), pct(total > 0 ? x.amount / total : null, 1)]),
+      foot: [["Total", String(es.length), money(total), total > 0 ? "100.0%" : "-"]],
       empty: "No members recorded.",
     });
   }
@@ -1701,9 +1696,9 @@ function profitDistribution(r: Report, books: Books, distributionId?: string) {
       const mr = books.memberById.get(a.memberId);
       const contributed = basis ? basis.byMember.get(a.memberId) ?? 0 : null;
       const share = basis ? (contributed ?? 0) / basis.total : credited > 0 ? a.amount / credited : 0;
-      return { no: mr?.memberNo ?? "-", name: mr?.name ?? a.memberName, contributed, share, amount: r2(Number(a.amount) || 0) };
+      return { memberId: a.memberId, name: mr?.name ?? a.memberName, contributed, share, amount: r2(Number(a.amount) || 0) };
     })
-    .sort((x, y) => x.no.localeCompare(y.no));
+    .sort((x, y) => books.memberOrder(x.memberId, y.memberId));
 
   r.infoGrid([
     ["Source of profit", "Annual bank profit"],
@@ -1725,16 +1720,16 @@ function profitDistribution(r: Report, books: Books, distributionId?: string) {
   r.heading("Share of each member");
   r.table({
     head: basis
-      ? ["No.", "Member", `Total contributions (${cur})`, "Share", `Profit share (${cur})`]
-      : ["No.", "Member", "Share", `Profit share (${cur})`],
-    align: basis ? ["l", "l", "r", "r", "r"] : ["l", "l", "r", "r"],
-    widths: basis ? [18, "auto", 44, 24, 40] : [18, "auto", 26, 40],
+      ? ["Member", `Total contributions (${cur})`, "Share", `Profit share (${cur})`]
+      : ["Member", "Share", `Profit share (${cur})`],
+    align: basis ? ["l", "r", "r", "r"] : ["l", "r", "r"],
+    widths: basis ? ["auto", 44, 24, 40] : ["auto", 26, 40],
     fontSize: 8.4,
-    body: rows.map((x) => (basis ? [x.no, x.name, money(x.contributed ?? 0), pct(x.share), money(x.amount)] : [x.no, x.name, pct(x.share), money(x.amount)])),
+    body: rows.map((x) => (basis ? [x.name, money(x.contributed ?? 0), pct(x.share), money(x.amount)] : [x.name, pct(x.share), money(x.amount)])),
     foot: [
       basis
-        ? ["", `Total (${rows.length} members)`, money(basis.total), "100.00%", money(credited)]
-        : ["", `Total (${rows.length} members)`, "100.00%", money(credited)],
+        ? [`Total (${rows.length} members)`, money(basis.total), "100.00%", money(credited)]
+        : [`Total (${rows.length} members)`, "100.00%", money(credited)],
     ],
     empty: "No member shares were recorded for this distribution.",
   });
@@ -1773,7 +1768,7 @@ function yearEndStatement(r: Report, books: Books, d: Books["distributions"][num
       const taken = r2(Number(a.absencePenalty) || 0);
       const absences = Number(a.absences) || 0;
       return {
-        no: mr?.memberNo ?? "-",
+        memberId: a.memberId,
         name: mr?.name ?? a.memberName,
         savings: r2(Number(a.savingsBasis) || 0),
         ratio: Number(a.ratio) || 0,
@@ -1784,7 +1779,7 @@ function yearEndStatement(r: Report, books: Books, d: Books["distributions"][num
         dividend: r2(Number(a.amount) || 0),
       };
     })
-    .sort((x, y) => x.no.localeCompare(y.no, undefined, { numeric: true }));
+    .sort((x, y) => books.memberOrder(x.memberId, y.memberId));
   const dividends = sumOf(rows, (x) => x.dividend);
   const totalSavings = sumOf(rows, (x) => x.savings);
   const waived = sumOf(rows, (x) => x.waived);
@@ -1822,12 +1817,12 @@ function yearEndStatement(r: Report, books: Books, d: Books["distributions"][num
     { size: 8.6 },
   );
   r.table({
-    head: ["No.", "Member", `Savings 31/12/${year} (${cur})`, "Share", `Share (${cur})`, "Absences", `Absence charge (${cur})`, `Dividend (${cur})`],
-    align: ["l", "l", "r", "r", "r", "r", "r", "r"],
-    widths: [14, "auto", 29, 15, 25, 16, 22, 26],
+    head: ["Member", `Savings 31/12/${year} (${cur})`, "Share", `Share (${cur})`, "Absences", `Absence charge (${cur})`, `Dividend (${cur})`],
+    align: ["l", "r", "r", "r", "r", "r", "r"],
+    widths: ["auto", 29, 15, 25, 16, 22, 26],
     fontSize: 7.8,
-    body: rows.map((x) => [x.no, x.name, money(x.savings), pct(x.ratio), money(x.gross), x.absences ? String(x.absences) : "-", money(x.taken ? -x.taken : 0), money(x.dividend)]),
-    foot: [["", `Total (${rows.length} members)`, money(totalSavings), "100.00%", money(pool), String(rows.reduce((s, x) => s + x.absences, 0)), money(absence ? -absence : 0), money(dividends)]],
+    body: rows.map((x) => [x.name, money(x.savings), pct(x.ratio), money(x.gross), x.absences ? String(x.absences) : "-", money(x.taken ? -x.taken : 0), money(x.dividend)]),
+    foot: [[`Total (${rows.length} members)`, money(totalSavings), "100.00%", money(pool), String(rows.reduce((s, x) => s + x.absences, 0)), money(absence ? -absence : 0), money(dividends)]],
     empty: "No member shares were recorded for this distribution.",
   });
   if (waived > EPS) {
@@ -1891,18 +1886,18 @@ function meetingsRegister(r: Report, books: Books, p: ReportPeriod) {
       r.note("Attendance was not recorded at this year's meetings.");
       continue;
     }
-    const members = books.members.filter((m) => m.joinDate <= y.to).sort(byMemberNo);
+    const members = books.members.filter((m) => m.joinDate <= y.to);
     const count = (memberId: string, mark: Mark) => marked.filter((mt) => marks.get(memberId)?.get(mt.dbId) === mark).length;
     const parts = splitColumns(marked);
     parts.forEach((part, i) => {
       const last = i === parts.length - 1;
       if (parts.length > 1) r.subheading(`Part ${i + 1} of ${parts.length}`);
-      const colW = Math.min(16, (r.cw - 14 - 46 - (last ? 45 : 0)) / Math.max(1, part.length));
+      const colW = Math.min(16, (r.cw - 46 - (last ? 45 : 0)) / Math.max(1, part.length));
       const yearRate = yearTot((m) => m.present + m.absent) ? yearTot((m) => m.present) / yearTot((m) => m.present + m.absent) : null;
       r.table({
-        head: ["No.", "Member", ...part.map((mt) => gridDay(mt.date)), ...(last ? ["P", "A", "L", "Attendance"] : [])],
-        align: ["l", "l", ...part.map((): Align => "c"), ...(last ? (["r", "r", "r", "r"] as Align[]) : [])],
-        widths: [14, "auto", ...part.map(() => colW), ...(last ? [9, 9, 9, 18] : [])],
+        head: ["Member", ...part.map((mt) => gridDay(mt.date)), ...(last ? ["P", "A", "L", "Attendance"] : [])],
+        align: ["l", ...part.map((): Align => "c"), ...(last ? (["r", "r", "r", "r"] as Align[]) : [])],
+        widths: ["auto", ...part.map(() => colW), ...(last ? [9, 9, 9, 18] : [])],
         fontSize: 7,
         compact: true,
         body: members.map((mr) => {
@@ -1910,7 +1905,6 @@ function meetingsRegister(r: Report, books: Books, p: ReportPeriod) {
           const absent = count(mr.dbId, "A");
           const rate = present + absent ? present / (present + absent) : null;
           return [
-            mr.memberNo,
             mr.name,
             // Blank: not yet a member at that meeting; "–": a member not marked at it.
             ...part.map((mt) => (mt.date < mr.joinDate ? "" : markCell(marks.get(mr.dbId)?.get(mt.dbId)))),
@@ -1920,7 +1914,6 @@ function meetingsRegister(r: Report, books: Books, p: ReportPeriod) {
           ];
         }),
         foot: [[
-          "",
           "Present",
           ...part.map((mt) => String(mt.present)),
           ...(last ? [String(yearTot((m) => m.present)), String(yearTot((m) => m.absent)), String(yearTot((m) => m.leave)), pct(yearRate, 0)] : []),
@@ -1939,15 +1932,14 @@ function meetingsRegister(r: Report, books: Books, p: ReportPeriod) {
     r.newPage();
     r.heading("Attendance by member for the period");
     r.table({
-      head: ["Member no.", "Member", "Eligible", "Present", "Absent", "On leave", "Attendance"],
-      align: ["l", "l", "r", "r", "r", "r", "r"],
-      widths: [24, "auto", 28, 22, 22, 22, 26],
+      head: ["Member", "Eligible", "Present", "Absent", "On leave", "Attendance"],
+      align: ["l", "r", "r", "r", "r", "r"],
+      widths: ["auto", 28, 22, 22, 22, 26],
       body: books
         .attendanceSummary(p)
         .filter((s) => s.eligible > 0)
-        .sort((a, b) => byMemberNo(a.member, b.member))
+        .sort((a, b) => books.memberOrder(a.member.dbId, b.member.dbId))
         .map((s) => [
-          s.member.memberNo,
           s.member.name,
           String(s.eligible),
           String(s.present),
@@ -2006,13 +1998,13 @@ export async function buildReport(books: Books, req: ReportRequest, settings: Re
   if (req.kind === "member-statement") {
     const m = req.memberId ? books.memberById.get(req.memberId) : undefined;
     if (!m) throw new Error("Please select a member");
-    subtitle = `${m.memberNo} ${m.name}  |  ${subtitle}`;
-    tag = `${m.memberNo}_${slug(m.name)}_${tag}`;
+    subtitle = `${m.name}  |  ${subtitle}`;
+    tag = `${slug(m.name)}_${tag}`;
   }
   if (req.kind === "loan-statement") {
     const l = req.loanId ? books.loanById.get(req.loanId) : undefined;
     if (!l) throw new Error("Please select a loan");
-    subtitle = `${l.loanNo}  |  ${l.memberNo} ${l.memberName}  |  As at ${d(p.to < l.date ? l.date : p.to)}`;
+    subtitle = `${l.loanNo}  |  ${l.memberName}  |  As at ${d(p.to < l.date ? l.date : p.to)}`;
     tag = `${l.loanNo}_${slug(l.memberName)}_as_at_${p.to}`;
   }
   if (req.kind === "profit-distribution") {

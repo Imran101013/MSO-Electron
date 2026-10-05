@@ -12,7 +12,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   shareFileWhatsApp: (filename, data, text, phone) => ipcRenderer.invoke('share-file-whatsapp', { filename, data, text, phone }),
   shareFilesWhatsApp: (files, text, phone) => ipcRenderer.invoke('share-files-whatsapp', { files, text, phone }),
   showSharedFile: (file) => ipcRenderer.invoke('show-shared-file', { file }),
-  openingTemplate: (cutoverDate, currency) => ipcRenderer.invoke('opening-template', { cutoverDate, currency }),
+  openingTemplate: (cutoverDate, currency, absenceFine) => ipcRenderer.invoke('opening-template', { cutoverDate, currency, absenceFine }),
   openingRead: () => ipcRenderer.invoke('opening-read'),
   openingImport: (payload) => ipcRenderer.invoke('opening-import', payload),
   openingRemove: (actor) => ipcRenderer.invoke('opening-remove', { actor }),

@@ -135,7 +135,7 @@ Every text pair above meets WCAG AA (4.5:1) in both themes; checked numerically 
 
 Content pages follow a consistent letterhead pattern: a navy mono eyebrow label, then an h2 title, then a `border-b-2 border-accent/70` sunrise rule closing off the header block before the page body starts. Stat/summary cards sit in a responsive grid above supporting cards and tables. The app shell is a fixed left sidebar (counter grille, always dark) plus a sticky top header (statement letterhead bar with a `border-b-2 border-primary/50`) and a scrollable main content area. Density is comfortable, not enterprise-dense — the product's real data volumes are small (tens of members, a handful of active loans), so generous card padding and spacing are appropriate.
 
-**Settings pages group by consequence.** A settings surface is split into sections by what a change touches (members' money, how the screen reads, the data itself), not into a grid of equal cards per topic. Each section is a full-width card with a bold title and one line of plain consequence copy (capped at `68ch`). The section whose changes move money is the one emphasized card and carries the sunrise top-rule; the others sit plain. Inside a section, settings are a single column of rows with hairline dividers, split into two row-columns at `xl` when the section is long.
+**Settings pages group by consequence.** A settings surface is split into sections by what a change touches (members' money, how the screen reads, the data itself), not into a grid of equal cards per topic. Each section is a full-width card with a bold title and plain consequence copy (capped at `90ch`, so it stays to one or two lines); section cards sit 16px apart, and the letterhead closes 12px above the first. The section whose changes move money is the one emphasized card and carries the sunrise top-rule; the others sit plain. Inside a section, settings are a single column of rows with hairline dividers, split into two row-columns when the section is long and its card is at least `54rem` wide (Money rules and Display & lists both do). The split follows the card's own width (a container query on the card), not the window's, so it holds in the default 1280px window, whose page area is narrower than the window. The page is kept short: no explanatory side panels beside the rows.
 
 **The No-Reflow Hint Rule.** Where editing a field reveals a secondary line ("In force now: 10%", or a validation error), that line lives in a fixed one-line slot (16px tall, no wrap) that is reserved whether or not it has content, so typing never shifts the rows below.
 
@@ -187,8 +187,8 @@ Corners use a single restrained radius scale (`0.625rem`/`0.469rem`/`0.3125rem`,
 The top app bar and every page's own header both carry the "letterhead" pattern: a small navy tracked-mono eyebrow line, the heading below it, and a sunrise rule closing the block. This recurs identically across all 13+ pages and is the single most repeated signature move in the system — it is what makes every page feel like a page from the same printed ledger.
 
 ### Settings Rows
-- **Structure:** label (14px, medium) with a short help line (12px, muted, relaxed leading) on the left; the control right-aligned on the right, top-aligned with the label. Rows are separated by hairline `border-border` dividers with 16px vertical padding; on narrow windows the control drops below the label.
-- **Compact variant:** used in a column that shares its card with a side panel. Where that column is narrow (`lg`), the row stacks to one column with the control and its hint on one line; it returns to label-left/control-right at `xl`. The compact row always reserves the No-Reflow hint slot.
+- **Structure:** label (14px, medium) with a short help line (12px, muted, relaxed leading) on the left; the control right-aligned on the right, top-aligned with the label. Rows are separated by hairline `border-border` dividers with 12px vertical padding and 8px between label and control when they stack; on narrow windows the control drops below the label.
+- **Held-hint variant:** the Money rules rows always reserve the No-Reflow hint slot under the control, where an edited value shows the one in force ("In force now: 10%") or its error.
 - **Help copy** may carry a live preview of the setting as a figure ("Today reads 28/09/2026"), rendered through `.figure`.
 
 ### Unit Input
@@ -204,12 +204,6 @@ The top app bar and every page's own header both carry the "letterhead" pattern:
 - **Style:** a full-bleed bar pinned to the bottom of a settings form, statement-card background, with a `border-t-2` that is a neutral hairline when everything is saved and turns sunrise (`accent`) the moment there are unsaved changes (200ms colour transition).
 - **Content:** on the left, a live status line (`aria-live="polite"`): "Unsaved changes in Money rules and Display & lists", naming the dirty sections, or a teller-green check with "All settings saved". On the right, a ghost **Discard** and the primary **Save changes**, both disabled while clean.
 - **Rule:** settings are staged, never applied on change; "Reset to defaults" only fills the form, and Save or Discard still decides.
-
-### Teller Slip (worked example)
-A small printed-slip readout showing what the current values will do to a sample transaction. It sits as the emphasized card's own right-hand column (below the rows on narrow windows), separated by a hairline rule rather than being a separate card.
-- **Lines:** 12px; label in muted text, a dotted leader (`border-dotted`, `border-border`) filling the gap, the figure right-aligned in `.figure`.
-- **Totals:** an ink rule (`foreground` at 60%, 1px) above a subtotal; a double rule (3px `border-double`) closes the slip under the final total. Totals are bold ink; a line takes teller-green or brick-red only when its figure carries that meaning (members' share, a penalty charged).
-- **Ledger correction:** when an edit changes a figure, the figure in force is shown struck through (muted, brick-red strike at 70%) beside the new one, wrapping above it in a narrow column, with screen-reader "was" / "now" text. A caption says so ("Struck-through figures are the ones in force now"). A figure that cannot be computed from an invalid field reads "—", never a guessed number.
 
 ### Attention Strip
 - **Style:** a full-width `rounded-sm` strip in the Attention Stamp colours (sun border at 50%, sun wash at 10%), led by a 36px square stamp icon box (`border-2`, sun at 50%, navy icon; sun in dark mode), with a semibold one-line statement plus a muted explanation, and actions on the right (a ghost link to the relevant settings, then the primary action). Used for the Dashboard backup reminder; it renders only while the condition holds rather than sitting as a permanent banner.
@@ -227,7 +221,7 @@ A small printed-slip readout showing what the current values will do to a sample
 - **Do** map status meaning strictly: teller-green = positive, brick-red = negative, navy/default = neutral, outline = informational.
 - **Do** keep the sidebar and Login-page left panel the seal's deep navy in both light and dark themes.
 - **Do** use `rounded-sm` as the default corner radius for cards, buttons, inputs, badges, and avatars.
-- **Do** show what a money setting will do before it is saved: a teller slip with the in-force figure struck through beside the new one.
+- **Do** show the value in force under an edited money setting ("In force now: 10%") until it is saved. (The Settings worked example was removed on request, 2026-10-05, to shorten the page.)
 - **Do** stage settings behind a sticky save bar that names the unsaved sections; nothing applies until Save.
 - **Do** reserve the hint slot under editable money fields so revealing a hint or error never moves the rows below.
 

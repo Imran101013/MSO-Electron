@@ -19,9 +19,9 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { useSettings } from "@/contexts/SettingsContext";
-import { format, parseISO, isFuture, isToday, differenceInCalendarDays } from "date-fns";
+import { format, differenceInCalendarDays } from "date-fns";
 import { formatTime } from "@/lib/utils";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   BarChart,
   Bar,
@@ -39,6 +39,7 @@ import { useContributions } from "@/hooks/useContributions";
 import { useReserveTransactions } from "@/hooks/useReserveTransactions";
 import { useTotalBudget } from "@/hooks/useTotalBudget";
 import { loanDueDate } from "@/utils/loanPenalty";
+import { getMeetingRecord, type MeetingRecord } from "@/utils/meetingShare";
 import { Link } from "react-router-dom";
 
 const LOAN_ROWS = 5;
@@ -69,14 +70,20 @@ export default function Dashboard() {
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
 
+  // The last meeting held. One recorded today counts as held: its attendance and savings are in.
+  const lastMeeting = useMemo(() => {
+    return meetings
+      .filter(m => localDate(m.meeting_date) <= todayStart)
+      .reduce<(typeof meetings)[number] | null>((a, b) => (!a || b.meeting_date > a.meeting_date ? b : a), null);
+    // todayStart only changes with the calendar day, which a remount picks up.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [meetings]);
+
   // Get future meetings from both tables
   const allUpcomingMeetings = useMemo(() => {
     // Future meetings from meetings table (with agenda)
     const futureMeetings = meetings
-      .filter(m => {
-        const meetingDate = parseISO(m.meeting_date);
-        return isFuture(meetingDate) || isToday(meetingDate);
-      })
+      .filter(m => localDate(m.meeting_date) > todayStart)
       .map(m => ({
         id: m.id,
         date: m.meeting_date,
@@ -85,31 +92,39 @@ export default function Dashboard() {
         type: 'meeting' as const,
       }));
 
-    // Scheduled upcoming meetings (with venue/time)
-    const scheduled = upcomingMeetings.map(m => ({
-      id: m.id,
-      date: m.meeting_date,
-      venue: m.venue,
-      time: m.meeting_time,
-      type: 'upcoming' as const,
-    }));
+    // Scheduled upcoming meetings (with venue/time), except one already held today.
+    const scheduled = upcomingMeetings
+      .filter(m => m.meeting_date.slice(0, 10) !== lastMeeting?.meeting_date.slice(0, 10))
+      .map(m => ({
+        id: m.id,
+        date: m.meeting_date,
+        venue: m.venue,
+        time: m.meeting_time,
+        type: 'upcoming' as const,
+      }));
 
     // Combine and sort by date
     return [...futureMeetings, ...scheduled].sort(
       (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
     );
-  }, [meetings, upcomingMeetings]);
-
-  // Meetings already held, newest first. They fill the card under the upcoming list, so it
-  // shows up to MEETING_ROWS meetings in all (at least one recent one when there is history).
-  const recentMeetings = useMemo(() => {
-    return meetings
-      .filter(m => localDate(m.meeting_date) < todayStart)
-      .sort((a, b) => b.meeting_date.localeCompare(a.meeting_date));
-    // todayStart only changes with the calendar day, which a remount picks up.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [meetings]);
-  const recentToShow = recentMeetings.slice(0, Math.max(1, MEETING_ROWS - allUpcomingMeetings.length));
+  }, [meetings, upcomingMeetings, lastMeeting]);
+
+  // What happened at the last meeting: the same record the Meetings page shows and shares on
+  // WhatsApp, so the figures always agree. record is null when it couldn't be loaded.
+  const [lastRecord, setLastRecord] = useState<{ id: string; record: MeetingRecord | null } | null>(null);
+  useEffect(() => {
+    if (!lastMeeting) return;
+    let cancelled = false;
+    getMeetingRecord(lastMeeting)
+      .then((record) => { if (!cancelled) setLastRecord({ id: lastMeeting.id, record }); })
+      .catch(() => { if (!cancelled) setLastRecord({ id: lastMeeting.id, record: null }); });
+    return () => { cancelled = true; };
+  }, [lastMeeting]);
+  const lastLoaded = lastMeeting !== null && lastRecord?.id === lastMeeting.id;
+  const last = lastLoaded ? lastRecord.record : null;
+  // Members (of those who had joined by the meeting) with savings recorded at it.
+  const savedCount = last ? last.savings.filter(s => Number(s.amount) > 0).length : 0;
 
   // Calculate total members
   const totalMembers = useMemo(() => {
@@ -406,28 +421,69 @@ export default function Dashboard() {
               </div>
             )}
           </CardContent>
-          {!meetingsLoading && recentToShow.length > 0 && (
-            <div className="border-t border-border">
-              <p className="px-5 pt-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Recently held</p>
-              <ul className="divide-y divide-border">
-                {recentToShow.map((m) => {
-                  const d = localDate(m.meeting_date);
-                  return (
-                    <li key={m.id} className="flex items-center gap-3 px-5 py-2">
-                      <div className="w-10 h-10 rounded-sm border-2 border-border bg-muted/50 flex flex-col items-center justify-center flex-shrink-0">
-                        <span className="figure text-sm font-semibold leading-none text-muted-foreground">{format(d, "dd")}</span>
-                        <span className="tracked-label mt-0.5 text-[9px] font-semibold uppercase leading-none text-muted-foreground">{format(d, "MMM")}</span>
+          {!meetingsLoading && lastMeeting && (() => {
+            const d = localDate(lastMeeting.meeting_date);
+            return (
+              <div className="border-t border-border">
+                <div className="flex items-baseline justify-between gap-3 px-5 pt-2.5 pb-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Last meeting</p>
+                  <p className="figure text-xs text-foreground whitespace-nowrap">{format(d, "EEE")} {format(d, settings.dateFormat)}</p>
+                </div>
+
+                {!lastLoaded ? (
+                  <p className="border-t border-border px-5 py-3 text-xs text-muted-foreground">Loading the meeting record…</p>
+                ) : !last ? (
+                  <p className="border-t border-border px-5 py-3 text-xs text-muted-foreground">
+                    Couldn't load this meeting's record. It's on the{" "}
+                    <Link to="/meetings" className="text-primary underline underline-offset-4 hover:text-primary/80">Meetings page</Link>.
+                  </p>
+                ) : (
+                  <>
+                    {last.attendance.length > 0 ? (
+                      <dl className="grid grid-cols-3 divide-x divide-border border-y border-border text-center">
+                        <div className="py-2">
+                          <dt className="text-[11px] text-muted-foreground">Present</dt>
+                          <dd className="figure text-base font-semibold text-foreground">{last.presentCount}</dd>
+                        </div>
+                        <div className="py-2">
+                          <dt className="text-[11px] text-muted-foreground">On leave</dt>
+                          <dd className="figure text-base font-semibold text-foreground">{last.onLeave.length}</dd>
+                        </div>
+                        <div className="py-2">
+                          <dt className="text-[11px] text-muted-foreground">Absent</dt>
+                          <dd className={`figure text-base font-semibold ${last.absent.length > 0 ? "text-destructive" : "text-foreground"}`}>{last.absent.length}</dd>
+                        </div>
+                      </dl>
+                    ) : (
+                      <p className="border-t border-border px-5 py-2.5 text-xs text-muted-foreground">No attendance recorded.</p>
+                    )}
+
+                    <dl className="space-y-1 px-5 py-2.5 text-xs">
+                      <div className="flex items-baseline justify-between gap-3">
+                        <dt className="text-muted-foreground">
+                          {last.savings.length > 0 ? (
+                            <>Savings from <span className="figure whitespace-nowrap">{savedCount} of {last.savings.length}</span></>
+                          ) : (
+                            "Savings collected"
+                          )}
+                        </dt>
+                        <dd className="figure font-semibold text-foreground whitespace-nowrap">{cur(last.totals.savings)}</dd>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-foreground truncate" title={m.agenda || undefined}>{m.agenda || "No agenda recorded"}</p>
-                        <p className="figure text-xs text-muted-foreground mt-0.5">{format(d, "EEE")} {format(d, settings.dateFormat)}</p>
+                      {/* Loan repayments since the previous meeting, as on the Meetings page. */}
+                      <div className="flex items-baseline justify-between gap-3">
+                        <dt className="text-muted-foreground">Loans collected</dt>
+                        <dd className="figure font-semibold text-foreground whitespace-nowrap">{cur(last.totals.collected)}</dd>
                       </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          )}
+                    </dl>
+                    <div className="flex items-baseline justify-between gap-3 border-t border-border px-5 py-2.5 text-xs">
+                      <span className="font-semibold text-foreground">Total <span className="whitespace-nowrap">(savings + loans)</span></span>
+                      <span className="figure text-sm font-bold text-primary whitespace-nowrap">{cur(last.totals.totalCollected)}</span>
+                    </div>
+                  </>
+                )}
+              </div>
+            );
+          })()}
         </Card>
       </div>
 

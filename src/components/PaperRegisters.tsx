@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { format } from "date-fns";
 import { toast } from "sonner";
-import { AlertTriangle, CheckCircle2, FileDown, FileUp, Loader2, Trash2, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, EyeOff, FileDown, FileUp, Loader2, Trash2, XCircle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -31,6 +31,7 @@ import {
   removeOpeningBalances,
   saveOpeningTemplate,
   setCutoverDate,
+  setRegistersHidden,
   useBooksConfig,
   type RawOpeningFile,
 } from "@/lib/books";
@@ -93,7 +94,7 @@ export function PaperRegistersCard() {
     if (!cutover) return;
     setBusy("template");
     try {
-      const res = await saveOpeningTemplate(cutover, cur);
+      const res = await saveOpeningTemplate(cutover, cur, settings.absencePenaltyPerMeeting);
       if (res.error) toast.error("Template not saved", { description: res.error });
       else if (res.success) toast.success("Template saved", { description: res.path });
     } finally {
@@ -117,6 +118,18 @@ export function PaperRegistersCard() {
     }
   };
 
+  const hideSection = async () => {
+    try {
+      await setRegistersHidden(true);
+      toast.success("Moving from paper registers is finished", {
+        description: "The section and Clear all records are hidden. Show them again from Data safety, below.",
+        action: { label: "Undo", onClick: () => { setRegistersHidden(false).catch(() => toast.error("The section could not be shown again")); } },
+      });
+    } catch {
+      toast.error("The section could not be hidden");
+    }
+  };
+
   const removeOpening = async () => {
     setRemoveOpen(false);
     setBusy("remove");
@@ -133,11 +146,14 @@ export function PaperRegistersCard() {
     }
   };
 
+  // Hidden once the move is finished; shown again from Data safety (ClearRecordsStrip).
+  if (config.registersHidden) return null;
+
   return (
     <Card className="rounded-sm shadow-sm">
-      <div className="px-5 pt-5 pb-1">
+      <div className="px-5 pt-4">
         <h3 className="text-base font-bold text-foreground">Moving from paper registers</h3>
-        <p className="text-sm text-muted-foreground mt-1 max-w-[68ch]">
+        <p className="text-sm text-muted-foreground mt-0.5 max-w-[90ch]">
           The cut-over date is the last day kept in the paper registers. The balances on that day are brought in once from an Excel
           file; from the next day, every entry is made in the app.
         </p>
@@ -210,7 +226,7 @@ export function PaperRegistersCard() {
         </Row>
 
         {opening && (
-          <div className="flex items-start gap-3 py-4">
+          <div className="flex items-start gap-3 py-3">
             <Badge variant="secondary" className="mt-0.5 shrink-0">Imported</Badge>
             <p className="text-sm text-foreground">
               <span className="figure">{format(new Date(opening.importedAt), settings.dateFormat)}</span>
@@ -229,13 +245,31 @@ export function PaperRegistersCard() {
             </p>
           </div>
         )}
+
+        {opening && (
+          <Row
+            label="Finished moving"
+            help={
+              <>
+                Once the opening balances agree with the registers, hide this section and Clear all records so neither is used by mistake.
+                The cut-over date and the imported balances stay as they are, and entries dated on or before{" "}
+                <span className="figure text-foreground">{cutover ? fmt(cutover) : "the cut-over date"}</span> are still refused. Both can be
+                shown again from Data safety, below.
+              </>
+            }
+          >
+            <Button type="button" variant="outline" onClick={hideSection} disabled={busy !== null} className="gap-2 rounded-sm">
+              <EyeOff className="w-4 h-4" /> Hide this section
+            </Button>
+          </Row>
+        )}
       </div>
 
       {opening && (
-        <div className="flex flex-col gap-3 border-t border-border bg-destructive/[0.04] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 border-t border-border bg-destructive/[0.04] px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm font-medium text-foreground">Remove opening balances</p>
-            <p className="text-xs text-muted-foreground mt-0.5 max-w-[68ch]">
+            <p className="text-xs text-muted-foreground mt-0.5 max-w-[90ch]">
               Takes out everything the import brought in, so the cut-over date can be changed. Not possible once repayments have been
               recorded on an opening loan; import a corrected file instead.
             </p>
@@ -278,10 +312,10 @@ export function PaperRegistersCard() {
 
 function Row({ label, help, children }: { label: string; help: ReactNode; children: ReactNode }) {
   return (
-    <div className="grid gap-3 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start sm:gap-6">
+    <div className="grid gap-x-6 gap-y-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
       <div className="min-w-0">
         <Label className="text-sm font-medium text-foreground">{label}</Label>
-        <p className="text-xs text-muted-foreground mt-1 leading-relaxed max-w-[68ch]">{help}</p>
+        <p className="text-xs text-muted-foreground mt-1 leading-relaxed max-w-[90ch]">{help}</p>
       </div>
       <div className="flex flex-col gap-1 sm:items-end">{children}</div>
     </div>
@@ -306,8 +340,8 @@ function ImportPreview({ check, replacing, onClose }: { check: OpeningCheck | nu
         fileName: check.fileName,
         termMonths: ORGANIZATION_CONFIG.LOAN_PERIOD_MONTHS,
         penaltyPerMonth: settings.latePenaltyPerMonth,
-        members: check.members.map(({ regNo, name, fatherName, phone, address, joinDate, savings, absences }) => ({ regNo, name, fatherName, phone, address, joinDate, savings, absences })),
-        loans: check.loans.map(({ regNo, loanDate, amount, interest, repaid, penalties, defaulted }) => ({ regNo, loanDate, amount, interest, repaid, penalties, defaulted })),
+        members: check.members.map(({ name, fatherName, phone, address, joinDate, savings, absences }) => ({ name, fatherName, phone, address, joinDate, savings, absences })),
+        loans: check.loans.map(({ memberName, fatherName, loanDate, amount, interest, repaid, penalties, defaulted }) => ({ memberName, fatherName, loanDate, amount, interest, repaid, penalties, defaulted })),
         reserve: check.reserve,
         profit: check.profit,
       });
@@ -324,6 +358,14 @@ function ImportPreview({ check, replacing, onClose }: { check: OpeningCheck | nu
   };
 
   const t = check?.totals;
+  // Shown for checking only: the import saves the absences, and the AGM works the charges out from
+  // them. Members with no savings get no share at the AGM, so pay no charges.
+  const fine = Math.max(0, Number(settings.absencePenaltyPerMeeting) || 0);
+  const chargedAbsences = check ? check.members.filter((m) => m.savings > 0.005).reduce((s, m) => s + m.absences, 0) : 0;
+  const absenceCharges = Math.round(chargedAbsences * fine * 100) / 100;
+  const profitTotal = check?.profit
+    ? Math.round((check.profit.bankProfit + check.profit.interest + check.profit.penalties + absenceCharges) * 100) / 100
+    : 0;
   return (
     <Dialog open={!!check} onOpenChange={(o) => { if (!o && !importing) onClose(); }}>
       <DialogContent className="max-w-2xl rounded-sm max-h-[90vh] overflow-y-auto">
@@ -337,7 +379,7 @@ function ImportPreview({ check, replacing, onClose }: { check: OpeningCheck | nu
               </DialogDescription>
             </DialogHeader>
 
-            <dl className="rounded-sm border border-border px-4 py-3 space-y-2 text-sm">
+            <dl className="min-w-0 rounded-sm border border-border px-4 py-3 space-y-2 text-sm">
               <Total label="Members" value={t.members.toLocaleString()} />
               <Total label="Total savings" value={money(t.savings)} />
               <Total label="Open loans" value={t.loans.toLocaleString()} />
@@ -350,6 +392,13 @@ function ImportPreview({ check, replacing, onClose }: { check: OpeningCheck | nu
                   <Total label="Loan interest collected" value={money(check.profit.interest)} />
                   <Total label="Late penalties collected" value={money(check.profit.penalties)} />
                   <Total label="Absences" note="meetings members were marked absent at" value={t.absences.toLocaleString()} />
+                  <Total label="Absence charges" note={`${chargedAbsences.toLocaleString()} × ${cur} ${fine.toLocaleString()}`} value={money(absenceCharges)} />
+                  <Total label={`Total profit for ${check.profit.year}`} value={money(profitTotal)} strong />
+                  <p className="text-xs text-muted-foreground">
+                    Absence charges are taken from members' dividends at the AGM, never more than a member's share
+                    {chargedAbsences < t.absences ? ", and members with no savings pay none" : ""}. They are not money in the bank, so the bank
+                    balance below leaves them out.
+                  </p>
                 </div>
               )}
               <div className="border-t border-border pt-2">
@@ -434,6 +483,9 @@ function IssueList({ tone, title, items }: { tone: "bad" | "warn"; title: string
 
 /** Data safety footer strip: deletes every record (for clearing test data before the real start). */
 export function ClearRecordsStrip() {
+  const { settings } = useSettings();
+  const { config } = useBooksConfig();
+  const [showing, setShowing] = useState(false);
   const [open, setOpen] = useState(false);
   const [counts, setCounts] = useState<Awaited<ReturnType<typeof recordCounts>> | null>(null);
   const [typed, setTyped] = useState("");
@@ -478,11 +530,43 @@ export function ClearRecordsStrip() {
       ].join(", ")
     : null;
 
+  // Once the move from the paper registers is finished, clearing (meant for test data) is hidden
+  // with the paper-registers section; both come back from here.
+  if (config.registersHidden) {
+    const showAgain = async () => {
+      setShowing(true);
+      try {
+        await setRegistersHidden(false);
+      } catch {
+        toast.error("The section could not be shown again");
+      } finally {
+        setShowing(false);
+      }
+    };
+    return (
+      <div className="flex flex-col gap-3 border-t border-border px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-xs text-muted-foreground max-w-[90ch]">
+          Moved from the paper registers
+          {config.cutoverDate ? (
+            <>
+              {" "}on <span className="figure text-foreground">{format(dayOf(config.cutoverDate), settings.dateFormat)}</span>
+            </>
+          ) : null}
+          . The paper-registers section and Clear all records are hidden.
+        </p>
+        <Button type="button" variant="ghost" size="sm" onClick={showAgain} disabled={showing} className="gap-2 rounded-sm shrink-0 text-muted-foreground">
+          {showing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+          Show again
+        </Button>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col gap-3 border-t border-border bg-destructive/[0.04] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex flex-col gap-3 border-t border-border bg-destructive/[0.04] px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
       <div>
         <p className="text-sm font-medium text-foreground">Clear all records</p>
-        <p className="text-xs text-muted-foreground mt-0.5 max-w-[68ch]">
+        <p className="text-xs text-muted-foreground mt-0.5 max-w-[90ch]">
           Deletes every member, meeting, contribution, loan and reserve entry, for removing test data before the real start. The login
           details, the settings and the cut-over date stay.
         </p>

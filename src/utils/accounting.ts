@@ -106,7 +106,6 @@ export const openingDate = (p: ReportPeriod) => (p.from ? dayBefore(p.from) : nu
 // ───────────────────────── Members ─────────────────────────
 
 export interface MemberRecord {
-  memberNo: string;
   dbId: string;
   name: string;
   fatherName: string;
@@ -143,7 +142,6 @@ export interface LoanRecord {
   loanNo: string;
   dbId: string;
   memberId: string;
-  memberNo: string;
   memberName: string;
   date: string;
   principal: number;
@@ -286,7 +284,6 @@ export interface LedgerEntry {
   detail?: string;
   sourceId: string;
   memberId?: string;
-  memberNo?: string;
   memberName?: string;
   loanNo?: string;
   loanId?: string;
@@ -382,6 +379,8 @@ export interface AttendanceSummaryRow {
 export interface Books {
   members: MemberRecord[];
   memberById: Map<string, MemberRecord>;
+  /** Sorts by the order members are listed in (date of admission, then name); unknown ids first. */
+  memberOrder(aId: string | null | undefined, bId: string | null | undefined): number;
   loans: LoanRecord[];
   loanById: Map<string, LoanRecord>;
   entries: LedgerEntry[];
@@ -409,20 +408,16 @@ const pad = (n: number, width: number) => String(n).padStart(width, "0");
 
 type RegisterKey = { join: string; name: string; id: string };
 
-/** Register order behind member numbers (M-001…): date of admission, then name, then id. */
+/** The order members are listed in: date of admission, then name, then id. */
 export const registerOrder = (a: RegisterKey, b: RegisterKey) =>
   a.join.localeCompare(b.join) || a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
 
-export const memberNumber = (index: number) => `M-${pad(index + 1, 3)}`;
-
 export function buildBooks(input: AccountingInput): Books {
-  // ── Members, numbered by date of admission so register numbers stay stable as members are added.
+  // ── Members, in order of admission.
   const members: MemberRecord[] = [...input.members]
     .map((m) => ({ m, join: dayKey(m.joinDate) }))
     .sort((a, b) => registerOrder({ join: a.join, name: a.m.name, id: a.m.dbId }, { join: b.join, name: b.m.name, id: b.m.dbId }))
-    .map(({ m, join }, i) => ({
-      // Members brought in from the paper registers keep their register number.
-      memberNo: m.registerNo || memberNumber(i),
+    .map(({ m, join }) => ({
       dbId: m.dbId,
       name: m.name,
       fatherName: m.fatherName || "",
@@ -434,6 +429,9 @@ export function buildBooks(input: AccountingInput): Books {
       source: m,
     }));
   const memberById = new Map(members.map((m) => [m.dbId, m]));
+  const memberRank = new Map(members.map((m, i) => [m.dbId, i]));
+  const memberOrder = (aId: string | null | undefined, bId: string | null | undefined) =>
+    (aId ? memberRank.get(aId) ?? -1 : -1) - (bId ? memberRank.get(bId) ?? -1 : -1);
 
   // ── Loans
   const rawLoans = members.flatMap((mr) => mr.source.loans.map((loan) => ({ mr, loan })));
@@ -478,7 +476,6 @@ export function buildBooks(input: AccountingInput): Books {
       loanNo: `LN-${pad(i + 1, 4)}`,
       dbId: loan.dbId,
       memberId: mr.dbId,
-      memberNo: mr.memberNo,
       memberName: mr.name,
       date,
       principal,
@@ -516,7 +513,6 @@ export function buildBooks(input: AccountingInput): Books {
         particulars: c.isOpening ? "Savings brought forward from the paper registers" : "Monthly contribution",
         sourceId: c.id || `${mr.dbId}-${dayKey(c.month)}-${amount}`,
         memberId: mr.dbId,
-        memberNo: mr.memberNo,
         memberName: mr.name,
         meetingId: c.meetingId ?? null,
         createdAt: c.createdAt,
@@ -535,7 +531,6 @@ export function buildBooks(input: AccountingInput): Books {
       particulars: `Loan ${loan.loanNo} disbursed`,
       sourceId: loan.dbId,
       memberId: loan.memberId,
-      memberNo: loan.memberNo,
       memberName: loan.memberName,
       loanNo: loan.loanNo,
       loanId: loan.dbId,
@@ -553,7 +548,6 @@ export function buildBooks(input: AccountingInput): Books {
         particulars: `Bank charge on the withdrawal for loan ${loan.loanNo} - owed by the member`,
         sourceId: `${loan.dbId}-bank-charge`,
         memberId: loan.memberId,
-        memberNo: loan.memberNo,
         memberName: loan.memberName,
         loanNo: loan.loanNo,
         loanId: loan.dbId,
@@ -573,7 +567,6 @@ export function buildBooks(input: AccountingInput): Books {
           : `Late payment penalty - month ${pen.month} past due - ${loan.loanNo}`,
         sourceId: `${loan.dbId}-p${pen.month}`,
         memberId: loan.memberId,
-        memberNo: loan.memberNo,
         memberName: loan.memberName,
         loanNo: loan.loanNo,
         loanId: loan.dbId,
@@ -591,7 +584,6 @@ export function buildBooks(input: AccountingInput): Books {
         particulars: rc.itemised ? `Repayment - ${loan.loanNo}` : `Repayment b/f (not itemised) - ${loan.loanNo}`,
         sourceId: rc.sourceId,
         memberId: loan.memberId,
-        memberNo: loan.memberNo,
         memberName: loan.memberName,
         loanNo: loan.loanNo,
         loanId: loan.dbId,
@@ -653,7 +645,6 @@ export function buildBooks(input: AccountingInput): Books {
         particulars: d.profitYear ? `Dividend for ${d.profitYear} - ${d.voucher}` : `Share of bank profit - ${d.voucher}`,
         sourceId: `${d.id}-${a.memberId}`,
         memberId: a.memberId,
-        memberNo: mr?.memberNo,
         memberName: mr?.name ?? a.memberName,
         amount: r2(Number(a.amount) || 0),
       });
@@ -699,7 +690,7 @@ export function buildBooks(input: AccountingInput): Books {
     (a, b) =>
       a.date.localeCompare(b.date) ||
       KIND_ORDER[a.kind] - KIND_ORDER[b.kind] ||
-      (a.memberNo || "").localeCompare(b.memberNo || "") ||
+      memberOrder(a.memberId, b.memberId) ||
       (a.loanNo || "").localeCompare(b.loanNo || "") ||
       a.sourceId.localeCompare(b.sourceId),
   );
@@ -954,6 +945,7 @@ export function buildBooks(input: AccountingInput): Books {
   return {
     members,
     memberById,
+    memberOrder,
     loans,
     loanById,
     entries,

@@ -6,7 +6,6 @@ import { loanIncome, type LoanIncome } from "@/utils/loanInterest";
 import type { DbMember } from "@/hooks/useMembers";
 import { attendanceStatus, type AttendanceStatus } from "@/hooks/useAttendance";
 import type { Settings } from "@/contexts/SettingsContext";
-import { memberNumber, registerOrder } from "@/utils/accounting";
 
 export type LoanState = "Active" | "Overdue" | "Paid" | "Defaulted";
 
@@ -52,7 +51,6 @@ export interface SavingsEntry {
 /** Everything shown in the Member Details dialog, loaded fresh from the database. */
 export interface MemberRecord {
   member: DbMember;
-  memberNo: string;
   savingsBalance: number;
   contributionsTotal: number;
   profitTotal: number;
@@ -76,9 +74,8 @@ const todayKey = () => format(new Date(), "yyyy-MM-dd");
 
 export async function getMemberRecord(memberId: string): Promise<MemberRecord> {
   await syncLoanPenalties();
-  const [memberRows, allMembers, contributions, profits, loans, installments, meetings] = await Promise.all([
+  const [memberRows, contributions, profits, loans, installments, meetings] = await Promise.all([
     dbQuery<DbMember>("SELECT * FROM public.members WHERE id = $1", [memberId]),
-    dbQuery<{ id: string; name: string; join_date: string }>("SELECT id, name, join_date::text AS join_date FROM public.members"),
     dbQuery<{ amount: number; contribution_date: string; present: boolean | null; on_leave: boolean | null; created_at: string; is_opening: boolean }>(
       `SELECT c.amount, c.contribution_date::text AS contribution_date, a.present, a.on_leave, c.created_at::text AS created_at, c.is_opening
        FROM public.monthly_contributions c
@@ -114,12 +111,6 @@ export async function getMemberRecord(memberId: string): Promise<MemberRecord> {
 
   const member = memberRows[0];
   if (!member) throw new Error("Member not found");
-
-  const ordered = [...allMembers].sort((a, b) =>
-    registerOrder({ join: a.join_date, name: a.name, id: a.id }, { join: b.join_date, name: b.name, id: b.id }),
-  );
-  // Members brought in from the paper registers keep their register number.
-  const memberNo = member.register_no || memberNumber(Math.max(0, ordered.findIndex((m) => m.id === memberId)));
 
   // Savings account: contributions and profit shares, oldest first for the running balance.
   const entries = [
@@ -175,7 +166,6 @@ export async function getMemberRecord(memberId: string): Promise<MemberRecord> {
 
   return {
     member,
-    memberNo,
     savingsBalance: r2(Number(member.total_budget) || 0),
     contributionsTotal,
     profitTotal,
@@ -219,7 +209,7 @@ export function formatMemberSummary(record: MemberRecord, settings: Pick<Setting
     `*${orgName} (MSO)*`,
     "*Member account summary*",
     "",
-    `Name: ${member.name} (${record.memberNo})`,
+    `Name: ${member.name}`,
     ...(member.father_name ? [`Father's name: ${member.father_name}`] : []),
     `Member since: ${date(member.join_date)}`,
     "",

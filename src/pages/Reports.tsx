@@ -218,9 +218,13 @@ export default function ReportsPage() {
               <SelectValue placeholder="Select a member…" />
             </SelectTrigger>
             <SelectContent>
-              {books.members.map((m) => (
-                <SelectItem key={m.dbId} value={m.dbId}>{m.memberNo} · {m.name}</SelectItem>
-              ))}
+              {books.members.map((m) => {
+                // Two members with the same name are told apart by father's name.
+                const twin = !!m.fatherName && books.members.some((o) => o.dbId !== m.dbId && o.name === m.name);
+                return (
+                  <SelectItem key={m.dbId} value={m.dbId}>{twin ? `${m.name} (father's name ${m.fatherName})` : m.name}</SelectItem>
+                );
+              })}
             </SelectContent>
           </Select>,
           !selectedMemberId,

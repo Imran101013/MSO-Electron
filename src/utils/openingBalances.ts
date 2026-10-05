@@ -9,7 +9,6 @@ import type { RawCell, RawOpeningFile } from "@/lib/books";
 
 export interface OpeningMember {
   row: number;
-  regNo: string;
   name: string;
   fatherName: string;
   phone: string | null;
@@ -22,8 +21,9 @@ export interface OpeningMember {
 
 export interface OpeningLoan {
   row: number;
-  regNo: string;
+  /** The member's name and father's name, as on the Members sheet. */
   memberName: string;
+  fatherName: string;
   loanDate: string;
   amount: number;
   interest: number;
@@ -105,6 +105,14 @@ const day = (v: RawCell): string | null => {
 
 const yes = (v: RawCell) => /^(y|yes|true|1)$/i.test(String(v ?? "").trim());
 
+const norm = (s: string | null) => String(s ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+/**
+ * How a member is told apart in the file: name and father's name together, ignoring capitals and
+ * extra spaces. The import (electron/openingBalances.cjs) matches members by the same rule.
+ */
+export const personKey = (name: string | null, fatherName: string | null) => `${norm(name)}|${norm(fatherName)}`;
+const who = (name: string, fatherName: string) => (fatherName ? `${name} (father's name ${fatherName})` : name);
+
 export function checkOpeningFile(file: RawOpeningFile, cutoverDate: string, dateFormat: string, currency: string): OpeningCheck {
   const problems: OpeningIssue[] = [];
   const warnings: OpeningIssue[] = [];
@@ -126,16 +134,17 @@ export function checkOpeningFile(file: RawOpeningFile, cutoverDate: string, date
 
   // Members
   const members: OpeningMember[] = [];
-  const byReg = new Map<string, OpeningMember>();
+  const byKey = new Map<string, OpeningMember>();
   for (const r of file.members ?? []) {
-    const regNo = text(r.regNo);
     const name = text(r.name);
     const at = { sheet: "Members" as const, row: r.row };
-    if (!regNo) { problems.push({ ...at, message: "Reg. no. is missing." }); continue; }
-    if (!name) { problems.push({ ...at, message: `Name is missing for reg. no. ${regNo}.` }); continue; }
-    const key = regNo.toLowerCase();
-    if (byReg.has(key)) { problems.push({ ...at, message: `Reg. no. ${regNo} is used twice (also row ${byReg.get(key)!.row}).` }); continue; }
+    if (!name) { problems.push({ ...at, message: "Name is missing." }); continue; }
     const fatherName = text(r.fatherName) ?? "";
+    const key = personKey(name, fatherName);
+    if (byKey.has(key)) {
+      problems.push({ ...at, message: `${who(name, fatherName)} is on the sheet twice (also row ${byKey.get(key)!.row}). No two members can have the same name and father's name.` });
+      continue;
+    }
     if (!fatherName) warnings.push({ ...at, message: `No father's name for ${name}.` });
     let joinDate = day(r.joinDate);
     if (r.joinDate !== null && r.joinDate !== undefined && r.joinDate !== "" && !joinDate) {
@@ -157,9 +166,9 @@ export function checkOpeningFile(file: RawOpeningFile, cutoverDate: string, date
       problems.push({ ...at, message: `Absences "${r.absences}" for ${name} isn't a whole number of 0 or more.` });
       continue;
     }
-    const m: OpeningMember = { row: r.row, regNo, name, fatherName, phone: text(r.phone), address: text(r.address), joinDate, savings: r2(savings), absences };
+    const m: OpeningMember = { row: r.row, name, fatherName, phone: text(r.phone), address: text(r.address), joinDate, savings: r2(savings), absences };
     members.push(m);
-    byReg.set(key, m);
+    byKey.set(key, m);
   }
   if ((file.members ?? []).length === 0) problems.push({ sheet: "Members", message: "The Members sheet has no rows." });
 
@@ -168,13 +177,18 @@ export function checkOpeningFile(file: RawOpeningFile, cutoverDate: string, date
   const loanKeys = new Map<string, number>();
   for (const r of file.loans ?? []) {
     const at = { sheet: "Open loans" as const, row: r.row };
-    const regNo = text(r.regNo);
-    if (!regNo) { problems.push({ ...at, message: "Member reg. no. is missing." }); continue; }
-    const member = byReg.get(regNo.toLowerCase());
-    if (!member) { problems.push({ ...at, message: `Reg. no. ${regNo} isn't on the Members sheet.` }); continue; }
     const typedName = text(r.memberName);
-    if (typedName && typedName.toLowerCase() !== member.name.toLowerCase()) {
-      warnings.push({ ...at, message: `Name "${typedName}" doesn't match ${member.name} (reg. no. ${regNo}); the reg. no. is used.` });
+    if (!typedName) { problems.push({ ...at, message: "Member name is missing." }); continue; }
+    const typedFather = text(r.fatherName) ?? "";
+    const member = byKey.get(personKey(typedName, typedFather));
+    if (!member) {
+      // Most often the father's name is written differently on the two sheets.
+      const sameName = members.filter((m) => norm(m.name) === norm(typedName));
+      const hint = sameName.length
+        ? ` The Members sheet has ${typedName} with father's name ${sameName.map((m) => m.fatherName || "left blank").join(" / ")}.`
+        : "";
+      problems.push({ ...at, message: `${who(typedName, typedFather)} isn't on the Members sheet. Write the name and father's name as they are there.${hint}` });
+      continue;
     }
     const loanDate = day(r.loanDate);
     if (!loanDate) { problems.push({ ...at, message: r.loanDate ? `Loan date "${r.loanDate}" isn't a date.` : "Loan date is missing." }); continue; }
@@ -193,11 +207,11 @@ export function checkOpeningFile(file: RawOpeningFile, cutoverDate: string, date
       problems.push({ ...at, message: `This loan is repaid in full (${money(r2(lent + interest + penalties))} owed, ${money(repaid)} repaid). Only loans with money still owing go on this sheet.` });
       continue;
     }
-    const key = `${member.regNo.toLowerCase()}|${loanDate}`;
+    const key = `${personKey(member.name, member.fatherName)}|${loanDate}`;
     if (loanKeys.has(key)) { problems.push({ ...at, message: `${member.name} has two loans dated ${fmt(loanDate)} (also row ${loanKeys.get(key)}). Combine them into one row.` }); continue; }
     loanKeys.set(key, r.row);
     loans.push({
-      row: r.row, regNo: member.regNo, memberName: member.name, loanDate,
+      row: r.row, memberName: member.name, fatherName: member.fatherName, loanDate,
       amount: r2(lent), interest: r2(interest), repaid: r2(repaid), penalties: r2(penalties),
       defaulted: yes(r.defaulted), outstanding,
     });

@@ -57,7 +57,6 @@ function savedView(d: Distribution, books: Books, current: YearEndPlan, fineNow:
       const penaltyDue = r2(absences * fine);
       return {
         memberId: a.memberId,
-        memberNo: books.memberById.get(a.memberId)?.memberNo ?? "-",
         name: books.memberById.get(a.memberId)?.name ?? a.memberName,
         savings: r2(Number(a.savingsBasis) || 0),
         ratio: Number(a.ratio) || 0,
@@ -69,7 +68,7 @@ function savedView(d: Distribution, books: Books, current: YearEndPlan, fineNow:
         dividend,
       };
     })
-    .sort((a, b) => a.memberNo.localeCompare(b.memberNo, undefined, { numeric: true }));
+    .sort((a, b) => books.memberOrder(a.memberId, b.memberId));
   return {
     year,
     yearStart: `${year}-01-01`,
@@ -458,8 +457,7 @@ export default function ProfitDistribution() {
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
-                  <TableHead className="h-9 px-5">No.</TableHead>
-                  <TableHead className="h-9 px-3">Member</TableHead>
+                  <TableHead className="h-9 px-5">Member</TableHead>
                   <TableHead className="h-9 px-3 text-right">Savings on 31/12</TableHead>
                   <TableHead className="h-9 px-3 text-right">Share</TableHead>
                   <TableHead className="h-9 px-3 text-right">Share of {membersPct}%</TableHead>
@@ -471,8 +469,7 @@ export default function ProfitDistribution() {
               <TableBody>
                 {membersPaged.rows.map((r) => (
                   <TableRow key={r.memberId}>
-                    <TableCell className="figure px-5 py-2 text-muted-foreground">{r.memberNo}</TableCell>
-                    <TableCell className="px-3 py-2 font-medium whitespace-nowrap">{r.name}</TableCell>
+                    <TableCell className="px-5 py-2 font-medium whitespace-nowrap">{r.name}</TableCell>
                     <TableCell className="figure px-3 py-2 text-right">{r.savings > EPS ? money(r.savings) : "—"}</TableCell>
                     <TableCell className="figure px-3 py-2 text-right text-muted-foreground">{(r.ratio * 100).toFixed(2)}%</TableCell>
                     <TableCell className="figure px-3 py-2 text-right">{money(r.gross)}</TableCell>
@@ -487,8 +484,7 @@ export default function ProfitDistribution() {
               </TableBody>
               <TableFooter>
                 <TableRow className="hover:bg-transparent">
-                  <TableCell className="px-5 py-2.5" />
-                  <TableCell className="px-3 py-2.5 font-semibold">{view.rows.length} members</TableCell>
+                  <TableCell className="px-5 py-2.5 font-semibold">{view.rows.length} members</TableCell>
                   <TableCell className="figure px-3 py-2.5 text-right font-semibold">{view.totalSavings > EPS ? money(view.totalSavings) : "—"}</TableCell>
                   <TableCell className="figure px-3 py-2.5 text-right">100.00%</TableCell>
                   <TableCell className="figure px-3 py-2.5 text-right font-semibold">{money(view.pool)}</TableCell>

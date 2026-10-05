@@ -13,7 +13,7 @@ import { useState } from "react";
 import { ORGANIZATION_CONFIG } from "@/config/organization";
 import StatCard from "@/components/StatCard";
 
-const DEFAULT_MEMBER_ADDRESS = "Village Mogh Tehsil & District Chitral";
+const DEFAULT_MEMBER_ADDRESS = "Village Mogh, Tehsil & District Lower Chitral";
 import { useSettings } from "@/contexts/SettingsContext";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Label } from "@/components/ui/label";
@@ -21,7 +21,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
 import { DatePicker } from "@/components/ui/date-picker";
 import { useMembers, DbMember } from "@/hooks/useMembers";
-import { supabase } from "@/integrations/supabase/client";
+import { PHOTO_ACCEPT, photoFromFile } from "@/lib/memberPhoto";
 import { useToast } from "@/hooks/use-toast";
 import MemberDetailsDialog from "@/components/MemberDetailsDialog";
 import ViewReportButton from "@/components/ViewReportButton";
@@ -35,7 +35,7 @@ const initials = (name: string) => {
 const formSchema = z.object({
   name: z.string().min(ORGANIZATION_CONFIG.MINIMUM_NAME_LENGTH, `Name must be at least ${ORGANIZATION_CONFIG.MINIMUM_NAME_LENGTH} characters`),
   fatherName: z.string().min(ORGANIZATION_CONFIG.MINIMUM_NAME_LENGTH, `Father name must be at least ${ORGANIZATION_CONFIG.MINIMUM_NAME_LENGTH} characters`),
-  dob: z.date({ required_error: "Date of birth is required" }),
+  dob: z.date().optional(),
   email: z.string().email("Invalid email address").optional().or(z.literal("")),
   phone: z
     .string()
@@ -151,31 +151,23 @@ export default function Members() {
     if (!isOpen) { setEditingMember(null); setProfilePicturePreview(""); form.reset(); }
   };
 
-  const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif"];
-  const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
-
-  const validateProfileImage = (file: File): boolean => {
-    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
-      toast({ title: "Invalid File", description: "Please upload a JPG, PNG or GIF image.", variant: "destructive" });
-      return false;
-    }
-    if (file.size > MAX_IMAGE_BYTES) {
-      toast({ title: "File Too Large", description: "Profile pictures must be 5MB or smaller.", variant: "destructive" });
-      return false;
-    }
-    return true;
-  };
-
+  // The photo is kept in the member's record (lib/memberPhoto.ts); it is saved with the form.
   const handleProfilePictureChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = "";
     if (!file) return;
-    if (!validateProfileImage(file)) return;
-    const filePath = `members/${Date.now()}.${file.name.split(".").pop()}`;
-    const { error } = await supabase.storage.from("profile-pictures").upload(filePath, file);
-    if (error) { toast({ title: "Upload Error", description: "Failed to upload profile picture", variant: "destructive" }); return; }
-    const { data } = supabase.storage.from("profile-pictures").getPublicUrl(filePath);
-    setProfilePicturePreview(data.publicUrl);
-    form.setValue("profilePicture", data.publicUrl);
+    try {
+      const photo = await photoFromFile(file);
+      setProfilePicturePreview(photo);
+      form.setValue("profilePicture", photo, { shouldDirty: true });
+    } catch (err) {
+      toast({ title: "Photo not added", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
+    }
+  };
+
+  const removeProfilePicture = () => {
+    setProfilePicturePreview("");
+    form.setValue("profilePicture", "", { shouldDirty: true });
   };
 
   if (isLoading) return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
@@ -223,7 +215,7 @@ export default function Members() {
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                           <FormField control={form.control} name="dob" render={({ field }) => (
-                            <FormItem><FormLabel className="text-xs font-medium">Date of Birth</FormLabel><FormControl><DatePicker date={field.value} onDateChange={field.onChange} placeholder="Select DOB" /></FormControl><FormMessage className="text-xs" /></FormItem>
+                            <FormItem><FormLabel className="text-xs font-medium">Date of Birth <span className="text-muted-foreground font-normal">(optional)</span></FormLabel><FormControl><DatePicker date={field.value} onDateChange={field.onChange} placeholder="Select DOB" /></FormControl><FormMessage className="text-xs" /></FormItem>
                           )} />
                           <FormField control={form.control} name="joinDate" render={({ field }) => (
                             <FormItem><FormLabel className="text-xs font-medium">Joining Date</FormLabel><FormControl><DatePicker date={field.value} onDateChange={field.onChange} placeholder="Select join date" /></FormControl><FormMessage className="text-xs" /></FormItem>
@@ -247,12 +239,17 @@ export default function Members() {
                         <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Profile Picture</p>
                         <div className="flex items-center gap-4 p-3 rounded-sm bg-muted/40 border border-border/60">
                           <Avatar className="h-14 w-14 flex-shrink-0 rounded-sm">
-                            <AvatarImage src={profilePicturePreview || editingMember?.profile_picture || undefined} />
+                            <AvatarImage src={profilePicturePreview || undefined} className="object-cover" />
                             <AvatarFallback className="rounded-sm bg-primary/10 border border-primary/40"><Upload className="w-5 h-5 text-primary" /></AvatarFallback>
                           </Avatar>
                           <div className="flex-1">
-                            <Input type="file" accept="image/*" onChange={handleProfilePictureChange} className="cursor-pointer h-9 text-xs" />
-                            <p className="text-xs text-muted-foreground mt-1">JPG, PNG or GIF up to 5MB</p>
+                            <Input type="file" accept={PHOTO_ACCEPT} onChange={handleProfilePictureChange} className="cursor-pointer h-9 text-xs" />
+                            <p className="text-xs text-muted-foreground mt-1">
+                              JPG, PNG, WebP or GIF. Cropped to a square and kept on this computer.
+                              {profilePicturePreview && (
+                                <button type="button" onClick={removeProfilePicture} className="ml-2 font-medium text-destructive hover:underline">Remove photo</button>
+                              )}
+                            </p>
                           </div>
                         </div>
                       </div>

@@ -26,7 +26,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { DEFAULT_SETTINGS, useSettings, type Settings as AppSettings } from "@/contexts/SettingsContext";
 import { ORGANIZATION_CONFIG } from "@/config/organization";
-import { loanDueDate } from "@/utils/loanPenalty";
 import { backupAge, backupDatabase, restoreDatabase, useBackupStatus } from "@/lib/backup";
 import { cn, timePattern } from "@/lib/utils";
 import { ClearRecordsStrip, PaperRegistersCard } from "@/components/PaperRegisters";
@@ -114,7 +113,6 @@ const toForm = (s: AppSettings): FormValues => ({
 // Empty or non-numeric input becomes NaN so the schema reports it instead of silently saving 0.
 const asNumber = (v: unknown) => (v === "" || v === null || v === undefined ? NaN : Number(v));
 const finite = (n: number) => (Number.isFinite(n) ? n : 0);
-const round2 = (n: number) => Math.round(n * 100) / 100;
 const money = (n: number) => finite(n).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 
 export default function SettingsPage() {
@@ -211,42 +209,10 @@ export default function SettingsPage() {
     }
   };
 
-  // Worked example: the figures under the values being edited, and under the ones in force, so a
-  // changed line can show the old figure struck through beside the new one. A blank or invalid
-  // field gives "—" rather than a result Save would refuse.
   const cur = v.currency?.trim() || settings.currency;
   const period = ORGANIZATION_CONFIG.LOAN_PERIOD_MONTHS;
-  const sampleLoan = 10000;
-  const sampleAbsences = 3;
-  const sampleProfit = 100000;
-  const sampleDue = loanDueDate(format(new Date(), "yyyy-MM-dd"));
-  const example = (apply: boolean, rateIn: number, penaltyIn: number, fineIn: number, shareIn: number) => {
-    const rate = apply ? (Number.isFinite(rateIn) ? rateIn : null) : 0;
-    const payable = rate === null ? null : round2(sampleLoan * (1 + rate / 100));
-    const fine = Number.isFinite(fineIn) ? fineIn : null;
-    const share = Number.isFinite(shareIn) ? shareIn : null;
-    const reserve = share === null ? null : round2((sampleProfit * share) / 100);
-    const penalty = Number.isFinite(penaltyIn) ? penaltyIn : null;
-    return {
-      rateLabel: rate ? `Interest at ${money(rate)}% flat` : "Interest",
-      interest: rate === null || payable === null ? "—" : rate === 0 ? "none" : money(round2(payable - sampleLoan)),
-      payable: payable === null ? "—" : `${cur} ${money(payable)}`,
-      penalty: penalty === null ? "—" : penalty > 0 ? `+${money(penalty)} / month` : "no penalty",
-      penaltyCharged: (penalty ?? 0) > 0,
-      fine: fine === null ? "—" : money(fine),
-      absenceTaken: fine === null ? "—" : fine > 0 ? `−${money(round2(fine * sampleAbsences))}` : "nothing",
-      absenceCharged: (fine ?? 0) > 0,
-      shareLabel: share === null ? "—" : `${money(share)}%`,
-      membersShareLabel: share === null ? "—" : `${money(100 - share)}%`,
-      reserve: reserve === null ? "—" : money(reserve),
-      members: reserve === null ? "—" : money(round2(sampleProfit - reserve)),
-    };
-  };
-  const next = example(v.applyLoanInterest, v.loanInterestRate, v.latePenaltyPerMonth, v.absencePenaltyPerMeeting, v.reservePercent);
-  const inForce = example(settings.applyLoanInterest, settings.loanInterestRate, settings.latePenaltyPerMonth, settings.absencePenaltyPerMeeting, settings.reservePercent);
   const shareNow = finite(v.reservePercent);
   const dateFmt = v.dateFormat || settings.dateFormat;
-  const fmtDay = (key: string) => format(new Date(`${key}T00:00:00`), dateFmt);
   const now = new Date();
   // A number of days not in the list (set before, or by an older version) is shown as its own option.
   const reminderOptions = [reminderValue(settings), reminderValue(v)].reduce(
@@ -273,9 +239,9 @@ export default function SettingsPage() {
     dirtyFields[key] ? <span className="text-xs text-muted-foreground">In force now: <span className={cn(figure && "figure")}>{text}</span></span> : null;
 
   return (
-    <form onSubmit={handleSubmit(onSave, onInvalid)} className="flex flex-col gap-6" noValidate>
+    <form onSubmit={handleSubmit(onSave, onInvalid)} className="flex flex-col gap-4" noValidate>
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b-2 border-accent/70 pb-4">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b-2 border-accent/70 pb-3">
         <div className="flex items-center gap-4">
           <div className="w-11 h-11 rounded-sm border-2 border-primary/40 bg-primary/10 flex items-center justify-center">
             <Settings className="w-5 h-5 text-primary" />
@@ -292,15 +258,15 @@ export default function SettingsPage() {
       </div>
 
       {/* Money rules */}
-      <Card className="rounded-sm border-t-2 border-t-accent shadow-sm">
+      <Card className="rounded-sm border-t-2 border-t-accent shadow-sm [container-type:inline-size]">
         <SectionHead
           title="Money rules"
           description="Apply to loans issued and profit distributed after you save. Existing loans and past distributions keep the terms they were made with."
         />
-        <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_18rem] xl:grid-cols-[minmax(0,1fr)_20rem]">
-          <div className="divide-y divide-border px-5">
+        <div className="grid [@container(min-width:54rem)]:grid-cols-2">
+          <div className="divide-y divide-border px-5 [@container(min-width:54rem)]:border-r">
             <SettingRow
-              compact
+              holdHint
               label="Interest on new loans"
               help="A flat rate added once when a loan is issued, and repaid with the loan in any amounts by its due date."
               htmlFor="loanInterestRate"
@@ -326,7 +292,7 @@ export default function SettingsPage() {
               </div>
             </SettingRow>
             <SettingRow
-              compact
+              holdHint
               label="Late penalty"
               help={`Added for each full month after a loan's ${period}-month term until it is paid in full, penalties included, or the committee marks it defaulted.`}
               htmlFor="latePenaltyPerMonth"
@@ -343,7 +309,7 @@ export default function SettingsPage() {
               />
             </SettingRow>
             <SettingRow
-              compact
+              holdHint
               label="Absence penalty"
               help="Taken from a member's dividend for each meeting of the year they were marked absent at, never more than the dividend. The charges are part of the year's profit."
               htmlFor="absencePenaltyPerMeeting"
@@ -359,8 +325,10 @@ export default function SettingsPage() {
                 {...register("absencePenaltyPerMeeting", { setValueAs: asNumber })}
               />
             </SettingRow>
+          </div>
+          <div className="divide-y divide-border px-5 border-t border-border [@container(min-width:54rem)]:border-t-0">
             <SettingRow
-              compact
+              holdHint
               label="Reserve fund share of profit"
               help={`Of each year's profit (bank profit, loan interest and penalties collected, and absence charges), shared at the July AGM. Members share the other ${money(100 - shareNow)}% by their savings on 31 December.`}
               htmlFor="reservePercent"
@@ -376,7 +344,7 @@ export default function SettingsPage() {
               />
             </SettingRow>
             <SettingRow
-              compact
+              holdHint
               label="Bank charge on withdrawals above"
               help="The bank takes a charge when a cheque withdrawal is above this amount. Loans and reserve expenses above it ask for the charge, typed in from the bank statement: on a loan the member repays it with the loan (no interest on it); on a reserve expense the reserve fund pays it."
               htmlFor="bankChargeThreshold"
@@ -393,44 +361,14 @@ export default function SettingsPage() {
             </SettingRow>
           </div>
 
-          {/* Worked example: printed like a teller's slip, as the card's own right-hand column */}
-          <aside className="border-t border-border px-5 py-5 lg:border-t-0 lg:border-l" aria-label="Worked example">
-            <p className="text-sm font-semibold text-foreground">Worked example</p>
-            <p className="text-xs text-muted-foreground">
-              {moneyChanged ? "Struck-through figures are the ones in force now." : "Follows your edits before you save."}
-            </p>
-            <p className="mt-4 text-xs font-medium text-muted-foreground">
-              A loan of <span className="figure">{cur} {money(sampleLoan)}</span> issued today
-            </p>
-            <dl className="mt-1.5 space-y-1">
-              <Leader label={next.rateLabel} value={next.interest} was={inForce.interest} />
-              <Leader label="Total payable" value={next.payable} was={inForce.payable} strong rule="above" />
-              <Leader label="Repaid in any amounts by" value={fmtDay(sampleDue)} />
-              <Leader label="If unpaid a month after that" value={next.penalty} was={inForce.penalty} tone={next.penaltyCharged ? "bad" : undefined} />
-            </dl>
-            <p className="mt-4 text-xs font-medium text-muted-foreground">
-              A member who missed <span className="figure">{sampleAbsences}</span> meetings in the year
-            </p>
-            <dl className="mt-1.5 space-y-1">
-              <Leader label="Penalty per meeting" value={next.fine} was={inForce.fine} />
-              <Leader label="Taken from their dividend" value={next.absenceTaken} was={inForce.absenceTaken} tone={next.absenceCharged ? "bad" : undefined} />
-            </dl>
-            <p className="mt-4 text-xs font-medium text-muted-foreground">
-              A year's profit of <span className="figure">{cur} {money(sampleProfit)}</span> shared at the AGM
-            </p>
-            <dl className="mt-1.5 space-y-1">
-              <Leader label={`Reserve fund (${next.shareLabel})`} value={next.reserve} was={inForce.reserve} />
-              <Leader label={`Members (${next.membersShareLabel})`} value={next.members} was={inForce.members} tone="good" strong rule="double" />
-            </dl>
-          </aside>
         </div>
       </Card>
 
       {/* Display & lists */}
-      <Card className="rounded-sm shadow-sm">
+      <Card className="rounded-sm shadow-sm [container-type:inline-size]">
         <SectionHead title="Display & lists" description="How dates, times, amounts and lists appear in the app and in reports. No records change." />
-        <div className="grid xl:grid-cols-2">
-          <div className="divide-y divide-border px-5 xl:border-r xl:border-border">
+        <div className="grid [@container(min-width:54rem)]:grid-cols-2">
+          <div className="divide-y divide-border px-5 [@container(min-width:54rem)]:border-r">
             <SettingRow label="Theme" help="Follow Windows, or always use light or dark.">
               <Controller
                 control={control}
@@ -494,7 +432,7 @@ export default function SettingsPage() {
               />
             </SettingRow>
           </div>
-          <div className="divide-y divide-border px-5 border-t border-border xl:border-t-0">
+          <div className="divide-y divide-border px-5 border-t border-border [@container(min-width:54rem)]:border-t-0">
             <SettingRow label="Currency" help="Shown before every amount." htmlFor="currency" error={errors.currency?.message}>
               <input
                 id="currency"
@@ -533,15 +471,15 @@ export default function SettingsPage() {
           title="Meeting circular"
           description="The notice sent to the WhatsApp group before each meeting. Fields in braces are filled in from the next scheduled meeting when you share it, and the circular can still be changed before it is sent."
         />
-        <div className="grid gap-6 px-5 pb-5 pt-2 lg:grid-cols-[minmax(0,1fr)_18rem]">
+        <div className="grid gap-5 px-5 pb-4 pt-3 lg:grid-cols-[minmax(0,1fr)_18rem]">
           <div>
             <Label htmlFor="circularTemplate" className="text-sm font-medium">Format</Label>
             <Textarea
               id="circularTemplate"
               dir="rtl"
               lang="ur"
-              rows={12}
-              className={cn("urdu mt-1.5 text-base leading-loose rounded-sm resize-y", errors.circularTemplate && "border-destructive")}
+              rows={8}
+              className={cn("urdu mt-1.5 min-h-40 max-h-[32rem] text-base leading-loose rounded-sm resize-y [field-sizing:content]", errors.circularTemplate && "border-destructive")}
               {...circularField}
               ref={(el) => {
                 circularFieldRef(el);
@@ -552,7 +490,7 @@ export default function SettingsPage() {
               {errors.circularTemplate ? <span className="text-destructive">{errors.circularTemplate.message}</span> : dirtyFields.circularTemplate ? <span className="text-xs text-muted-foreground">Not saved yet: Save changes keeps this format for every circular.</span> : null}
             </HintSlot>
           </div>
-          <div className="space-y-4 lg:border-l lg:border-border lg:pl-6">
+          <div className="space-y-4 lg:border-l lg:border-border lg:pl-5">
             <div>
               <p className="text-sm font-medium text-foreground">Filled in automatically</p>
               <p className="text-xs text-muted-foreground mt-0.5">Click a field to put it where the cursor is in the format.</p>
@@ -590,9 +528,9 @@ export default function SettingsPage() {
       <PaperRegistersCard />
 
       {/* Data safety */}
-      <Card className="rounded-sm shadow-sm">
+      <Card className="rounded-sm shadow-sm [container-type:inline-size]">
         <SectionHead title="Data safety" description="Every record lives in the database on this computer. A backup copies it all into one file you can keep on a USB drive or another disk." />
-        <div className="grid gap-5 px-5 pb-5 pt-2 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center">
+        <div className="grid gap-4 px-5 pb-4 pt-3 [@container(min-width:54rem)]:grid-cols-[minmax(0,1fr)_auto] [@container(min-width:54rem)]:items-center">
           <div className="flex items-start gap-3">
             {lastBackupAt && !backupDue ? (
               <Badge variant="secondary" className="mt-0.5 shrink-0">Backed up</Badge>
@@ -612,7 +550,7 @@ export default function SettingsPage() {
               <p className="text-xs text-muted-foreground mt-0.5">{reminderInForce}</p>
             </div>
           </div>
-          <div className="flex flex-col gap-1 xl:items-end">
+          <div className="flex flex-col gap-1 [@container(min-width:54rem)]:items-end">
             <div className="flex flex-wrap items-center gap-3">
               <Label htmlFor="backupReminderDays" className="text-sm text-muted-foreground">Remind me</Label>
               <Select value={reminderValue(v)} onValueChange={setReminder}>
@@ -633,7 +571,7 @@ export default function SettingsPage() {
             <HintSlot>{was("backupReminderTrigger", reminderLabel(reminderValue(settings)), false) ?? was("backupReminderDays", reminderLabel(reminderValue(settings)), false)}</HintSlot>
           </div>
         </div>
-        <div className="flex flex-col gap-3 border-t border-border bg-destructive/[0.04] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 border-t border-border bg-destructive/[0.04] px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm font-medium text-foreground">Restore from a backup</p>
             <p className="text-xs text-muted-foreground mt-0.5">Replaces every record in the app with the contents of a backup file. Back up first.</p>
@@ -705,9 +643,9 @@ const fieldClass =
 
 function SectionHead({ title, description }: { title: string; description: string }) {
   return (
-    <div className="px-5 pt-5 pb-1">
+    <div className="px-5 pt-4">
       <h3 className="text-base font-bold text-foreground">{title}</h3>
-      <p className="text-sm text-muted-foreground mt-1 max-w-[68ch]">{description}</p>
+      <p className="text-sm text-muted-foreground mt-0.5 max-w-[90ch]">{description}</p>
     </div>
   );
 }
@@ -718,7 +656,7 @@ function SettingRow({
   htmlFor,
   error,
   hint,
-  compact,
+  holdHint,
   children,
 }: {
   label: string;
@@ -726,31 +664,20 @@ function SettingRow({
   htmlFor?: string;
   error?: string;
   hint?: ReactNode;
-  /** In the Money rules column: stacks while the column is narrow (beside the worked example on
-   *  small windows) and reserves the hint line so editing never shifts the rows below. */
-  compact?: boolean;
+  /** Money rules: the hint line ("In force now", or an error) is always reserved, so editing a
+   *  value never shifts the rows below. */
+  holdHint?: boolean;
   children: ReactNode;
 }) {
   return (
-    <div
-      className={cn(
-        "grid gap-3 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start sm:gap-6",
-        compact && "lg:grid-cols-1 lg:gap-2 lg:py-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:gap-6 xl:py-4",
-      )}
-    >
+    <div className="grid gap-x-6 gap-y-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
       <div className="min-w-0">
         <Label htmlFor={htmlFor} className="text-sm font-medium text-foreground">{label}</Label>
         {help && <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{help}</p>}
       </div>
-      <div
-        className={cn(
-          "flex flex-col gap-1 sm:items-end",
-          // Stacked beside the worked example: the hint sits on the control's line, not below it.
-          compact && "lg:flex-row lg:items-center lg:gap-3 xl:flex-col xl:items-end xl:gap-1",
-        )}
-      >
+      <div className="flex flex-col gap-1 sm:items-end">
         {children}
-        {compact ? (
+        {holdHint ? (
           <HintSlot>{error ? <span className="text-destructive">{error}</span> : hint}</HintSlot>
         ) : error ? (
           <span className="text-xs text-destructive">{error}</span>
@@ -826,51 +753,5 @@ function Segmented({
         </ToggleGroupItem>
       ))}
     </ToggleGroup>
-  );
-}
-
-/** One line of the worked example: label, dotted leader, figure. When the figure differs from the
- *  one in force (`was`), the old figure is struck through beside it, as a ledger records a change.
- *  `rule` draws an ink rule above a total, or the double rule that closes a slip. */
-function Leader({
-  label,
-  value,
-  was,
-  strong,
-  tone,
-  rule,
-}: {
-  label: string;
-  value: string;
-  was?: string;
-  strong?: boolean;
-  tone?: "good" | "bad";
-  rule?: "above" | "double";
-}) {
-  const changed = was !== undefined && was !== value;
-  return (
-    <div
-      className={cn(
-        "flex items-baseline gap-2 text-xs",
-        rule === "above" && "mt-1.5 border-t border-foreground/60 pt-1.5",
-        rule === "double" && "border-b-[3px] border-double border-foreground/60 pb-1",
-      )}
-    >
-      <dt className="text-muted-foreground shrink-0">{label}</dt>
-      <span aria-hidden className="min-w-4 flex-1 border-b border-dotted border-border translate-y-[-3px]" />
-      {/* In a narrow column the struck-through figure wraps above the new one instead of overflowing. */}
-      <dd className="figure min-w-0 flex flex-wrap items-baseline justify-end gap-x-1.5">
-        {changed && (
-          <s className="whitespace-nowrap text-muted-foreground decoration-destructive/70">
-            <span className="sr-only">was </span>
-            {was}
-          </s>
-        )}
-        <span className={cn("whitespace-nowrap", strong ? "font-bold text-foreground" : "text-foreground", tone === "good" && "text-secondary", tone === "bad" && "text-destructive")}>
-          {changed && <span className="sr-only">now </span>}
-          {value}
-        </span>
-      </dd>
-    </div>
   );
 }

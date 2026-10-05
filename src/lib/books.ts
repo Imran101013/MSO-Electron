@@ -43,10 +43,12 @@ export interface BooksConfig {
   cutoverDate: string | null;
   opening: OpeningSummary | null;
   openingProfit: OpeningProfit | null;
+  /** The move is finished: Settings hides the paper-registers section and "Clear all records". */
+  registersHidden: boolean;
 }
 
 const CHANGED_EVENT = "books:changed";
-const EMPTY: BooksConfig = { cutoverDate: null, opening: null, openingProfit: null };
+const EMPTY: BooksConfig = { cutoverDate: null, opening: null, openingProfit: null, registersHidden: false };
 let cached: BooksConfig = EMPTY;
 
 const localDay = (key: string) => {
@@ -56,7 +58,7 @@ const localDay = (key: string) => {
 
 export async function fetchBooksConfig(): Promise<BooksConfig> {
   const rows = await dbQuery<{ key: string; value: string | null }>(
-    "SELECT key, value FROM public.app_config WHERE key IN ('cutover_date', 'opening_summary', 'opening_profit')",
+    "SELECT key, value FROM public.app_config WHERE key IN ('cutover_date', 'opening_summary', 'opening_profit', 'registers_hidden')",
   );
   const map = Object.fromEntries(rows.map((r) => [r.key, r.value]));
   const parse = <T,>(v: string | null | undefined): T | null => {
@@ -70,6 +72,7 @@ export async function fetchBooksConfig(): Promise<BooksConfig> {
     cutoverDate: map.cutover_date ? String(map.cutover_date).slice(0, 10) : null,
     opening: parse<OpeningSummary>(map.opening_summary),
     openingProfit: parse<OpeningProfit>(map.opening_profit),
+    registersHidden: map.registers_hidden === "true",
   };
   return cached;
 }
@@ -174,6 +177,24 @@ export async function setCutoverDate(date: string | null): Promise<{ error?: str
   return {};
 }
 
+/**
+ * Hides (or shows again) the paper-registers section and "Clear all records" in Settings once the
+ * move is finished. Only what Settings shows changes: the cut-over date, the opening balances and
+ * the block on entries dated on or before the cut-over all stay.
+ */
+export async function setRegistersHidden(hidden: boolean): Promise<void> {
+  if (hidden) {
+    await dbQuery(
+      `INSERT INTO public.app_config (key, value, updated_at) VALUES ('registers_hidden', 'true', now())
+       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`,
+    );
+  } else {
+    await dbQuery("DELETE FROM public.app_config WHERE key = 'registers_hidden'");
+  }
+  await fetchBooksConfig();
+  announce();
+}
+
 /** How many records the app holds, for the "clear all records" confirmation. */
 export async function recordCounts() {
   const [row] = await dbQuery<Record<string, number>>(
@@ -199,7 +220,7 @@ export async function recordCounts() {
 
 type Result<T = unknown> = { canceled?: boolean; error?: string; success?: boolean } & T;
 type Bridge = {
-  openingTemplate?: (cutoverDate: string, currency: string) => Promise<Result<{ path?: string }>>;
+  openingTemplate?: (cutoverDate: string, currency: string, absenceFine: number) => Promise<Result<{ path?: string }>>;
   openingRead?: () => Promise<Result<RawOpeningFile>>;
   openingImport?: (payload: unknown) => Promise<Result<{ summary?: OpeningSummary }>>;
   openingRemove?: (actor: string | null) => Promise<Result<{ removedMembers?: number }>>;
@@ -213,16 +234,17 @@ export type RawCell = string | number | null;
 export interface RawOpeningFile {
   fileName?: string;
   meta?: { version: RawCell; cutoverDate: RawCell; currency: RawCell };
-  members?: Array<{ row: number; regNo: RawCell; name: RawCell; fatherName: RawCell; phone: RawCell; address: RawCell; joinDate: RawCell; savings: RawCell; absences?: RawCell }>;
-  loans?: Array<{ row: number; regNo: RawCell; memberName: RawCell; loanDate: RawCell; amount: RawCell; interest: RawCell; repaid: RawCell; penalties: RawCell; defaulted: RawCell; note: RawCell }>;
+  members?: Array<{ row: number; name: RawCell; fatherName: RawCell; phone: RawCell; address: RawCell; joinDate: RawCell; savings: RawCell; absences?: RawCell }>;
+  loans?: Array<{ row: number; memberName: RawCell; fatherName: RawCell; loanDate: RawCell; amount: RawCell; interest: RawCell; repaid: RawCell; penalties: RawCell; defaulted: RawCell; note: RawCell }>;
   reserve?: RawCell;
   /** The "Profit not yet shared" sheet (31 December cut-over templates only). */
   profit?: { year: RawCell; bankProfit: RawCell; interest: RawCell; penalties: RawCell } | null;
 }
 
-export async function saveOpeningTemplate(cutoverDate: string, currency: string): Promise<Result<{ path?: string }>> {
+/** absenceFine only fills the template's worked-out absence charges, shown for checking. */
+export async function saveOpeningTemplate(cutoverDate: string, currency: string, absenceFine: number): Promise<Result<{ path?: string }>> {
   const api = bridge();
-  return api?.openingTemplate ? api.openingTemplate(cutoverDate, currency) : DESKTOP_ONLY;
+  return api?.openingTemplate ? api.openingTemplate(cutoverDate, currency, absenceFine) : DESKTOP_ONLY;
 }
 
 export async function readOpeningFile(): Promise<Result<RawOpeningFile>> {

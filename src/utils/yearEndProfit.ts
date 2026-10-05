@@ -31,7 +31,6 @@ export interface CollectedLoan {
 
 export interface YearEndRow {
   memberId: string;
-  memberNo: string;
   name: string;
   /** Savings balance on 31 December of the year. */
   savings: number;
@@ -138,7 +137,7 @@ export function planYearEnd(
 
   // Savings on 31 December; members with nothing saved get no share (and so pay no charges).
   const members = books.members
-    .map((m) => ({ memberId: m.dbId, memberNo: m.memberNo, name: m.name, savings: r2(books.memberSavingsAt(m.dbId, yearEnd)), absences: absencesOf(m.dbId) }))
+    .map((m) => ({ memberId: m.dbId, name: m.name, savings: r2(books.memberSavingsAt(m.dbId, yearEnd)), absences: absencesOf(m.dbId) }))
     .filter((m) => m.savings > EPS);
   const totalSavings = r2(members.reduce((s, m) => s + m.savings, 0));
   if (members.length === 0) problems.push(`No member has savings on 31/12/${year}, so there is no one to share the profit with.`);
@@ -167,7 +166,6 @@ export function planYearEnd(
       const penalty = result.taken[i];
       return {
         memberId: m.memberId,
-        memberNo: m.memberNo,
         name: m.name,
         savings: m.savings,
         ratio: totalSavings > 0 ? m.savings / totalSavings : 0,
@@ -179,7 +177,7 @@ export function planYearEnd(
         dividend: r2(gross - penalty),
       };
     })
-    .sort((a, b) => a.memberNo.localeCompare(b.memberNo, undefined, { numeric: true }));
+    .sort((a, b) => books.memberOrder(a.memberId, b.memberId));
 
   if (result.totalProfit <= EPS) problems.push(`There is no profit to distribute for ${year}: no bank profit is recorded for it and no loan was repaid in full that year.`);
 

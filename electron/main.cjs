@@ -115,8 +115,13 @@ ipcMain.handle('db-restore', async () => {
     await client.query('SET LOCAL session_replication_role = replica');
     await client.query(`TRUNCATE TABLE ${BACKUP_TABLES.map((t) => `public.${t}`).join(', ')} CASCADE`);
     for (const table of BACKUP_TABLES) {
-      const rows = payload.tables[table];
+      let rows = payload.tables[table];
       if (!Array.isArray(rows) || rows.length === 0) continue;
+      // Backups made while members had a registration number: a member with one was brought in
+      // by the opening-balances import, which is what is_opening records now.
+      if (table === 'members' && 'register_no' in rows[0]) {
+        rows = rows.map(({ register_no, ...m }) => ({ ...m, is_opening: m.is_opening ?? (register_no !== null && register_no !== undefined) }));
+      }
       const columns = Object.keys(rows[0]);
       const columnList = columns.map((c) => `"${c}"`).join(', ');
       const placeholders = columns.map((_, i) => `$${i + 1}`).join(', ');
@@ -276,10 +281,19 @@ async function ensureSchema() {
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL
       );
       -- Opening balances brought forward from the paper registers at the cut-over date
-      -- (electron/openingBalances.cjs): the member's paper-register number, a flagged opening
-      -- savings row, and loans that were already open at the cut-over.
-      ALTER TABLE public.members ADD COLUMN IF NOT EXISTS register_no TEXT;
-      CREATE UNIQUE INDEX IF NOT EXISTS members_register_no_key ON public.members (register_no) WHERE register_no IS NOT NULL;
+      -- (electron/openingBalances.cjs): members flagged as brought in by the import, a flagged
+      -- opening savings row, and loans that were already open at the cut-over.
+      ALTER TABLE public.members ADD COLUMN IF NOT EXISTS is_opening BOOLEAN NOT NULL DEFAULT false;
+      -- Members no longer have a registration number. Those that had one were brought in by the
+      -- import, so they keep that as the flag before the column goes.
+      DO $$
+      BEGIN
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'members' AND column_name = 'register_no') THEN
+          UPDATE public.members SET is_opening = true WHERE register_no IS NOT NULL AND NOT is_opening;
+          DROP INDEX IF EXISTS public.members_register_no_key;
+          ALTER TABLE public.members DROP COLUMN register_no;
+        END IF;
+      END $$;
       ALTER TABLE public.monthly_contributions ADD COLUMN IF NOT EXISTS is_opening BOOLEAN NOT NULL DEFAULT false;
       ALTER TABLE public.loans ADD COLUMN IF NOT EXISTS opening_as_at DATE;
       -- The day the committee marked a loan defaulted: late penalties stop then (utils/loanPenalty.ts)

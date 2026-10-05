@@ -183,8 +183,6 @@ export interface Member {
   attendance: Attendance[];
   loans: Loan[];
   totalBudget: number;
-  /** Number in the paper register, for members brought in at the cut-over. */
-  registerNo?: string;
 }
 
 interface OrganizationContextType {
@@ -394,7 +392,6 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
           attendance: memberAttendance,
           loans: memberLoans,
           totalBudget: dbMember.total_budget,
-          registerNo: dbMember.register_no || undefined,
         };
       });
 

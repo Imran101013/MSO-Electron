@@ -14,8 +14,8 @@ export interface DbMember {
   join_date: string;
   profile_picture: string | null;
   total_budget: number;
-  /** The member's number in the paper register, for members brought in at the cut-over. */
-  register_no?: string | null;
+  /** Brought in from the paper registers by the opening-balances import (electron/openingBalances.cjs). */
+  is_opening?: boolean;
   is_approved: boolean;
   created_at: string;
   updated_at: string;
@@ -40,7 +40,8 @@ export function useMembers() {
   const fetchMembers = async () => {
     setIsLoading(true);
     try {
-      const data = await dbQuery<DbMember>('SELECT * FROM public.members ORDER BY created_at DESC');
+      // Newest first; members added together (the opening import) by join date and name, so editing one never moves it.
+      const data = await dbQuery<DbMember>('SELECT * FROM public.members ORDER BY created_at DESC, join_date, name, id');
       setMembers(data);
     } catch (err: any) {
       toast({ title: "Error", description: "Failed to load members", variant: "destructive" });

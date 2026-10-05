@@ -1,7 +1,7 @@
 import { useEffect, useState, type ElementType, type ReactNode } from "react";
 import { format } from "date-fns";
 import { toast } from "sonner";
-import { Cake, CalendarDays, Hash, Loader2, Mail, MapPin, MessageCircle, Phone, Upload, User } from "lucide-react";
+import { Cake, CalendarDays, Loader2, Mail, MapPin, MessageCircle, Phone, Upload, User } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -15,14 +15,11 @@ import { parseLocalDate } from "@/hooks/useLoans";
 import { ATTENDANCE_LABEL, type AttendanceStatus } from "@/hooks/useAttendance";
 import ViewReportButton from "@/components/ViewReportButton";
 import { TablePager, usePaged } from "@/components/TablePager";
-import { supabase } from "@/integrations/supabase/client";
+import { PHOTO_ACCEPT, photoFromFile } from "@/lib/memberPhoto";
 import { ageFrom, durationSince, formatMemberSummary, getMemberRecord, type LoanState, type MemberRecord } from "@/utils/memberRecord";
 
 type ShareResult = { opened?: "app" | "web"; error?: string };
 type Bridge = { shareWhatsApp?: (text: string, phone?: string) => Promise<ShareResult> };
-
-const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif"];
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
 interface MemberDetailsDialogProps {
   memberId: string | null;
@@ -73,20 +70,16 @@ export default function MemberDetailsDialog({ memberId, open, onOpenChange, onCh
     if (!record) return;
     const input = document.createElement("input");
     input.type = "file";
-    input.accept = "image/jpeg,image/png,image/gif";
+    input.accept = PHOTO_ACCEPT;
     input.onchange = async () => {
       const file = input.files?.[0];
       if (!file) return;
-      if (!ALLOWED_IMAGE_TYPES.includes(file.type)) return toast.error("Invalid file", { description: "Please choose a JPG, PNG or GIF image." });
-      if (file.size > MAX_IMAGE_BYTES) return toast.error("File too large", { description: "Profile pictures must be 5 MB or smaller." });
       setUploading(true);
       try {
-        const filePath = `members/${Date.now()}.${file.name.split(".").pop()}`;
-        const { error } = await supabase.storage.from("profile-pictures").upload(filePath, file);
-        if (error) throw new Error("The photo could not be uploaded. Check the internet connection and try again.");
-        const { data } = supabase.storage.from("profile-pictures").getPublicUrl(filePath);
+        // Kept in the member's record on this computer (lib/memberPhoto.ts); nothing goes online.
+        const photo = await photoFromFile(file);
         // Only the photo changes; the other member fields are left as they are.
-        await dbQuery("UPDATE public.members SET profile_picture = $1 WHERE id = $2", [data.publicUrl, record.member.id]);
+        await dbQuery("UPDATE public.members SET profile_picture = $1 WHERE id = $2", [photo, record.member.id]);
         toast.success("Photo updated");
         await load(record.member.id);
         onChanged?.();
@@ -137,7 +130,7 @@ export default function MemberDetailsDialog({ memberId, open, onOpenChange, onCh
                   </AvatarFallback>
                 </Avatar>
                 <div className="min-w-0 flex-1">
-                  <p className="tracked-label text-[10px] font-semibold text-primary uppercase">Member · {record.memberNo}</p>
+                  <p className="tracked-label text-[10px] font-semibold text-primary uppercase">Member</p>
                   <DialogTitle className="text-xl font-bold text-foreground leading-tight mt-1 truncate">{record.member.name}</DialogTitle>
                   <DialogDescription className="text-sm text-muted-foreground mt-0.5">
                     {record.member.father_name ? `Father: ${record.member.father_name} · ` : ""}Member since {day(record.member.join_date)}
@@ -204,7 +197,6 @@ export default function MemberDetailsDialog({ memberId, open, onOpenChange, onCh
               <div>
                 <SectionLabel>Personal details</SectionLabel>
                 <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 rounded-sm border border-border/60 p-4">
-                  <Detail icon={Hash} label="Member no." value={record.memberNo} mono />
                   <Detail icon={User} label="Father's name" value={record.member.father_name || "-"} />
                   <Detail
                     icon={Cake}

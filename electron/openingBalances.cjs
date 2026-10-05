@@ -8,7 +8,7 @@ const fs = require('fs');
 const path = require('path');
 const ExcelJS = require('exceljs');
 
-const TEMPLATE_VERSION = 2;
+const TEMPLATE_VERSION = 3;
 const OPENING_NOTE = 'Opening balance brought forward from the paper registers';
 const MEMBER_ROWS = 400;
 const LOAN_ROWS = 300;
@@ -18,6 +18,12 @@ const r2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
 const pad = (n) => String(n).padStart(2, '0');
 const isoDay = (d) => `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
 const displayDay = (key) => `${key.slice(8, 10)}/${key.slice(5, 7)}/${key.slice(0, 4)}`;
+
+/** How a member is told apart: name and father's name together, ignoring capitals and extra spaces
+ * (the same rule as utils/openingBalances.ts personKey). */
+const norm = (s) => String(s ?? '').trim().replace(/\s+/g, ' ').toLowerCase();
+const personKey = (name, fatherName) => `${norm(name)}|${norm(fatherName)}`;
+const who = (name, fatherName) => (String(fatherName ?? '').trim() ? `${name} (father's name ${String(fatherName).trim()})` : name);
 
 /** The year whose profit is still to be shared at the July AGM after a 31 December cut-over (else null). */
 const openingProfitYear = (cutoverDate) => (String(cutoverDate).slice(5, 10) === '12-31' ? Number(String(cutoverDate).slice(0, 4)) : null);
@@ -50,7 +56,7 @@ function styleHeader(sheet) {
   sheet.views = [{ state: 'frozen', ySplit: 1 }];
 }
 
-async function writeTemplate(filePath, { cutoverDate, currency }) {
+async function writeTemplate(filePath, { cutoverDate, currency, absenceFine = 0 }) {
   const wb = new ExcelJS.Workbook();
   wb.creator = 'MSO';
   wb.created = new Date();
@@ -67,11 +73,11 @@ async function writeTemplate(filePath, { cutoverDate, currency }) {
     ['', ''],
     ['What this file is for', `Type in each member's savings, every loan still unpaid, and the reserve fund exactly as they stand in the paper registers at the end of ${asAt}. The app starts its books from these figures; everything after ${asAt} is recorded in the app.`],
     ['', ''],
-    ['Members sheet', 'One row per member, including members with a zero balance. Reg. no. is the member\'s number in the paper register and must be unique. Join date is the date the member joined (it can be years before the cut-over). Savings balance is everything the member has saved up to the cut-over date: all contributions plus any profit shares added to their account.'],
-    ['Open loans sheet', 'One row per loan that still had money owing at the cut-over date. Leave out loans already repaid in full. Member reg. no. must match a row on the Members sheet. Interest is the interest charged on the loan as written in the register. Repaid so far is every repayment made up to the cut-over date. Penalties added so far are the late penalties already added to the loan. Outstanding is worked out for you: check it against the register. Write Yes under Defaulted for loans the committee has written off as defaulted; no late penalties are added to those after the cut-over date.'],
+    ['Members sheet', 'One row per member, including members with a zero balance. No two members may have the same name and father\'s name: loans are matched to members by the two together. Join date is the date the member joined (it can be years before the cut-over). Savings balance is everything the member has saved up to the cut-over date: all contributions plus any profit shares added to their account.'],
+    ['Open loans sheet', 'One row per loan that still had money owing at the cut-over date. Leave out loans already repaid in full. The member name and father\'s name must be written as on the Members sheet (capital letters and extra spaces don\'t matter). Interest is the interest charged on the loan as written in the register. Repaid so far is every repayment made up to the cut-over date. Penalties added so far are the late penalties already added to the loan. Outstanding is worked out for you: check it against the register. Write Yes under Defaulted for loans the committee has written off as defaulted; no late penalties are added to those after the cut-over date.'],
     ['Reserve sheet', `The reserve fund balance at the cut-over date, in ${currency}.`],
     Y
-      ? ['Profit not yet shared', `The ${Y} profit is shared at the July ${Y + 1} AGM, which is recorded in the app. On the "Profit not yet shared" sheet enter, from the registers, the bank's profit for ${Y} and the loan interest and late penalties collected in ${Y} on loans repaid in full that year. On the Members sheet, enter each member's number of meetings marked absent in ${Y}. Leave them blank if the ${Y} profit was already shared on paper.`]
+      ? ['Profit not yet shared', `The ${Y} profit is shared at the July ${Y + 1} AGM, which is recorded in the app. On the "Profit not yet shared" sheet enter, from the registers, the bank's profit for ${Y} and the loan interest and late penalties collected in ${Y} on loans repaid in full that year. On the Members sheet, enter each member's number of meetings marked absent in ${Y}. The absence charges and the total profit for ${Y} are worked out on the sheet for checking. Leave them blank if the ${Y} profit was already shared on paper.`]
       : ['Profit not yet shared', `The cut-over date isn't 31 December, so a year's profit not yet shared can't be brought in from the registers. To bring it in, use 31 December as the cut-over date.`],
     ['', ''],
     ['Dates', 'Use real dates (for example 15/03/2012). Text like "March 2012" cannot be read.'],
@@ -93,7 +99,6 @@ async function writeTemplate(filePath, { cutoverDate, currency }) {
   // Members
   const members = wb.addWorksheet('Members');
   members.columns = [
-    { header: 'Reg. no.', width: 12 },
     { header: 'Name', width: 28 },
     { header: "Father's name", width: 28 },
     { header: 'Phone', width: 18 },
@@ -104,16 +109,16 @@ async function writeTemplate(filePath, { cutoverDate, currency }) {
   ];
   styleHeader(members);
   for (let r = 2; r <= MEMBER_ROWS + 1; r++) {
-    members.getCell(`F${r}`).dataValidation = {
+    members.getCell(`E${r}`).dataValidation = {
       type: 'date', operator: 'lessThanOrEqual', allowBlank: true, formulae: [cutoverCellDate],
       showErrorMessage: true, errorTitle: 'Join date', error: `A real date on or before ${asAt}, e.g. 15/03/2012.`,
     };
-    members.getCell(`G${r}`).dataValidation = {
+    members.getCell(`F${r}`).dataValidation = {
       type: 'decimal', operator: 'greaterThanOrEqual', allowBlank: true, formulae: [0],
       showErrorMessage: true, errorTitle: 'Savings balance', error: 'A number of 0 or more, without the currency code.',
     };
     if (Y) {
-      members.getCell(`H${r}`).dataValidation = {
+      members.getCell(`G${r}`).dataValidation = {
         type: 'whole', operator: 'greaterThanOrEqual', allowBlank: true, formulae: [0],
         showErrorMessage: true, errorTitle: `Absences in ${Y}`, error: `The number of meetings in ${Y} the member was marked absent at: a whole number of 0 or more.`,
       };
@@ -123,8 +128,8 @@ async function writeTemplate(filePath, { cutoverDate, currency }) {
   // Open loans
   const loans = wb.addWorksheet('Open loans');
   loans.columns = [
-    { header: 'Member reg. no.', width: 14 },
-    { header: 'Member name (for checking)', width: 28 },
+    { header: 'Member name', width: 28 },
+    { header: "Member's father's name", width: 28 },
     { header: 'Loan date', width: 14, style: { numFmt: 'dd/mm/yyyy' } },
     { header: `Amount lent (${currency})`, width: 18, style: { numFmt: MONEY } },
     { header: `Interest (${currency})`, width: 16, style: { numFmt: MONEY } },
@@ -169,9 +174,20 @@ async function writeTemplate(filePath, { cutoverDate, currency }) {
     profit.getRow(3).values = [`Loan interest collected in ${Y} (loans repaid in full in ${Y})`, null];
     profit.getRow(4).values = [`Late penalties collected in ${Y} (loans repaid in full in ${Y})`, null];
     for (const c of ['B2', 'B3', 'B4']) profit.getCell(c).dataValidation = { type: 'decimal', operator: 'greaterThanOrEqual', allowBlank: true, formulae: [0] };
-    profit.getRow(6).values = [`Each member's absences in ${Y} go in the last column of the Members sheet. Leave everything blank if the ${Y} profit was already shared on paper.`];
-    profit.getRow(6).getCell(1).alignment = { wrapText: true };
-    profit.getRow(6).height = 32;
+    // Worked out for checking only: the import reads B2:B4 and the absences on the Members sheet,
+    // never these two cells. Members with no savings get no share at the AGM, so pay no charges.
+    const fine = Math.max(0, Number(absenceFine) || 0);
+    const last = MEMBER_ROWS + 1;
+    profit.getRow(5).values = [`Absence charges for ${Y}, worked out (absences on the Members sheet × ${currency} ${fine.toLocaleString('en-US')})`, null];
+    profit.getCell('B5').value = { formula: `SUMIFS(Members!G2:G${last},Members!F2:F${last},">0")*${fine}` };
+    profit.getRow(6).values = [`Total profit for ${Y}, worked out`, null];
+    profit.getCell('B6').value = { formula: 'SUM(B2:B5)' };
+    profit.getRow(6).font = { bold: true };
+    for (const c of ['B5', 'B6']) profit.getCell(c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2F2F2' } };
+    profit.getCell('B5').font = { color: { argb: 'FF555555' } };
+    profit.getRow(8).values = [`Each member's absences in ${Y} go in the last column of the Members sheet. The two grey rows are worked out for checking; don't type over them. At the AGM a member's absence charges are never more than their share, so the total there can be a little lower. Leave everything blank if the ${Y} profit was already shared on paper.`];
+    profit.getRow(8).getCell(1).alignment = { wrapText: true };
+    profit.getRow(8).height = 64;
   }
 
   // Settings the import reads back; hidden so it is not edited by accident.
@@ -230,8 +246,13 @@ async function readTemplate(filePath) {
   if (!wb.getWorksheet('Members') || !wb.getWorksheet('Open loans')) {
     return { error: 'This is not an MSO opening-balances file: the Members and Open loans sheets are missing. Download the template from Settings and fill that in.' };
   }
-  const members = readRows(wb.getWorksheet('Members'), ['regNo', 'name', 'fatherName', 'phone', 'address', 'joinDate', 'savings', 'absences']);
-  const loans = readRows(wb.getWorksheet('Open loans'), ['regNo', 'memberName', 'loanDate', 'amount', 'interest', 'repaid', 'penalties', 'check', 'defaulted', 'note']);
+  // Templates before version 3 had a registration-number column first, so every column is one out.
+  const version = Number(metaMap.template_version);
+  if (version && version < TEMPLATE_VERSION) {
+    return { error: 'This file was made from an older template that still has a Reg. no. column. Download the template again from Settings and copy the figures into it.' };
+  }
+  const members = readRows(wb.getWorksheet('Members'), ['name', 'fatherName', 'phone', 'address', 'joinDate', 'savings', 'absences']);
+  const loans = readRows(wb.getWorksheet('Open loans'), ['memberName', 'fatherName', 'loanDate', 'amount', 'interest', 'repaid', 'penalties', 'check', 'defaulted', 'note']);
   const reserveSheet = wb.getWorksheet('Reserve');
   const reserve = reserveSheet ? cellValue(reserveSheet.getCell('B2')) : null;
   const profitSheet = wb.getWorksheet('Profit not yet shared');
@@ -260,35 +281,41 @@ async function importOpening(client, p) {
   const termMonths = Math.max(1, Number(p.termMonths) || 12);
   const penaltyPerMonth = Math.max(0, Number(p.penaltyPerMonth) || 0);
 
-  // Members: matched by register number; a member already in the app with the same name and
-  // father's name (and no register number yet) is linked rather than added twice.
-  const prevImported = (await client.query(
-    "SELECT id, name, register_no FROM public.members WHERE register_no IS NOT NULL",
-  )).rows;
-  const idByReg = new Map();
+  // Members: matched by name and father's name together (no two in the file share both). A member
+  // already in the app with the same two is updated rather than added twice, and from then on
+  // counts as brought in by the import.
+  const inApp = (await client.query('SELECT id, name, father_name, is_opening FROM public.members')).rows;
+  const appByKey = new Map();
+  for (const m of inApp) {
+    const k = personKey(m.name, m.father_name);
+    appByKey.set(k, [...(appByKey.get(k) || []), m]);
+  }
+  const prevImported = inApp.filter((m) => m.is_opening);
+  const idByKey = new Map();
   for (const m of p.members) {
-    const reg = String(m.regNo).trim();
-    let row = (await client.query('SELECT id FROM public.members WHERE register_no = $1', [reg])).rows[0];
-    if (!row) {
-      row = (await client.query(
-        'SELECT id FROM public.members WHERE register_no IS NULL AND lower(trim(name)) = lower(trim($1)) AND lower(trim(father_name)) = lower(trim($2)) LIMIT 1',
-        [m.name, m.fatherName || ''],
-      )).rows[0];
+    const k = personKey(m.name, m.fatherName);
+    if (idByKey.has(k)) {
+      throw Object.assign(new Error('member-twice'), { userMessage: `${who(m.name, m.fatherName)} is on the Members sheet twice. No two members can have the same name and father's name.` });
     }
+    const matches = appByKey.get(k) || [];
+    if (matches.length > 1) {
+      throw Object.assign(new Error('member-ambiguous'), { userMessage: `The app already has ${matches.length} members called ${who(m.name, m.fatherName)}, so this row can't be matched to one of them. Change one of their names on the Members page first.` });
+    }
+    let row = matches[0];
     if (row) {
       await client.query(
-        `UPDATE public.members SET register_no = $1, name = $2, father_name = $3, phone = COALESCE($4, phone),
-           address = COALESCE($5, address), join_date = $6, total_budget = COALESCE(total_budget, 0) WHERE id = $7`,
-        [reg, m.name, m.fatherName || '', m.phone, m.address, m.joinDate, row.id],
+        `UPDATE public.members SET is_opening = true, name = $1, father_name = $2, phone = COALESCE($3, phone),
+           address = COALESCE($4, address), join_date = $5, total_budget = COALESCE(total_budget, 0) WHERE id = $6`,
+        [m.name, m.fatherName || '', m.phone, m.address, m.joinDate, row.id],
       );
     } else {
       row = (await client.query(
-        `INSERT INTO public.members (register_no, name, father_name, phone, address, join_date, total_budget, is_approved)
-         VALUES ($1,$2,$3,$4,$5,$6,0,true) RETURNING id`,
-        [reg, m.name, m.fatherName || '', m.phone, m.address, m.joinDate],
+        `INSERT INTO public.members (name, father_name, phone, address, join_date, total_budget, is_approved, is_opening)
+         VALUES ($1,$2,$3,$4,$5,0,true,true) RETURNING id`,
+        [m.name, m.fatherName || '', m.phone, m.address, m.joinDate],
       )).rows[0];
     }
-    idByReg.set(reg, row.id);
+    idByKey.set(k, row.id);
 
     // Opening savings: one flagged contribution row dated the cut-over; the member's running
     // balance moves by the change, so later contributions are left untouched.
@@ -316,10 +343,11 @@ async function importOpening(client, p) {
     const delta = r2(savings - before);
     if (Math.abs(delta) > EPS) await client.query('UPDATE public.members SET total_budget = COALESCE(total_budget, 0) + $1 WHERE id = $2', [delta, row.id]);
   }
-  const missing = prevImported.filter((m) => !idByReg.has(String(m.register_no).trim()));
+  const matched = new Set(idByKey.values());
+  const missing = prevImported.filter((m) => !matched.has(m.id));
   if (missing.length > 0) {
     throw Object.assign(new Error('missing-members'), {
-      userMessage: `These members were in the earlier import but are missing from this file: ${missing.slice(0, 8).map((m) => `${m.register_no} ${m.name}`).join(', ')}${missing.length > 8 ? ` and ${missing.length - 8} more` : ''}. Keep every member in the file (a zero balance is fine).`,
+      userMessage: `These members were in the earlier import but are missing from this file: ${missing.slice(0, 8).map((m) => who(m.name, m.father_name)).join(', ')}${missing.length > 8 ? ` and ${missing.length - 8} more` : ''}. Keep every member in the file (a zero balance is fine), with the name and father's name as they are now in the app.`,
     });
   }
 
@@ -334,8 +362,8 @@ async function importOpening(client, p) {
   const kept = new Set();
   let loanCount = 0;
   for (const ln of p.loans) {
-    const memberId = idByReg.get(String(ln.regNo).trim());
-    if (!memberId) throw Object.assign(new Error('loan-member'), { userMessage: `A loan refers to register no. ${ln.regNo}, which is not on the Members sheet.` });
+    const memberId = idByKey.get(personKey(ln.memberName, ln.fatherName));
+    if (!memberId) throw Object.assign(new Error('loan-member'), { userMessage: `A loan is for ${who(ln.memberName, ln.fatherName)}, who is not on the Members sheet.` });
     const amount = r2(ln.amount);
     const interest = r2(ln.interest || 0);
     const repaid = r2(ln.repaid || 0);
@@ -348,7 +376,7 @@ async function importOpening(client, p) {
     const penaltiesAfter = prev ? r2(prev.penalties_after) : 0;
     const remaining = r2(totalPayable + openingPenalty + penaltiesAfter - repaid - paidAfter);
     if (remaining < -EPS) {
-      throw Object.assign(new Error('overpaid'), { userMessage: `The loan of ${amount.toLocaleString()} on ${displayDay(ln.loanDate)} (register no. ${ln.regNo}) would be repaid more than it owes once payments recorded after the cut-over are included.` });
+      throw Object.assign(new Error('overpaid'), { userMessage: `The loan of ${amount.toLocaleString()} on ${displayDay(ln.loanDate)} to ${who(ln.memberName, ln.fatherName)} would be repaid more than it owes once payments recorded after the cut-over are included.` });
     }
     const status = ln.defaulted ? 'defaulted' : remaining <= EPS ? 'paid' : 'active';
     let loanId;
@@ -413,7 +441,7 @@ async function importOpening(client, p) {
   const absenceList = [];
   for (const m of p.members) {
     const n = Math.max(0, Math.floor(Number(m.absences) || 0));
-    if (n > 0) absenceList.push([idByReg.get(String(m.regNo).trim()), n]);
+    if (n > 0) absenceList.push([idByKey.get(personKey(m.name, m.fatherName)), n]);
   }
   // In a fixed order, so a re-import can be compared with what was saved.
   const absences = Object.fromEntries(absenceList.sort(([a], [b]) => String(a).localeCompare(String(b))));
@@ -474,7 +502,7 @@ async function removeOpening(client) {
   await client.query('DELETE FROM public.bank_profits WHERE is_opening = true');
   // Members the import added and that have nothing else recorded go too; the rest stay.
   const removed = (await client.query(
-    `DELETE FROM public.members m WHERE m.register_no IS NOT NULL
+    `DELETE FROM public.members m WHERE m.is_opening
        AND NOT EXISTS (SELECT 1 FROM public.monthly_contributions c WHERE c.member_id = m.id)
        AND NOT EXISTS (SELECT 1 FROM public.loans l WHERE l.member_id = m.id)
        AND NOT EXISTS (SELECT 1 FROM public.attendance a WHERE a.member_id = m.id)
@@ -512,7 +540,7 @@ function register({ ipcMain, dialog, pool }) {
     }
   };
 
-  ipcMain.handle('opening-template', async (_, { cutoverDate, currency }) => {
+  ipcMain.handle('opening-template', async (_, { cutoverDate, currency, absenceFine }) => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(String(cutoverDate || ''))) return { error: 'Set the cut-over date first.' };
     const { canceled, filePath } = await dialog.showSaveDialog({
       title: 'Save opening-balances template',
@@ -521,7 +549,7 @@ function register({ ipcMain, dialog, pool }) {
     });
     if (canceled || !filePath) return { canceled: true };
     try {
-      await writeTemplate(filePath, { cutoverDate, currency: currency || 'PKR' });
+      await writeTemplate(filePath, { cutoverDate, currency: currency || 'PKR', absenceFine });
       return { success: true, path: filePath };
     } catch (err) {
       return { error: err.message };

@@ -14,6 +14,6 @@ Mode: Operate. Audience: the single admin (treasurer), short focused sessions, c
 THESIS: Settings grouped by what a change touches (members' money, this screen, the data itself), refusing the generic grid of equal cards.
 OWN-WORLD: MSO statement register: paper statement slips, brass rules, IBM Plex Mono figures, ink-stamp badges, teller-green/brick-red only for meaning.
 STORY: The admin sees at once which settings move money, understands exactly what a change will do before saving, and can see whether the data is safely backed up.
-FIRST VIEWPORT: Letterhead; below it a full-width Money rules slip (brass top rule) with interest, penalty and reserve share as rows on the left and a live worked example (a sample loan and distribution under the edited values) on the right; the Display and Lists band starts beneath.
+FIRST VIEWPORT: Letterhead; below it a full-width Money rules card (brass top rule) with its five rules in two row-columns, each edited value showing the one in force beneath it; the Display and Lists band starts beneath. No worked example (removed on request, 2026-10-05): the page is kept short.
 FORM: Grouped by consequence, list position 7 of 7, seed ca510f69.
 FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
