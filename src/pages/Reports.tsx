@@ -35,6 +35,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import AmountsNote from "@/components/AmountsNote";
 
 type PeriodPreset = "all" | "this-year" | "last-year" | "this-month" | "last-month" | "custom";
 
@@ -141,8 +142,10 @@ export default function ReportsPage() {
         <div>
           <h2 className="text-2xl font-bold text-foreground mt-1">Reports</h2>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Financial statements, ledgers and registers on the MSO letterhead. View a report, then download it from the viewer.
+            Financial statements, ledgers and registers on the MSO letterhead.
+            View a report, then download it from the viewer.
           </p>
+          <AmountsNote />
         </div>
       </div>
 
@@ -154,31 +157,58 @@ export default function ReportsPage() {
               <CalendarRange className="w-4 h-4" />
             </div>
             <div>
-              <p className="font-semibold text-sm text-foreground">Reporting period</p>
+              <p className="font-semibold text-sm text-foreground">
+                Reporting period
+              </p>
               <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
-                Period reports cover the selected dates with balances brought forward. As-at reports show the position at the end date.
+                Period reports cover the selected dates with balances brought
+                forward. As-at reports show the position at the end date.
               </p>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <Select value={preset} onValueChange={(v) => setPreset(v as PeriodPreset)}>
+            <Select
+              value={preset}
+              onValueChange={(v) => setPreset(v as PeriodPreset)}
+            >
               <SelectTrigger className="w-full lg:w-56 h-9 text-sm rounded-sm">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 {PRESETS.map((p) => (
-                  <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+                  <SelectItem key={p.value} value={p.value}>
+                    {p.label}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
             {preset === "custom" && (
               <div className="flex flex-col sm:flex-row gap-3">
-                <DatePicker date={customFrom} onDateChange={setCustomFrom} placeholder="From (inception)" className="h-9 sm:w-52 rounded-sm" />
-                <DatePicker date={customTo} onDateChange={setCustomTo} placeholder="To (today)" className="h-9 sm:w-52 rounded-sm" />
+                <DatePicker
+                  date={customFrom}
+                  onDateChange={setCustomFrom}
+                  placeholder="From (inception)"
+                  className="h-9 sm:w-52 rounded-sm"
+                />
+                <DatePicker
+                  date={customTo}
+                  onDateChange={setCustomTo}
+                  placeholder="To (today)"
+                  className="h-9 sm:w-52 rounded-sm"
+                />
               </div>
             )}
-            <p className={cn("figure text-xs", periodInvalid ? "text-destructive" : "text-muted-foreground")}>
-              {refreshing ? "Loading latest records…" : periodInvalid ? "Start date is after end date" : periodText}
+            <p
+              className={cn(
+                "figure text-xs",
+                periodInvalid ? "text-destructive" : "text-muted-foreground",
+              )}
+            >
+              {refreshing
+                ? "Loading latest records…"
+                : periodInvalid
+                  ? "Start date is after end date"
+                  : periodText}
             </p>
           </div>
         </CardContent>
@@ -188,17 +218,20 @@ export default function ReportsPage() {
         {card("financial-statements", "period", {
           icon: Landmark,
           title: "Financial Statements",
-          description: "Financial position, income & expenditure, changes in funds, cash flows, notes and approval page.",
+          description:
+            "Financial position, income & expenditure, changes in funds, cash flows, notes and approval page.",
         })}
         {card("trial-balance", "as-at", {
           icon: Scale,
           title: "Trial Balance",
-          description: "Debit and credit balances of every account, proving the books agree.",
+          description:
+            "Debit and credit balances of every account, proving the books agree.",
         })}
         {card("cash-book", "period", {
           icon: BookText,
           title: "Cash Book",
-          description: "Every receipt and payment by voucher, with running cash balance.",
+          description:
+            "Every receipt and payment by voucher, with running cash balance.",
         })}
       </Section>
 
@@ -209,19 +242,31 @@ export default function ReportsPage() {
           {
             icon: BookOpen,
             title: "Member Account Statement",
-            description: "Savings and loan accounts for one member, with balances brought forward.",
+            description:
+              "Savings and loan accounts for one member, with balances brought forward.",
           },
           { memberId: selectedMemberId ?? undefined },
-          <Select value={selectedMemberId ?? undefined} onValueChange={(v) => setSelectedMemberId(v || null)}>
+          <Select
+            value={selectedMemberId ?? undefined}
+            onValueChange={(v) => setSelectedMemberId(v || null)}
+          >
             <SelectTrigger className="w-full sm:w-56 h-9 text-sm rounded-sm">
               <SelectValue placeholder="Select a member…" />
             </SelectTrigger>
             <SelectContent>
               {books.members.map((m) => {
                 // Two members with the same name are told apart by father's name.
-                const twin = !!m.fatherName && books.members.some((o) => o.dbId !== m.dbId && o.name === m.name);
+                const twin =
+                  !!m.fatherName &&
+                  books.members.some(
+                    (o) => o.dbId !== m.dbId && o.name === m.name,
+                  );
                 return (
-                  <SelectItem key={m.dbId} value={m.dbId}>{twin ? `${m.name} (father's name ${m.fatherName})` : m.name}</SelectItem>
+                  <SelectItem key={m.dbId} value={m.dbId}>
+                    {twin
+                      ? `${m.name} (father's name ${m.fatherName})`
+                      : m.name}
+                  </SelectItem>
                 );
               })}
             </SelectContent>
@@ -231,7 +276,8 @@ export default function ReportsPage() {
         {card("member-register", "as-at", {
           icon: UserSquare2,
           title: "Register of Members",
-          description: "Members in order of admission with contact details and balances.",
+          description:
+            "Members in order of admission with contact details and balances.",
         })}
       </Section>
 
@@ -239,17 +285,20 @@ export default function ReportsPage() {
         {card("loan-portfolio", "as-at", {
           icon: HandCoins,
           title: "Loan Portfolio",
-          description: "All loans with due dates, penalties and balances, plus interest and penalties charged, received and outstanding.",
+          description:
+            "All loans with due dates, penalties and balances, plus interest and penalties charged, received and outstanding.",
         })}
         {card("active-loans", "as-at", {
           icon: Clock,
           title: "Active Loans",
-          description: "Loans still being repaid, soonest due first, with the time left to each due date and anything overdue; defaulted loans listed separately.",
+          description:
+            "Loans still being repaid, soonest due first, with the time left to each due date and anything overdue; defaulted loans listed separately.",
         })}
         {card("paid-loans", "period", {
           icon: CheckCircle2,
           title: "Paid Loans",
-          description: "Loans repaid in full in the period, by year, with the interest and late penalties collected on each.",
+          description:
+            "Loans repaid in full in the period, by year, with the interest and late penalties collected on each.",
         })}
         {card(
           "loan-statement",
@@ -257,20 +306,26 @@ export default function ReportsPage() {
           {
             icon: BookOpen,
             title: "Loan Account Statement",
-            description: "Terms, interest and penalties, and every repayment and charge on one loan.",
+            description:
+              "Terms, interest and penalties, and every repayment and charge on one loan.",
           },
           { loanId: selectedLoanId ?? undefined },
-          <Select value={selectedLoanId ?? undefined} onValueChange={(v) => setSelectedLoanId(v || null)}>
+          <Select
+            value={selectedLoanId ?? undefined}
+            onValueChange={(v) => setSelectedLoanId(v || null)}
+          >
             <SelectTrigger className="w-full sm:w-64 h-9 text-sm rounded-sm">
               <SelectValue placeholder="Select a loan…" />
             </SelectTrigger>
             <SelectContent>
               {books.loans.length === 0 ? (
-                <SelectItem value="__none" disabled>No loans available</SelectItem>
+                <SelectItem value="__none" disabled>
+                  No loans available
+                </SelectItem>
               ) : (
                 [...books.loans].reverse().map((l) => (
                   <SelectItem key={l.dbId} value={l.dbId}>
-                    {l.loanNo} · {l.memberName} · {settings.currency} {l.principal.toLocaleString()}
+                    {l.loanNo} · {l.memberName} · {l.principal.toLocaleString()}
                   </SelectItem>
                 ))
               )}
@@ -284,12 +339,14 @@ export default function ReportsPage() {
         {card("contribution-register", "period", {
           icon: ClipboardList,
           title: "Contribution Register",
-          description: "One page a year: what each member paid at each meeting, with member and meeting totals.",
+          description:
+            "One page a year: what each member paid at each meeting, with member and meeting totals.",
         })}
         {card("reserve-ledger", "period", {
           icon: PiggyBank,
           title: "Reserve Fund Ledger",
-          description: "Donations, profit allocations and expenses with running fund balance.",
+          description:
+            "Donations, profit allocations and expenses with running fund balance.",
         })}
         {card(
           "profit-distribution",
@@ -297,20 +354,33 @@ export default function ReportsPage() {
           {
             icon: PieChart,
             title: "Profit Distribution Statement",
-            description: "How the year's profit is made up, the reserve fund's share and each member's dividend after absence charges.",
+            description:
+              "How the year's profit is made up, the reserve fund's share and each member's dividend after absence charges.",
           },
           { distributionId: selectedDistributionId ?? undefined },
-          <Select value={selectedDistributionId ?? undefined} onValueChange={(v) => setSelectedDistributionId(v || null)}>
+          <Select
+            value={selectedDistributionId ?? undefined}
+            onValueChange={(v) => setSelectedDistributionId(v || null)}
+          >
             <SelectTrigger className="w-full sm:w-56 h-9 text-sm rounded-sm">
-              <SelectValue placeholder={books.distributions.length ? "Latest distribution" : "None recorded"} />
+              <SelectValue
+                placeholder={
+                  books.distributions.length
+                    ? "Latest distribution"
+                    : "None recorded"
+                }
+              />
             </SelectTrigger>
             <SelectContent>
               {books.distributions.length === 0 ? (
-                <SelectItem value="__none" disabled>No distributions recorded</SelectItem>
+                <SelectItem value="__none" disabled>
+                  No distributions recorded
+                </SelectItem>
               ) : (
                 [...books.distributions].reverse().map((d) => (
                   <SelectItem key={d.id} value={d.id}>
-                    {d.voucher} · {fmt(d.date.slice(0, 10))} · {settings.currency} {d.totalProfit.toLocaleString()}
+                    {d.voucher} · {fmt(d.date.slice(0, 10))} ·{" "}
+                    {d.totalProfit.toLocaleString()}
                   </SelectItem>
                 ))
               )}
@@ -324,7 +394,8 @@ export default function ReportsPage() {
         {card("meetings-register", "period", {
           icon: CalendarDays,
           title: "Meetings & Attendance Register",
-          description: "Year by year: each meeting's agenda, resolutions and collections, and an attendance grid (present, absent, on leave) by member.",
+          description:
+            "Year by year: each meeting's agenda, resolutions and collections, and an attendance grid (present, absent, on leave) by member.",
         })}
       </Section>
     </div>

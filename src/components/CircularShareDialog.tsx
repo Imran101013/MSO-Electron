@@ -12,7 +12,7 @@ import { formatTime } from "@/lib/utils";
 import { fillCircular, unfilledFields, type CircularMeeting } from "@/lib/circular";
 import { format } from "date-fns";
 
-type ShareResult = { opened?: "app" | "web"; error?: string };
+type ShareResult = { opened?: "app" | "web"; copied?: boolean; error?: string };
 type Bridge = { shareWhatsApp?: (text: string) => Promise<ShareResult> };
 type Scheduled = CircularMeeting & { id: string };
 
@@ -78,7 +78,8 @@ export default function CircularShareDialog({ open, onOpenChange, template }: { 
       const res = await api.shareWhatsApp(text);
       if (res.error) toast.error("Unable to open WhatsApp", { description: res.error });
       else {
-        toast.success(res.opened === "app" ? "WhatsApp opened" : "WhatsApp Web opened", { description: "Choose the group; the circular is typed in, ready to send." });
+        if (res.copied) toast.success("Circular copied: paste it in WhatsApp", { description: "It's too long to be typed in for you. Choose the group, then press Ctrl+V.", duration: 15000 });
+        else toast.success(res.opened === "app" ? "WhatsApp opened" : "WhatsApp Web opened", { description: "Choose the group; the circular is typed in, ready to send." });
         onOpenChange(false);
       }
     } catch (err) {

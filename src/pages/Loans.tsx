@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { ORGANIZATION_CONFIG } from "@/config/organization";
 import StatCard from "@/components/StatCard";
+import AmountsNote from "@/components/AmountsNote";
 import ViewReportButton from "@/components/ViewReportButton";
 import { useMemo, useState } from "react";
 import { useSettings } from "@/contexts/SettingsContext";
@@ -216,7 +217,6 @@ export default function Loans() {
   const defaultedPaged = usePaged(defaultedLoans);
   const repaymentsPaged = usePaged(viewRepayments, viewLoan?.id ?? null);
   const penaltiesPaged = usePaged(viewPenalties, viewLoan?.id ?? null);
-  const cur = settings.currency;
 
   if (isLoading || membersLoading) return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
 
@@ -231,6 +231,7 @@ export default function Loans() {
           <div>
             <h2 className="text-2xl font-bold text-foreground mt-1">Loan Management</h2>
             <p className="text-sm text-muted-foreground mt-0.5">Track and manage member loans</p>
+            <AmountsNote />
           </div>
         </div>
         {isAdmin && (
@@ -271,7 +272,7 @@ export default function Loans() {
                       )} />
                       <FormField control={issueForm.control} name="amount" render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-xs font-medium">Amount ({settings.currency})</FormLabel>
+                          <FormLabel className="text-xs font-medium">Amount</FormLabel>
                           <FormControl>
                             <Input type="number" placeholder="Enter amount" className="h-9 rounded-sm figure" {...field} />
                           </FormControl>
@@ -281,12 +282,12 @@ export default function Loans() {
                       {issueNeedsCharge && (
                         <FormField control={issueForm.control} name="bankCharge" render={({ field }) => (
                           <FormItem>
-                            <FormLabel className="text-xs font-medium">Bank charge on this withdrawal ({settings.currency})</FormLabel>
+                            <FormLabel className="text-xs font-medium">Bank charge on this withdrawal</FormLabel>
                             <FormControl>
                               <Input type="number" placeholder="From the bank statement" className="h-9 rounded-sm figure" {...field} value={field.value ?? ""} />
                             </FormControl>
                             <p className="text-xs text-muted-foreground">
-                              Loans above {settings.currency} {settings.bankChargeThreshold.toLocaleString()} are paid by a cheque the bank charges for. The member repays the charge with
+                              Loans above {settings.bankChargeThreshold.toLocaleString()} are paid by a cheque the bank charges for. The member repays the charge with
                               the loan, with no interest on it. Leave it blank if the statement isn't in yet, and add it later from the loan's View.
                             </p>
                             <FormMessage className="text-xs" />
@@ -305,14 +306,14 @@ export default function Loans() {
                       <div className="rounded-sm border bg-muted/30 px-3.5 py-3 space-y-1.5 text-xs text-muted-foreground">
                         <p className="font-semibold text-foreground">Repayment terms · within {ORGANIZATION_CONFIG.LOAN_PERIOD_MONTHS} months</p>
                         <p className="figure">
-                          {issueRate > 0 ? `Interest ${issueRate}% flat · ` : ""}Total payable {settings.currency} {issueTotal.toLocaleString()}
-                          {issueCharge > 0 && <> + bank charge {issueCharge.toLocaleString()} = {settings.currency} {issueOwed.toLocaleString()} owed</>}
+                          {issueRate > 0 ? `Interest ${issueRate}% flat · ` : ""}Total payable {issueTotal.toLocaleString()}
+                          {issueCharge > 0 && <> + bank charge {issueCharge.toLocaleString()} = {issueOwed.toLocaleString()} owed</>}
                           {issueDueDate && <> · due by {format(parseLocalDate(issueDueDate), settings.dateFormat)}</>}
                         </p>
                         <p>Repaid in any amounts, at any time, until it is all paid by the due date.</p>
                         {settings.latePenaltyPerMonth > 0 && (
                           <p className="figure">
-                            Late penalty: {settings.currency} {settings.latePenaltyPerMonth.toLocaleString()} for each full month unpaid after the due date.
+                            Late penalty: {settings.latePenaltyPerMonth.toLocaleString()} for each full month unpaid after the due date.
                           </p>
                         )}
                       </div>
@@ -371,7 +372,7 @@ export default function Loans() {
                               <FormControl>
                                 <SelectTrigger className="h-9 rounded-sm"><SelectValue placeholder="Select a loan" /></SelectTrigger>
                               </FormControl>
-                              <SelectContent>{memberLoansForCollection.map((l) => <SelectItem key={l.id} value={l.id}>Remaining: {settings.currency} {l.remaining_amount.toLocaleString()}</SelectItem>)}</SelectContent>
+                              <SelectContent>{memberLoansForCollection.map((l) => <SelectItem key={l.id} value={l.id}>Remaining: {l.remaining_amount.toLocaleString()}</SelectItem>)}</SelectContent>
                             </Select>
                             <FormMessage className="text-xs" />
                           </FormItem>
@@ -379,7 +380,7 @@ export default function Loans() {
                       )}
                       <FormField control={paymentForm.control} name="amount" render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-xs font-medium">Payment Amount ({settings.currency})</FormLabel>
+                          <FormLabel className="text-xs font-medium">Payment Amount</FormLabel>
                           <FormControl>
                             <Input type="number" placeholder="Enter payment amount" className="h-9 rounded-sm figure" {...field} />
                           </FormControl>
@@ -411,10 +412,10 @@ export default function Loans() {
       {/* Stat cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: "Total Outstanding", value: `${settings.currency} ${loanStats.totalOutstanding.toLocaleString()}`, icon: TrendingDown, color: "border-destructive/40 bg-destructive/10 text-destructive" },
+          { label: "Total Outstanding", value: loanStats.totalOutstanding.toLocaleString(), icon: TrendingDown, color: "border-destructive/40 bg-destructive/10 text-destructive" },
           { label: "Active Loans", value: `${loanStats.activeLoansCount} loan${loanStats.activeLoansCount === 1 ? "" : "s"} · ${loanStats.membersWithLoans} member${loanStats.membersWithLoans === 1 ? "" : "s"}`, icon: HandCoins, color: "border-primary/40 bg-primary/10 text-primary" },
-          { label: "Total Recovered", value: `${settings.currency} ${loanStats.totalRecovered.toLocaleString()}`, icon: CheckCircle2, color: "border-secondary/40 bg-secondary/10 text-secondary" },
-          { label: "Overdue (past due date)", value: `${loanStats.overdueCount} loan${loanStats.overdueCount === 1 ? "" : "s"} · ${settings.currency} ${loanStats.overdueAmount.toLocaleString()}`, icon: AlertTriangle, color: "border-accent/60 bg-accent/15 text-accent-foreground dark:text-accent" },
+          { label: "Total Recovered", value: loanStats.totalRecovered.toLocaleString(), icon: CheckCircle2, color: "border-secondary/40 bg-secondary/10 text-secondary" },
+          { label: "Overdue (past due date)", value: `${loanStats.overdueCount} loan${loanStats.overdueCount === 1 ? "" : "s"} · ${loanStats.overdueAmount.toLocaleString()}`, icon: AlertTriangle, color: "border-accent/60 bg-accent/15 text-accent-foreground dark:text-accent" },
         ].map(({ label, value, icon, color }) => (
           <StatCard key={label} title={label} value={value} icon={icon} iconColor={color} />
         ))}
@@ -466,7 +467,7 @@ export default function Loans() {
                       <TableRow key={loan.id} className="hover:bg-muted/30">
                         <TableCell className="font-semibold text-sm whitespace-nowrap">{loan.member_name || "Unknown"}</TableCell>
                         <TableCell className="text-sm figure text-right whitespace-nowrap">
-                          {settings.currency} {loan.amount.toLocaleString()}
+                          {loan.amount.toLocaleString()}
                           {Number(loan.bank_charge) > 0 && <span className="block text-xs text-muted-foreground" title="Bank charge on the withdrawal, repaid with the loan">+{Number(loan.bank_charge).toLocaleString()} charge</span>}
                         </TableCell>
                         <TableCell className="text-sm figure text-right whitespace-nowrap">
@@ -480,7 +481,7 @@ export default function Loans() {
                         <TableCell className="text-sm figure text-right whitespace-nowrap">{penaltyTotal > 0 ? penaltyTotal.toLocaleString() : "—"}</TableCell>
                         <TableCell className="text-sm figure text-right text-secondary font-medium whitespace-nowrap">{(Math.round((loan.total_payable + (Number(loan.bank_charge) || 0) + penaltyTotal - loan.remaining_amount) * 100) / 100).toLocaleString()}</TableCell>
                         <TableCell className="text-sm figure text-right text-destructive font-bold whitespace-nowrap">
-                          {settings.currency} {loan.remaining_amount.toLocaleString()}
+                          {loan.remaining_amount.toLocaleString()}
                         </TableCell>
                         <TableCell className="text-sm">
                           <div className="flex flex-col items-start gap-1">
@@ -522,7 +523,9 @@ export default function Loans() {
                 </div>
                 Defaulted Loans
               </div>
-              <Badge variant="outline" className="font-normal">{defaultedLoans.length} defaulted</Badge>
+              <div className="flex items-center gap-3">
+                <Badge variant="outline" className="font-normal">{defaultedLoans.length} defaulted</Badge>
+              </div>
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
@@ -549,7 +552,7 @@ export default function Loans() {
                       <TableRow key={loan.id} className="hover:bg-muted/30">
                         <TableCell className="font-semibold text-sm whitespace-nowrap">{loan.member_name || "Unknown"}</TableCell>
                         <TableCell className="text-sm figure text-right whitespace-nowrap">
-                          {settings.currency} {loan.amount.toLocaleString()}
+                          {loan.amount.toLocaleString()}
                           {Number(loan.bank_charge) > 0 && <span className="block text-xs text-muted-foreground" title="Bank charge on the withdrawal, repaid with the loan">+{Number(loan.bank_charge).toLocaleString()} charge</span>}
                         </TableCell>
                         <TableCell className="text-sm figure text-right whitespace-nowrap">
@@ -563,7 +566,7 @@ export default function Loans() {
                         <TableCell className="text-sm figure text-right whitespace-nowrap">{penaltyTotal > 0 ? penaltyTotal.toLocaleString() : "—"}</TableCell>
                         <TableCell className="text-sm figure text-right text-secondary font-medium whitespace-nowrap">{(Math.round((loan.total_payable + (Number(loan.bank_charge) || 0) + penaltyTotal - loan.remaining_amount) * 100) / 100).toLocaleString()}</TableCell>
                         <TableCell className="text-sm figure text-right text-destructive font-bold whitespace-nowrap">
-                          {settings.currency} {loan.remaining_amount.toLocaleString()}
+                          {loan.remaining_amount.toLocaleString()}
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground figure whitespace-nowrap">
                           {format(parseLocalDate(loanDueDate(loan.loan_date)), settings.dateFormat)}
@@ -604,12 +607,14 @@ export default function Loans() {
               </div>
               Interest & Penalties
             </div>
-            <Link
-              to="/profit-distribution"
-              className="flex items-center gap-1 rounded-sm text-xs font-medium text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              Each year's loans on Profit Distribution <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
+            <div className="flex items-center gap-4">
+              <Link
+                to="/profit-distribution"
+                className="flex items-center gap-1 rounded-sm text-xs font-medium text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                Each year's loans on Profit Distribution <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
@@ -621,17 +626,17 @@ export default function Loans() {
           >
             <CollectionFigure
               label="Collected"
-              value={`${cur} ${collectedTotal.toLocaleString()}`}
+              value={collectedTotal.toLocaleString()}
               tone="good"
               note={
                 collectedRows.length > 0
-                  ? `From ${collectedRows.length} loan${collectedRows.length === 1 ? "" : "s"} repaid in full · interest ${cur} ${incomeSum(collectedRows, (x) => x.interestReceived).toLocaleString()}, penalties ${cur} ${incomeSum(collectedRows, (x) => x.penaltiesReceived).toLocaleString()}`
+                  ? `From ${collectedRows.length} loan${collectedRows.length === 1 ? "" : "s"} repaid in full · interest ${incomeSum(collectedRows, (x) => x.interestReceived).toLocaleString()}, penalties ${incomeSum(collectedRows, (x) => x.penaltiesReceived).toLocaleString()}`
                   : "Nothing yet: no loan with interest has been repaid in full"
               }
             />
             <CollectionFigure
               label="Still to collect"
-              value={`${cur} ${toCollectTotal.toLocaleString()}`}
+              value={toCollectTotal.toLocaleString()}
               note={
                 openRows.length > 0
                   ? `On ${openRows.length} active loan${openRows.length === 1 ? "" : "s"}, already included in the Outstanding balances above`
@@ -641,7 +646,7 @@ export default function Loans() {
             {defaultedRows.length > 0 && (
               <CollectionFigure
                 label="On defaulted loans"
-                value={`${cur} ${defaultedTotal.toLocaleString()}`}
+                value={defaultedTotal.toLocaleString()}
                 tone="bad"
                 note={`${defaultedRows.length} loan${defaultedRows.length === 1 ? "" : "s"} marked defaulted; collected only if repaid in full`}
               />
@@ -663,7 +668,7 @@ export default function Loans() {
             <div>
               <DialogTitle className="text-base font-bold text-foreground">Loan Account</DialogTitle>
               <p className="text-xs text-muted-foreground figure">
-                {viewLoan?.member_name || "Unknown"} · Total Payable {settings.currency} {viewLoan?.total_payable?.toLocaleString()}
+                {viewLoan?.member_name || "Unknown"} · Total Payable {viewLoan?.total_payable?.toLocaleString()}
                 {Number(viewLoan?.bank_charge) > 0 && <> + bank charge {Number(viewLoan?.bank_charge).toLocaleString()}</>}
                 {viewDueDate && <> · Due by {format(parseLocalDate(viewDueDate), settings.dateFormat)}</>}
                 {viewDueDate && viewLoan?.status === "active" && Number(viewLoan.remaining_amount) > 0.005 && <> ({dueIn(viewDueDate, todayStr).text})</>}
@@ -681,7 +686,7 @@ export default function Loans() {
                   <div key={f.label} className="rounded-sm border border-border/60 px-3 py-2">
                     <p className="text-xs text-muted-foreground">{f.label}</p>
                     <p className={cn("figure text-sm font-bold", f.label === "Outstanding" && f.value > 0.005 ? "text-destructive" : f.label === "Repaid" ? "text-secondary" : "text-foreground")}>
-                      {settings.currency} {(Math.round(f.value * 100) / 100).toLocaleString()}
+                      {(Math.round(f.value * 100) / 100).toLocaleString()}
                     </p>
                   </div>
                 ))}
@@ -703,8 +708,8 @@ export default function Loans() {
                   {repaymentsPaged.rows.map((row) => (
                     <TableRow key={row.key}>
                       <TableCell className="text-sm figure">{row.date ? format(parseLocalDate(row.date), settings.dateFormat) : "Before the cut-over"}</TableCell>
-                      <TableCell className="text-sm figure text-right text-secondary font-medium">{settings.currency} {row.amount.toLocaleString()}</TableCell>
-                      <TableCell className="text-sm figure text-right">{settings.currency} {Math.max(0, row.balance).toLocaleString()}</TableCell>
+                      <TableCell className="text-sm figure text-right text-secondary font-medium">{row.amount.toLocaleString()}</TableCell>
+                      <TableCell className="text-sm figure text-right">{Math.max(0, row.balance).toLocaleString()}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -713,7 +718,7 @@ export default function Loans() {
             <TablePager paged={repaymentsPaged} noun="repayments" className="px-0" />
             {viewLoan && Number(viewLoan.penalty_per_month) > 0 && (
               <p className="text-xs text-muted-foreground mt-3 figure">
-                Repaid in any amounts, at any time, until it is all paid by the due date. Late penalty after that: {settings.currency} {Number(viewLoan.penalty_per_month).toLocaleString()} for each full month unpaid.
+                Repaid in any amounts, at any time, until it is all paid by the due date. Late penalty after that: {Number(viewLoan.penalty_per_month).toLocaleString()} for each full month unpaid.
                 {viewLoan.status === "defaulted" && viewLoan.defaulted_on && (
                   <> Marked defaulted on {format(parseLocalDate(viewLoan.defaulted_on), settings.dateFormat)}: no penalties after that date.</>
                 )}
@@ -735,12 +740,12 @@ export default function Loans() {
                       <TableRow key={p.id}>
                         <TableCell className="text-sm figure">{p.penalty_month === 0 ? "From registers" : p.penalty_month}</TableCell>
                         <TableCell className="text-sm figure">{format(parseLocalDate(p.charge_date), settings.dateFormat)}</TableCell>
-                        <TableCell className="text-sm figure text-right">{settings.currency} {Number(p.amount).toLocaleString()}</TableCell>
+                        <TableCell className="text-sm figure text-right">{Number(p.amount).toLocaleString()}</TableCell>
                       </TableRow>
                     ))}
                     <TableRow className="hover:bg-transparent">
                       <TableCell colSpan={2} className="text-sm font-semibold">Total penalties</TableCell>
-                      <TableCell className="text-sm figure font-semibold text-right">{settings.currency} {(Number(viewLoan?.penalty_total) || 0).toLocaleString()}</TableCell>
+                      <TableCell className="text-sm figure font-semibold text-right">{(Number(viewLoan?.penalty_total) || 0).toLocaleString()}</TableCell>
                     </TableRow>
                   </TableBody>
                 </Table>
@@ -776,7 +781,7 @@ export default function Loans() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-1.5">
-            <p className="text-sm font-medium text-foreground">Bank charge ({settings.currency})</p>
+            <p className="text-sm font-medium text-foreground">Bank charge</p>
             <Input id="bankChargeInput" inputMode="decimal" value={chargeText} onChange={(e) => setChargeText(e.target.value)} className="h-9 rounded-sm figure" placeholder="0" />
           </div>
           <AlertDialogFooter>
@@ -806,8 +811,8 @@ export default function Loans() {
             <AlertDialogDescription asChild>
               <div className="space-y-2">
                 <p>
-                  {viewLoan?.member_name || "This member"}'s loan of {settings.currency} {Number(viewLoan?.amount ?? 0).toLocaleString()}, with{" "}
-                  <span className="figure">{settings.currency} {Number(viewLoan?.remaining_amount ?? 0).toLocaleString()}</span> still owed.
+                  {viewLoan?.member_name || "This member"}'s loan of {Number(viewLoan?.amount ?? 0).toLocaleString()}, with{" "}
+                  <span className="figure">{Number(viewLoan?.remaining_amount ?? 0).toLocaleString()}</span> still owed.
                 </p>
                 <p>
                   No late penalty is added after the date below. Penalties charged up to then stay in the balance, and the accounts

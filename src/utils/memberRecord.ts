@@ -6,6 +6,7 @@ import { loanIncome, type LoanIncome } from "@/utils/loanInterest";
 import type { DbMember } from "@/hooks/useMembers";
 import { attendanceStatus, type AttendanceStatus } from "@/hooks/useAttendance";
 import type { Settings } from "@/contexts/SettingsContext";
+import { figureBlock, footer, heading, letterhead } from "@/utils/whatsappFormat";
 
 export type LoanState = "Active" | "Overdue" | "Paid" | "Defaulted";
 
@@ -26,6 +27,8 @@ export interface MemberLoan {
   /** Late penalties charged so far (included in `remaining`). */
   penaltyTotal: number;
   state: LoanState;
+  /** The day the committee marked it defaulted (null if it hasn't been). */
+  defaultedOn: string | null;
   /** Everything owed once the due date has passed; 0 before it. */
   arrears: number;
   /** Days since the due date. */
@@ -89,9 +92,9 @@ export async function getMemberRecord(memberId: string): Promise<MemberRecord> {
        ORDER BY d.distribution_date, d.created_at`,
       [memberId],
     ),
-    dbQuery<{ id: string; loan_date: string; amount: number; interest_rate: number; total_payable: number; bank_charge: number; remaining_amount: number; term_months: number; penalty_per_month: number; penalty_total: number; status: string }>(
+    dbQuery<{ id: string; loan_date: string; amount: number; interest_rate: number; total_payable: number; bank_charge: number; remaining_amount: number; term_months: number; penalty_per_month: number; penalty_total: number; status: string; defaulted_on: string | null }>(
       `SELECT l.id, l.loan_date::text AS loan_date, l.amount, l.interest_rate, l.total_payable, l.bank_charge, l.remaining_amount, l.term_months, l.penalty_per_month,
-              COALESCE((SELECT SUM(p.amount) FROM public.loan_penalties p WHERE p.loan_id = l.id), 0) AS penalty_total, l.status
+              COALESCE((SELECT SUM(p.amount) FROM public.loan_penalties p WHERE p.loan_id = l.id), 0) AS penalty_total, l.status, l.defaulted_on::text AS defaulted_on
        FROM public.loans l WHERE l.member_id = $1 ORDER BY l.loan_date DESC, l.created_at DESC`,
       [memberId],
     ),
@@ -152,6 +155,7 @@ export async function getMemberRecord(memberId: string): Promise<MemberRecord> {
       penaltyPerMonth: Number(l.penalty_per_month) || 0,
       penaltyTotal,
       state,
+      defaultedOn: l.defaulted_on ? l.defaulted_on.slice(0, 10) : null,
       arrears: state === "Paid" || !pastDue ? 0 : remaining,
       daysOverdue: state === "Paid" || !pastDue ? 0 : differenceInCalendarDays(parseLocalDate(today), parseLocalDate(dueDate)),
       timeLeft: state === "Active" ? dueIn(dueDate, today).text : null,
@@ -195,43 +199,76 @@ export function durationSince(key: string): string {
 
 export const ageFrom = (dob: string | null) => (dob ? differenceInYears(new Date(), parseLocalDate(dob.slice(0, 10))) : null);
 
-/** WhatsApp summary sent to the member's own number. */
+/** WhatsApp summary sent to the member's own number (layout in utils/whatsappFormat.ts). */
 export function formatMemberSummary(record: MemberRecord, settings: Pick<Settings, "organizationName" | "dateFormat" | "currency">): string {
   const cur = settings.currency || "PKR";
   const num = (v: number) => Number(v).toLocaleString("en-US", { maximumFractionDigits: 2 });
   const date = (key: string) => format(parseLocalDate(key.slice(0, 10)), settings.dateFormat || "dd/MM/yyyy");
-  const orgName =
-    settings.organizationName?.trim() && settings.organizationName.trim().toUpperCase() !== "MSO"
-      ? settings.organizationName.trim()
-      : "Mogh Students Organisation";
+  const today = format(new Date(), settings.dateFormat || "dd/MM/yyyy");
   const { member } = record;
+
   const out = [
-    `*${orgName} (MSO)*`,
-    "*Member account summary*",
+    ...letterhead(settings, "Member Account Summary"),
+    `Assalam-o-Alaikum *${member.name}*,`,
+    `Here is your MSO account as at *${today}*.`,
+    `_Amounts in ${cur}_`,
     "",
-    `Name: ${member.name}`,
+    heading("Member"),
+    member.name,
     ...(member.father_name ? [`Father's name: ${member.father_name}`] : []),
-    `Member since: ${date(member.join_date)}`,
+    `Member since ${date(member.join_date)} (${durationSince(member.join_date)})`,
     "",
-    `*Savings balance: ${cur} ${num(record.savingsBalance)}*`,
-    `Contributions: ${cur} ${num(record.contributionsTotal)}`,
-    ...(record.profitTotal > 0 ? [`Profit shares: ${cur} ${num(record.profitTotal)}`] : []),
-    "",
-    record.openLoans
-      ? `*Loan outstanding: ${cur} ${num(record.loanOutstanding)}*`
-      : "*Loans:* none outstanding",
+    heading("Savings"),
+    figureBlock([
+      { label: "Contributions", amount: record.contributionsTotal },
+      ...(record.profitTotal > 0 ? [{ label: "Profit shares", amount: record.profitTotal, sign: "+" as const }] : []),
+      "rule",
+      { label: "Balance", amount: record.savingsBalance, sign: "=" },
+    ]),
   ];
-  for (const l of record.loans.filter((x) => x.state !== "Paid")) {
-    const detail = l.state === "Overdue"
-      ? `overdue since ${date(l.dueDate)} (${l.daysOverdue} days)${l.penaltyTotal > 0 ? `, incl. ${cur} ${num(l.penaltyTotal)} late penalty` : ""}`
-      : l.state === "Defaulted"
-        ? "defaulted"
-        : `due by ${date(l.dueDate)}${l.timeLeft ? ` (${l.timeLeft})` : ""}`;
-    out.push(`- Loan of ${date(l.date)}: ${cur} ${num(l.remaining)} remaining, ${detail}`);
+  if (record.lastDividend) {
+    const d = record.lastDividend;
+    const share = d.ratio !== null ? ` (${(d.ratio * 100).toFixed(2)}% share)` : "";
+    out.push(`Last dividend: ${num(d.amount)} ${d.year ? `for ${d.year}` : `on ${date(d.date)}`}${share}`);
   }
+
+  // Each loan still owed, worked out as on the Loans page: lent + interest + charges − repaid.
+  const open = record.loans.filter((l) => l.state !== "Paid");
+  if (open.length === 0) out.push("", heading("Loans"), "No loan outstanding.");
+  for (const l of open) {
+    const interest = Math.round((l.totalPayable - l.principal) * 100) / 100;
+    out.push(
+      "",
+      heading(`Loan of ${date(l.date)}`),
+      figureBlock([
+        { label: "Lent", amount: l.principal },
+        ...(interest > 0.005 ? [{ label: `Interest (${l.interestRate}%)`, amount: interest, sign: "+" as const }] : []),
+        ...(l.bankCharge > 0.005 ? [{ label: "Bank charge", amount: l.bankCharge, sign: "+" as const }] : []),
+        ...(l.penaltyTotal > 0.005 ? [{ label: "Late penalties", amount: l.penaltyTotal, sign: "+" as const }] : []),
+        { label: "Repaid", amount: l.repaid, sign: "-" },
+        "rule",
+        { label: "Outstanding", amount: l.remaining, sign: "=" },
+      ]),
+    );
+    if (l.state === "Overdue") {
+      const penalty = l.penaltyPerMonth > 0
+        ? `A late penalty of ${num(l.penaltyPerMonth)} is added for each further full month it stays unpaid.`
+        : "Please repay it as soon as you can.";
+      out.push(`> ⚠️ *Overdue* since ${date(l.dueDate)} (${l.daysOverdue} days). ${penalty}`);
+    } else if (l.state === "Defaulted") {
+      out.push(`> ⚠️ *Defaulted*: marked by the committee${l.defaultedOn ? ` on ${date(l.defaultedOn)}` : ""}. The balance is still owed.`);
+    } else {
+      out.push(`Due by ${date(l.dueDate)}${l.timeLeft ? ` (${l.timeLeft})` : ""}. Repay in any amounts before then.`);
+    }
+  }
+  if (open.length > 1) out.push("", `*Total outstanding: ${num(record.loanOutstanding)}*`);
+
   if (record.recordedMeetings) {
-    const leave = record.onLeaveMeetings ? `, ${record.onLeaveMeetings} on leave` : "";
-    out.push("", `*Attendance:* ${record.attended} of ${record.recordedMeetings} meetings (${Math.round((record.attended / record.recordedMeetings) * 100)}%)${leave}`);
+    const pct = Math.round((record.attended / record.recordedMeetings) * 100);
+    const leave = record.onLeaveMeetings ? `, not counting ${record.onLeaveMeetings} on leave` : "";
+    out.push("", heading("Attendance"), `${record.attended} of ${record.recordedMeetings} meetings attended (${pct}%)${leave}`);
   }
+
+  out.push(...footer(`Prepared from MSO records on ${today}. If anything differs from your own record, please contact the administration.`));
   return out.join("\n");
 }

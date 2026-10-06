@@ -296,11 +296,10 @@ export default function SettingsPage() {
               help={`Added for each full month after a loan's ${period}-month term until it is paid in full, penalties included, or the committee marks it defaulted.`}
               htmlFor="latePenaltyPerMonth"
               error={errors.latePenaltyPerMonth?.message}
-              hint={was("latePenaltyPerMonth", `${settings.currency} ${money(settings.latePenaltyPerMonth)} a month`)}
+              hint={was("latePenaltyPerMonth", `${money(settings.latePenaltyPerMonth)} a month`)}
             >
               <UnitInput
                 id="latePenaltyPerMonth"
-                prefix={cur}
                 suffix="/ month"
                 inputMode="decimal"
                 invalid={!!errors.latePenaltyPerMonth}
@@ -313,11 +312,10 @@ export default function SettingsPage() {
               help="Taken from a member's dividend for each meeting of the year they were marked absent at, never more than the dividend. The charges are part of the year's profit."
               htmlFor="absencePenaltyPerMeeting"
               error={errors.absencePenaltyPerMeeting?.message}
-              hint={was("absencePenaltyPerMeeting", `${settings.currency} ${money(settings.absencePenaltyPerMeeting)} a meeting`)}
+              hint={was("absencePenaltyPerMeeting", `${money(settings.absencePenaltyPerMeeting)} a meeting`)}
             >
               <UnitInput
                 id="absencePenaltyPerMeeting"
-                prefix={cur}
                 suffix="/ meeting"
                 inputMode="decimal"
                 invalid={!!errors.absencePenaltyPerMeeting}
@@ -348,11 +346,10 @@ export default function SettingsPage() {
               help="The bank takes a charge when a cheque withdrawal is above this amount. Loans and reserve expenses above it ask for the charge, typed in from the bank statement: on a loan the member repays it with the loan (no interest on it); on a reserve expense the reserve fund pays it."
               htmlFor="bankChargeThreshold"
               error={errors.bankChargeThreshold?.message}
-              hint={was("bankChargeThreshold", `${settings.currency} ${money(settings.bankChargeThreshold)}`)}
+              hint={was("bankChargeThreshold", `${money(settings.bankChargeThreshold)}`)}
             >
               <UnitInput
                 id="bankChargeThreshold"
-                prefix={cur}
                 inputMode="decimal"
                 invalid={!!errors.bankChargeThreshold}
                 {...register("bankChargeThreshold", { setValueAs: asNumber })}
@@ -432,7 +429,7 @@ export default function SettingsPage() {
             </SettingRow>
           </div>
           <div className="divide-y divide-border px-5 border-t border-border [@container(min-width:54rem)]:border-t-0">
-            <SettingRow label="Currency" help="Shown before every amount." htmlFor="currency" error={errors.currency?.message}>
+            <SettingRow label="Currency" help={`Named once in the header of each section with amounts ("Amounts in ${cur}"), not before every amount.`} htmlFor="currency" error={errors.currency?.message}>
               <input
                 id="currency"
                 className={cn(fieldClass, "w-full sm:w-28 figure uppercase", errors.currency && "border-destructive")}
@@ -640,10 +637,13 @@ export default function SettingsPage() {
 const fieldClass =
   "flex h-10 rounded-sm border border-input bg-background px-3 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50";
 
-function SectionHead({ title, description }: { title: string; description: string }) {
+function SectionHead({ title, description, note }: { title: string; description: string; note?: ReactNode }) {
   return (
     <div className="px-5 pt-4">
-      <h3 className="text-base font-bold text-foreground">{title}</h3>
+      <div className="flex items-baseline justify-between gap-3">
+        <h3 className="text-base font-bold text-foreground">{title}</h3>
+        {note}
+      </div>
       <p className="text-sm text-muted-foreground mt-0.5 max-w-[90ch]">{description}</p>
     </div>
   );

@@ -50,11 +50,22 @@ export function circularValues(meeting: CircularMeeting, dateFormat: string, tim
   };
 }
 
-/** The circular for a meeting. Without a meeting (or a value), the field is left in braces to fill by hand. */
+/**
+ * The circular for a meeting, each filled-in detail in WhatsApp bold so the date, day, time and
+ * venue stand out (a field the format already puts between asterisks isn't bolded twice).
+ * Without a meeting (or a value), the field is left in braces to fill by hand.
+ */
 export function fillCircular(template: string, meeting: CircularMeeting | null, dateFormat: string, timeFormat: string): string {
   if (!meeting) return template;
   const values = circularValues(meeting, dateFormat, timeFormat);
-  return CIRCULAR_FIELDS.reduce((text, { token }) => (values[token] ? text.split(token).join(values[token]) : text), template);
+  return CIRCULAR_FIELDS.reduce((text, { token }) => {
+    const value = values[token];
+    if (!value) return text;
+    return text
+      .split(`*${token}*`)
+      .map((part) => part.split(token).join(`*${value}*`))
+      .join(`*${value}*`);
+  }, template);
 }
 
 /** Fields still in braces (nothing to fill them with). */

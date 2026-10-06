@@ -12,6 +12,7 @@ import * as z from "zod";
 import { useState } from "react";
 import { ORGANIZATION_CONFIG } from "@/config/organization";
 import StatCard from "@/components/StatCard";
+import AmountsNote from "@/components/AmountsNote";
 
 const DEFAULT_MEMBER_ADDRESS = "Village Mogh, Tehsil & District Lower Chitral";
 import { useSettings } from "@/contexts/SettingsContext";
@@ -179,6 +180,7 @@ export default function Members() {
         <div>
           <h2 className="text-2xl font-bold text-foreground mt-1">Members</h2>
           <p className="text-sm text-muted-foreground mt-0.5">Manage organisation members</p>
+          <AmountsNote />
         </div>
         <div className="flex gap-2">
           <ViewReportButton request={{ kind: "member-register" }} label="Register of Members" size="default" />
@@ -271,7 +273,7 @@ export default function Members() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <StatCard title="Total Members" value={members.length} icon={Users} iconColor="border-primary/40 bg-primary/10 text-primary" />
         <StatCard title="New This Month" value={newThisMonth} icon={UserPlus} iconColor="border-secondary/40 bg-secondary/10 text-secondary" />
-        <StatCard title="Members' Savings" value={`${settings.currency} ${totalContributions.toLocaleString()}`} icon={Wallet} iconColor="border-accent/60 bg-accent/15 text-accent-foreground dark:text-accent" />
+        <StatCard title="Members' Savings" value={totalContributions.toLocaleString()} icon={Wallet} iconColor="border-accent/60 bg-accent/15 text-accent-foreground dark:text-accent" />
       </div>
 
       {/* Search + List */}

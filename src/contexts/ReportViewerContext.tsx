@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { Button } from "@/components/ui/button";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useSettings } from "@/contexts/SettingsContext";
+import { orgName } from "@/utils/whatsappFormat";
 import { buildBooks } from "@/utils/accounting";
 import { buildReport, reportTitle, type ReportRequest } from "@/utils/pdfReports";
 import { cutoverMessage, fetchBooksConfig, firstBookDay } from "@/lib/books";
@@ -138,8 +139,9 @@ export function ReportViewerProvider({ children }: { children: ReactNode }) {
         files = [{ name: viewing.filename, data: pdf }];
       }
       // Plain text: the asterisks of WhatsApp's bold show as typed until the message is sent.
-      const pagesNote = format === "pictures" ? ` (${files.length} page${files.length === 1 ? "" : "s"})` : "";
-      const caption = `MSO ${title}${pagesNote}\n${viewing.subtitle}`;
+      // The organisation, the report, then its subtitle (period, member or loan), as on the letterhead.
+      const pagesNote = format === "pictures" ? `  |  ${files.length} page${files.length === 1 ? "" : "s"}` : "";
+      const caption = `${orgName(settings)} (MSO)\n${title}\n${viewing.subtitle}${pagesNote}`;
       const res = await api.shareFilesWhatsApp(files, caption, viewing.phone);
       if (res.error) {
         toast.error("Unable to share the report", { description: res.error });

@@ -882,7 +882,7 @@ function financialStatements(r: Report, books: Books, p: ReportPeriod) {
     ["Interest", "Late penalties", "Total"],
   );
   r.note(
-    "Interest is charged when a loan is issued and late penalties as each month passes after the due date; both are added to the balance owed and recognised as income when charged. Because repayments are not split between the amount lent, interest and penalties, a loan's interest and penalties are collected when the loan is repaid in full. Until then they are still to collect: they form part of the balance owed in note 4 and are not an amount owed in addition to it. Each loan's interest and penalties are listed in the Loan Portfolio report.",
+    "Interest is charged when a loan is issued and late penalties as each month passes after the due date; both are added to the balance owed and recognised as income when charged. Because repayments are not split between the amount lent, interest and penalties, a loan's interest and penalties are calculated when the loan is repaid in full. Until then they are still to collect: they form part of the balance owed in note 4 and are not an amount owed in addition to it. Each loan's interest and penalties are listed in the Loan Portfolio report.",
   );
 
   r.subheading("6. Members' savings accounts");

@@ -1,5 +1,6 @@
 import StatCard from "@/components/StatCard";
 import BackupReminder from "@/components/BackupReminder";
+import AmountsNote from "@/components/AmountsNote";
 import {
   Card,
   CardContent,
@@ -218,7 +219,7 @@ export default function Dashboard() {
   const isLoading = membersLoading || meetingsLoading || loansLoading || contributionsLoading || reserveLoading;
 
   const today = useMemo(() => format(new Date(), "EEEE, dd MMMM yyyy"), []);
-  const cur = (n: number) => `${settings.currency} ${Number(n).toLocaleString()}`;
+  const amount = (n: number) => Number(n).toLocaleString();
 
   const whenLabel = (date: string) => {
     const days = differenceInCalendarDays(localDate(date), todayStart);
@@ -231,6 +232,7 @@ export default function Dashboard() {
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-1 border-b-2 border-accent/70 pb-3">
         <div>
           <h2 className="text-2xl font-bold text-foreground mt-1">Dashboard</h2>
+          <AmountsNote className="block" />
         </div>
         <p className="text-sm text-muted-foreground sm:text-right">
           {today}
@@ -250,26 +252,32 @@ export default function Dashboard() {
         />
         <StatCard
           title="Total Budget"
-          value={isLoading || budgetLoading ? "—" : `${settings.currency} ${totalBudget.toLocaleString()}`}
+          value={
+            isLoading || budgetLoading ? "—" : totalBudget.toLocaleString()
+          }
           note="In the bank account"
           icon={Wallet}
           iconColor="border-secondary/40 bg-secondary/10 text-secondary"
         />
         <StatCard
           title="Loans Outstanding"
-          value={isLoading ? "—" : `${settings.currency} ${activeLoans.toLocaleString()}`}
+          value={isLoading ? "—" : activeLoans.toLocaleString()}
           icon={HandCoins}
           iconColor="border-destructive/40 bg-destructive/10 text-destructive"
         />
         <StatCard
           title="Reserve Fund"
-          value={isLoading ? "—" : `${settings.currency} ${reserveFund.toLocaleString()}`}
+          value={isLoading ? "—" : reserveFund.toLocaleString()}
           icon={PiggyBank}
           iconColor="border-accent/60 bg-accent/15 text-accent-foreground dark:text-accent"
         />
         <StatCard
           title="Overdue Loans"
-          value={isLoading ? "—" : `${loanStats.overdueCount} loan${loanStats.overdueCount === 1 ? "" : "s"} · ${settings.currency} ${loanStats.overdueAmount.toLocaleString()}`}
+          value={
+            isLoading
+              ? "—"
+              : `${loanStats.overdueCount} loan${loanStats.overdueCount === 1 ? "" : "s"} · ${loanStats.overdueAmount.toLocaleString()}`
+          }
           icon={AlertTriangle}
           iconColor="border-destructive/40 bg-destructive/10 text-destructive"
         />
@@ -285,19 +293,25 @@ export default function Dashboard() {
               </div>
               Active Loans
               {!loansLoading && activeLoanRows.length > 0 && (
-                <span className="figure text-xs font-normal text-muted-foreground">{activeLoanRows.length}</span>
+                <span className="figure text-xs font-normal text-muted-foreground">
+                  {activeLoanRows.length}
+                </span>
               )}
             </CardTitle>
-            <Link
-              to="/loans"
-              className="flex items-center gap-1 rounded-sm text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
-            >
-              View all <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
+            <div className="flex items-center gap-4">
+              <Link
+                to="/loans"
+                className="flex items-center gap-1 rounded-sm text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+              >
+                View all <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
           </CardHeader>
           <CardContent className="p-0 flex-1">
             {loansLoading ? (
-              <p className="px-5 py-6 text-sm text-muted-foreground">Loading loans…</p>
+              <p className="px-5 py-6 text-sm text-muted-foreground">
+                Loading loans…
+              </p>
             ) : activeLoanRows.length > 0 ? (
               <Table>
                 <TableHeader>
@@ -305,29 +319,48 @@ export default function Dashboard() {
                     <TableHead className="h-9 px-5">Member</TableHead>
                     <TableHead className="h-9 px-3">Issued</TableHead>
                     <TableHead className="h-9 px-3">Due by</TableHead>
-                    <TableHead className="h-9 px-5 text-right">Outstanding</TableHead>
+                    <TableHead className="h-9 px-5 text-right">
+                      Outstanding
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {activeLoanRows.slice(0, LOAN_ROWS).map((loan) => (
                     <TableRow key={loan.id}>
                       <TableCell className="px-3 py-2">
-                        <p className="font-medium text-foreground truncate">{loan.member_name || "Unknown member"}</p>
-                        <p className="figure text-xs text-muted-foreground">{cur(loan.amount)}</p>
+                        <p className="font-medium text-foreground truncate">
+                          {loan.member_name || "Unknown member"}
+                        </p>
+                        <p className="figure text-xs text-muted-foreground">
+                          {amount(loan.amount)}
+                        </p>
                       </TableCell>
                       <TableCell className="figure px-3 py-2 text-muted-foreground">
                         {format(localDate(loan.loan_date), settings.dateFormat)}
                       </TableCell>
                       <TableCell className="px-3 py-2">
-                        <span className={`figure ${loan.overdue ? "text-destructive font-semibold" : "text-foreground"}`}>
-                          {format(parseLocalDate(loan.due), settings.dateFormat)}
+                        <span
+                          className={`figure ${loan.overdue ? "text-destructive font-semibold" : "text-foreground"}`}
+                        >
+                          {format(
+                            parseLocalDate(loan.due),
+                            settings.dateFormat,
+                          )}
                         </span>
-                        {loan.overdue && <Badge variant="destructive" className="ml-2">Overdue</Badge>}
+                        {loan.overdue && (
+                          <Badge variant="destructive" className="ml-2">
+                            Overdue
+                          </Badge>
+                        )}
                       </TableCell>
                       <TableCell className="px-3 py-2 text-right">
-                        <p className="figure font-semibold text-foreground whitespace-nowrap">{cur(loan.remaining_amount)}</p>
+                        <p className="figure font-semibold text-foreground whitespace-nowrap">
+                          {amount(loan.remaining_amount)}
+                        </p>
                         {Number(loan.penalty_total) > 0 && (
-                          <p className="figure text-xs text-muted-foreground whitespace-nowrap">incl. {cur(loan.penalty_total)} penalty</p>
+                          <p className="figure text-xs text-muted-foreground whitespace-nowrap">
+                            incl. {amount(loan.penalty_total)} penalty
+                          </p>
                         )}
                       </TableCell>
                     </TableRow>
@@ -340,9 +373,14 @@ export default function Dashboard() {
                   <HandCoins className="w-4 h-4 text-muted-foreground" />
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-foreground">No active loans</p>
+                  <p className="text-sm font-medium text-foreground">
+                    No active loans
+                  </p>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    <Link to="/loans" className="text-primary underline underline-offset-4 hover:text-primary/80 transition-colors">
+                    <Link
+                      to="/loans"
+                      className="text-primary underline underline-offset-4 hover:text-primary/80 transition-colors"
+                    >
                       Issue a loan from the Loans page
                     </Link>
                   </p>
@@ -353,7 +391,12 @@ export default function Dashboard() {
           {activeLoanRows.length > LOAN_ROWS && (
             <p className="border-t border-border px-5 py-2.5 text-xs text-muted-foreground">
               {activeLoanRows.length - LOAN_ROWS} more on the{" "}
-              <Link to="/loans" className="text-primary underline underline-offset-4 hover:text-primary/80">Loans page</Link>
+              <Link
+                to="/loans"
+                className="text-primary underline underline-offset-4 hover:text-primary/80"
+              >
+                Loans page
+              </Link>
             </p>
           )}
         </Card>
@@ -366,39 +409,64 @@ export default function Dashboard() {
               </div>
               Meetings
             </CardTitle>
-            <Link
-              to="/meetings"
-              className="flex items-center gap-1 rounded-sm text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
-            >
-              View all <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
+            <div className="flex items-center gap-4">
+              <Link
+                to="/meetings"
+                className="flex items-center gap-1 rounded-sm text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+              >
+                View all <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
           </CardHeader>
           <CardContent className="p-0">
-            {!meetingsLoading && <p className="px-5 pt-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Upcoming</p>}
+            {!meetingsLoading && (
+              <p className="px-5 pt-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Upcoming
+              </p>
+            )}
             {meetingsLoading ? (
-              <p className="px-5 py-6 text-sm text-muted-foreground">Loading meetings…</p>
+              <p className="px-5 py-6 text-sm text-muted-foreground">
+                Loading meetings…
+              </p>
             ) : allUpcomingMeetings.length > 0 ? (
               <ul className="divide-y divide-border">
                 {allUpcomingMeetings.slice(0, MEETING_ROWS).map((meeting) => {
                   const d = localDate(meeting.date);
                   const when = whenLabel(meeting.date);
                   return (
-                    <li key={meeting.id} className="flex items-center gap-3 px-5 py-2.5">
+                    <li
+                      key={meeting.id}
+                      className="flex items-center gap-3 px-5 py-2.5"
+                    >
                       <div className="w-10 h-10 rounded-sm border-2 border-primary/30 bg-primary/5 flex flex-col items-center justify-center flex-shrink-0">
-                        <span className="figure text-sm font-semibold leading-none text-foreground">{format(d, "dd")}</span>
-                        <span className="tracked-label mt-0.5 text-[9px] font-semibold uppercase leading-none text-primary">{format(d, "MMM")}</span>
+                        <span className="figure text-sm font-semibold leading-none text-foreground">
+                          {format(d, "dd")}
+                        </span>
+                        <span className="tracked-label mt-0.5 text-[9px] font-semibold uppercase leading-none text-primary">
+                          {format(d, "MMM")}
+                        </span>
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-sm text-foreground truncate">{meeting.venue || "TBD"}</p>
+                        <p className="font-semibold text-sm text-foreground truncate">
+                          {meeting.venue || "TBD"}
+                        </p>
                         <p className="figure flex flex-wrap gap-x-2 text-xs text-muted-foreground mt-0.5">
-                          <span className="whitespace-nowrap">{format(d, "EEE")} {format(d, settings.dateFormat)}</span>
-                          {meeting.time && <span className="whitespace-nowrap">{formatTime(meeting.time, settings.timeFormat)}</span>}
+                          <span className="whitespace-nowrap">
+                            {format(d, "EEE")} {format(d, settings.dateFormat)}
+                          </span>
+                          {meeting.time && (
+                            <span className="whitespace-nowrap">
+                              {formatTime(meeting.time, settings.timeFormat)}
+                            </span>
+                          )}
                         </p>
                       </div>
                       {when === "Today" ? (
                         <Badge className="flex-shrink-0">Today</Badge>
                       ) : (
-                        <span className="flex-shrink-0 text-xs text-muted-foreground">{when}</span>
+                        <span className="flex-shrink-0 text-xs text-muted-foreground">
+                          {when}
+                        </span>
                       )}
                     </li>
                   );
@@ -410,9 +478,14 @@ export default function Dashboard() {
                   <Calendar className="w-4 h-4 text-muted-foreground" />
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-foreground">No upcoming meetings</p>
+                  <p className="text-sm font-medium text-foreground">
+                    No upcoming meetings
+                  </p>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    <Link to="/meetings" className="text-primary underline underline-offset-4 hover:text-primary/80 transition-colors">
+                    <Link
+                      to="/meetings"
+                      className="text-primary underline underline-offset-4 hover:text-primary/80 transition-colors"
+                    >
                       Schedule one from the Meetings page
                     </Link>
                   </p>
@@ -420,90 +493,152 @@ export default function Dashboard() {
               </div>
             )}
           </CardContent>
-          {!meetingsLoading && lastMeeting && (() => {
-            const d = localDate(lastMeeting.meeting_date);
-            return (
-              <div className="border-t border-border">
-                <div className="flex items-baseline justify-between gap-3 px-5 pt-2.5 pb-2">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Last meeting</p>
-                  <p className="figure text-xs text-foreground whitespace-nowrap">{format(d, "EEE")} {format(d, settings.dateFormat)}</p>
-                </div>
+          {!meetingsLoading &&
+            lastMeeting &&
+            (() => {
+              const d = localDate(lastMeeting.meeting_date);
+              return (
+                <div className="border-t border-border">
+                  <div className="flex items-baseline justify-between gap-3 px-5 pt-2.5 pb-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Last meeting
+                    </p>
+                    <p className="figure text-xs text-foreground whitespace-nowrap">
+                      {format(d, "EEE")} {format(d, settings.dateFormat)}
+                    </p>
+                  </div>
 
-                {!lastLoaded ? (
-                  <p className="border-t border-border px-5 py-3 text-xs text-muted-foreground">Loading the meeting record…</p>
-                ) : !last ? (
-                  <p className="border-t border-border px-5 py-3 text-xs text-muted-foreground">
-                    Couldn't load this meeting's record. It's on the{" "}
-                    <Link to="/meetings" className="text-primary underline underline-offset-4 hover:text-primary/80">Meetings page</Link>.
-                  </p>
-                ) : (
-                  <>
-                    {last.attendance.length > 0 ? (
-                      <dl className="grid grid-cols-3 divide-x divide-border border-y border-border text-center">
-                        <div className="py-2">
-                          <dt className="text-[11px] text-muted-foreground">Present</dt>
-                          <dd className="figure text-base font-semibold text-foreground">{last.presentCount}</dd>
+                  {!lastLoaded ? (
+                    <p className="border-t border-border px-5 py-3 text-xs text-muted-foreground">
+                      Loading the meeting record…
+                    </p>
+                  ) : !last ? (
+                    <p className="border-t border-border px-5 py-3 text-xs text-muted-foreground">
+                      Couldn't load this meeting's record. It's on the{" "}
+                      <Link
+                        to="/meetings"
+                        className="text-primary underline underline-offset-4 hover:text-primary/80"
+                      >
+                        Meetings page
+                      </Link>
+                      .
+                    </p>
+                  ) : (
+                    <>
+                      {last.attendance.length > 0 ? (
+                        <dl className="grid grid-cols-3 divide-x divide-border border-y border-border text-center">
+                          <div className="py-2">
+                            <dt className="text-[11px] text-muted-foreground">
+                              Present
+                            </dt>
+                            <dd className="figure text-base font-semibold text-foreground">
+                              {last.presentCount}
+                            </dd>
+                          </div>
+                          <div className="py-2">
+                            <dt className="text-[11px] text-muted-foreground">
+                              On leave
+                            </dt>
+                            <dd className="figure text-base font-semibold text-foreground">
+                              {last.onLeave.length}
+                            </dd>
+                          </div>
+                          <div className="py-2">
+                            <dt className="text-[11px] text-muted-foreground">
+                              Absent
+                            </dt>
+                            <dd
+                              className={`figure text-base font-semibold ${last.absent.length > 0 ? "text-destructive" : "text-foreground"}`}
+                            >
+                              {last.absent.length}
+                            </dd>
+                          </div>
+                        </dl>
+                      ) : (
+                        <p className="border-t border-border px-5 py-2.5 text-xs text-muted-foreground">
+                          No attendance recorded.
+                        </p>
+                      )}
+
+                      <dl className="space-y-1 px-5 py-2.5 text-xs">
+                        <div className="flex items-baseline justify-between gap-3">
+                          <dt className="text-muted-foreground">
+                            {last.savings.length > 0 ? (
+                              <>
+                                Savings from{" "}
+                                <span className="figure whitespace-nowrap">
+                                  {savedCount} of {last.savings.length}
+                                </span>
+                              </>
+                            ) : (
+                              "Savings collected"
+                            )}
+                          </dt>
+                          <dd className="figure font-semibold text-foreground whitespace-nowrap">
+                            {amount(last.totals.savings)}
+                          </dd>
                         </div>
-                        <div className="py-2">
-                          <dt className="text-[11px] text-muted-foreground">On leave</dt>
-                          <dd className="figure text-base font-semibold text-foreground">{last.onLeave.length}</dd>
-                        </div>
-                        <div className="py-2">
-                          <dt className="text-[11px] text-muted-foreground">Absent</dt>
-                          <dd className={`figure text-base font-semibold ${last.absent.length > 0 ? "text-destructive" : "text-foreground"}`}>{last.absent.length}</dd>
+                        {/* Loan repayments since the previous meeting, as on the Meetings page. */}
+                        <div className="flex items-baseline justify-between gap-3">
+                          <dt className="text-muted-foreground">
+                            Loans collected
+                          </dt>
+                          <dd className="figure font-semibold text-foreground whitespace-nowrap">
+                            {amount(last.totals.collected)}
+                          </dd>
                         </div>
                       </dl>
-                    ) : (
-                      <p className="border-t border-border px-5 py-2.5 text-xs text-muted-foreground">No attendance recorded.</p>
-                    )}
-
-                    <dl className="space-y-1 px-5 py-2.5 text-xs">
-                      <div className="flex items-baseline justify-between gap-3">
-                        <dt className="text-muted-foreground">
-                          {last.savings.length > 0 ? (
-                            <>Savings from <span className="figure whitespace-nowrap">{savedCount} of {last.savings.length}</span></>
-                          ) : (
-                            "Savings collected"
-                          )}
-                        </dt>
-                        <dd className="figure font-semibold text-foreground whitespace-nowrap">{cur(last.totals.savings)}</dd>
+                      <div className="flex items-baseline justify-between gap-3 border-t border-border px-5 py-2.5 text-xs">
+                        <span className="font-semibold text-foreground">
+                          Total{" "}
+                          <span className="whitespace-nowrap">
+                            (savings + loans)
+                          </span>
+                        </span>
+                        <span className="figure text-sm font-bold text-primary whitespace-nowrap">
+                          {amount(last.totals.totalCollected)}
+                        </span>
                       </div>
-                      {/* Loan repayments since the previous meeting, as on the Meetings page. */}
-                      <div className="flex items-baseline justify-between gap-3">
-                        <dt className="text-muted-foreground">Loans collected</dt>
-                        <dd className="figure font-semibold text-foreground whitespace-nowrap">{cur(last.totals.collected)}</dd>
-                      </div>
-                    </dl>
-                    <div className="flex items-baseline justify-between gap-3 border-t border-border px-5 py-2.5 text-xs">
-                      <span className="font-semibold text-foreground">Total <span className="whitespace-nowrap">(savings + loans)</span></span>
-                      <span className="figure text-sm font-bold text-primary whitespace-nowrap">{cur(last.totals.totalCollected)}</span>
-                    </div>
-                  </>
-                )}
-              </div>
-            );
-          })()}
+                    </>
+                  )}
+                </div>
+              );
+            })()}
         </Card>
       </div>
 
       {/* Trend Graphs */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card className="shadow-sm rounded-sm">
-          <CardHeader className="px-5 py-3 border-b border-border space-y-0">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <div className="w-7 h-7 rounded-sm border-2 border-primary/40 bg-primary/10 flex items-center justify-center">
-                <Wallet className="w-4 h-4 text-primary" />
-              </div>
-              Monthly Contributions
-            </CardTitle>
-            <CardDescription className="text-xs mt-1">Contributions collected each month</CardDescription>
+          <CardHeader className="flex-row items-start justify-between gap-3 px-5 py-3 border-b border-border space-y-0">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <div className="w-7 h-7 rounded-sm border-2 border-primary/40 bg-primary/10 flex items-center justify-center">
+                  <Wallet className="w-4 h-4 text-primary" />
+                </div>
+                Monthly Contributions
+              </CardTitle>
+              <CardDescription className="text-xs mt-1">
+                Contributions collected each month
+              </CardDescription>
+            </div>
           </CardHeader>
           <CardContent className="px-3 pt-3 pb-3">
             {budgetData.length > 0 ? (
               <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={budgetData} margin={{ top: 6, right: 8, bottom: 0, left: 0 }}>
+                <BarChart
+                  data={budgetData}
+                  margin={{ top: 6, right: 8, bottom: 0, left: 0 }}
+                >
                   <CartesianGrid vertical={false} stroke="hsl(var(--border))" />
-                  <XAxis dataKey="month" tick={axisTick} tickLine={false} axisLine={{ stroke: "hsl(var(--border))" }} interval="preserveStartEnd" minTickGap={18} />
+                  <XAxis
+                    dataKey="month"
+                    tick={axisTick}
+                    tickLine={false}
+                    axisLine={{ stroke: "hsl(var(--border))" }}
+                    interval="preserveStartEnd"
+                    minTickGap={18}
+                  />
                   <YAxis
                     ticks={budgetTicks}
                     domain={[0, budgetTicks[budgetTicks.length - 1] || 1]}
@@ -513,15 +648,29 @@ export default function Dashboard() {
                     axisLine={false}
                     width={44}
                   />
-                  <Tooltip cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.6 }} content={<ChartTooltip currency={settings.currency} />} />
-                  <Bar dataKey="budget" fill="hsl(var(--primary))" name="Contributions" radius={[2, 2, 0, 0]} maxBarSize={28} />
+                  <Tooltip
+                    cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.6 }}
+                    content={<ChartTooltip />}
+                  />
+                  <Bar
+                    dataKey="budget"
+                    fill="hsl(var(--primary))"
+                    name="Contributions"
+                    radius={[2, 2, 0, 0]}
+                    maxBarSize={28}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
               <div className="text-center py-8">
-                <p className="text-sm text-muted-foreground">No data available yet</p>
+                <p className="text-sm text-muted-foreground">
+                  No data available yet
+                </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  <Link to="/meetings" className="text-primary underline underline-offset-4 hover:text-primary/80 transition-colors">
+                  <Link
+                    to="/meetings"
+                    className="text-primary underline underline-offset-4 hover:text-primary/80 transition-colors"
+                  >
                     Record a meeting to see this chart populate
                   </Link>
                 </p>
@@ -539,25 +688,51 @@ export default function Dashboard() {
                 </div>
                 Monthly Loans
               </CardTitle>
-              <CardDescription className="text-xs mt-1">Loans issued and repayments received each month</CardDescription>
+              <CardDescription className="text-xs mt-1">
+                Loans issued and repayments received each month
+              </CardDescription>
             </div>
-            {loansData.length > 0 && (
-              <ul className="flex flex-wrap justify-end gap-x-3 gap-y-1 pt-1 text-xs text-muted-foreground" aria-label="Chart legend">
-                <li className="flex items-center gap-1.5 whitespace-nowrap">
-                  <span className="w-2.5 h-2.5 rounded-[2px] bg-[hsl(var(--chart-issued))]" aria-hidden /> Issued
-                </li>
-                <li className="flex items-center gap-1.5 whitespace-nowrap">
-                  <span className="w-2.5 h-2.5 rounded-[2px] bg-[hsl(var(--chart-recovered))]" aria-hidden /> Recovered
-                </li>
-              </ul>
-            )}
+            <div className="flex flex-col items-end gap-1.5 pt-1">
+              {loansData.length > 0 && (
+                <ul
+                  className="flex flex-wrap justify-end gap-x-3 gap-y-1 text-xs text-muted-foreground"
+                  aria-label="Chart legend"
+                >
+                  <li className="flex items-center gap-1.5 whitespace-nowrap">
+                    <span
+                      className="w-2.5 h-2.5 rounded-[2px] bg-[hsl(var(--chart-issued))]"
+                      aria-hidden
+                    />{" "}
+                    Issued
+                  </li>
+                  <li className="flex items-center gap-1.5 whitespace-nowrap">
+                    <span
+                      className="w-2.5 h-2.5 rounded-[2px] bg-[hsl(var(--chart-recovered))]"
+                      aria-hidden
+                    />{" "}
+                    Recovered
+                  </li>
+                </ul>
+              )}
+            </div>
           </CardHeader>
           <CardContent className="px-3 pt-3 pb-3">
             {loansData.length > 0 ? (
               <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={loansData} barGap={2} margin={{ top: 6, right: 8, bottom: 0, left: 0 }}>
+                <BarChart
+                  data={loansData}
+                  barGap={2}
+                  margin={{ top: 6, right: 8, bottom: 0, left: 0 }}
+                >
                   <CartesianGrid vertical={false} stroke="hsl(var(--border))" />
-                  <XAxis dataKey="month" tick={axisTick} tickLine={false} axisLine={{ stroke: "hsl(var(--border))" }} interval="preserveStartEnd" minTickGap={18} />
+                  <XAxis
+                    dataKey="month"
+                    tick={axisTick}
+                    tickLine={false}
+                    axisLine={{ stroke: "hsl(var(--border))" }}
+                    interval="preserveStartEnd"
+                    minTickGap={18}
+                  />
                   <YAxis
                     ticks={loansTicks}
                     domain={[0, loansTicks[loansTicks.length - 1] || 1]}
@@ -567,16 +742,36 @@ export default function Dashboard() {
                     axisLine={false}
                     width={44}
                   />
-                  <Tooltip cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.6 }} content={<ChartTooltip currency={settings.currency} />} />
-                  <Bar dataKey="issued" fill="hsl(var(--chart-issued))" name="Loans issued" radius={[2, 2, 0, 0]} maxBarSize={20} />
-                  <Bar dataKey="recovered" fill="hsl(var(--chart-recovered))" name="Recovered" radius={[2, 2, 0, 0]} maxBarSize={20} />
+                  <Tooltip
+                    cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.6 }}
+                    content={<ChartTooltip />}
+                  />
+                  <Bar
+                    dataKey="issued"
+                    fill="hsl(var(--chart-issued))"
+                    name="Loans issued"
+                    radius={[2, 2, 0, 0]}
+                    maxBarSize={20}
+                  />
+                  <Bar
+                    dataKey="recovered"
+                    fill="hsl(var(--chart-recovered))"
+                    name="Recovered"
+                    radius={[2, 2, 0, 0]}
+                    maxBarSize={20}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
               <div className="text-center py-8">
-                <p className="text-sm text-muted-foreground">No data available yet</p>
+                <p className="text-sm text-muted-foreground">
+                  No data available yet
+                </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  <Link to="/loans" className="text-primary underline underline-offset-4 hover:text-primary/80 transition-colors">
+                  <Link
+                    to="/loans"
+                    className="text-primary underline underline-offset-4 hover:text-primary/80 transition-colors"
+                  >
                     Issue or record a loan to see this chart populate
                   </Link>
                 </p>
@@ -590,7 +785,7 @@ export default function Dashboard() {
 }
 
 /** Chart hover card in the statement style: month, then each series with its figure. */
-function ChartTooltip({ active, payload, label, currency }: TooltipProps<number, string> & { currency: string }) {
+function ChartTooltip({ active, payload, label }: TooltipProps<number, string>) {
   if (!active || !payload?.length) return null;
   return (
     <div className="rounded-sm border border-border bg-popover px-3 py-2 text-xs shadow-md">
@@ -602,7 +797,7 @@ function ChartTooltip({ active, payload, label, currency }: TooltipProps<number,
           <span className="w-2 h-2 rounded-[1px]" style={{ background: p.color }} aria-hidden />
           {p.name}
           <span className="figure ml-auto pl-4 font-semibold text-foreground">
-            {currency} {Number(p.value).toLocaleString()}
+            {Number(p.value).toLocaleString()}
           </span>
         </p>
       ))}

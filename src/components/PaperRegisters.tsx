@@ -38,6 +38,7 @@ import {
 import { checkOpeningFile, type OpeningCheck, type OpeningIssue } from "@/utils/openingBalances";
 import { cn } from "@/lib/utils";
 import { TablePager, usePaged } from "@/components/TablePager";
+import AmountsNote from "@/components/AmountsNote";
 
 const keyOf = (d: Date) => format(d, "yyyy-MM-dd");
 const dayOf = (key: string) => {
@@ -66,7 +67,7 @@ export function PaperRegistersCard() {
 
   const cur = settings.currency;
   const fmt = (key: string) => format(dayOf(key), settings.dateFormat);
-  const money = (n: number) => `${cur} ${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const money = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const cutover = config.cutoverDate;
   const opening = config.opening;
   const pendingKey = picked ? keyOf(picked) : null;
@@ -112,7 +113,7 @@ export function PaperRegistersCard() {
         toast.error("File not read", { description: res.error });
         return;
       }
-      setCheck(checkOpeningFile(res as RawOpeningFile, cutover, settings.dateFormat, cur));
+      setCheck(checkOpeningFile(res as RawOpeningFile, cutover, settings.dateFormat));
     } finally {
       setBusy(null);
     }
@@ -152,7 +153,10 @@ export function PaperRegistersCard() {
   return (
     <Card className="rounded-sm shadow-sm">
       <div className="px-5 pt-4">
-        <h3 className="text-base font-bold text-foreground">Moving from paper registers</h3>
+        <div className="flex items-baseline justify-between gap-3">
+          <h3 className="text-base font-bold text-foreground">Moving from paper registers</h3>
+          {opening && <AmountsNote />}
+        </div>
         <p className="text-sm text-muted-foreground mt-0.5 max-w-[90ch]">
           The cut-over date is the last day kept in the paper registers. The balances on that day are brought in once from an Excel
           file; from the next day, every entry is made in the app.
@@ -326,8 +330,7 @@ function Row({ label, help, children }: { label: string; help: ReactNode; childr
 function ImportPreview({ check, replacing, onClose }: { check: OpeningCheck | null; replacing: boolean; onClose: () => void }) {
   const { settings } = useSettings();
   const [importing, setImporting] = useState(false);
-  const cur = settings.currency;
-  const money = (n: number) => `${cur} ${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const money = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const fmt = (key: string) => format(dayOf(key), settings.dateFormat);
 
   const runImport = async () => {
@@ -373,6 +376,7 @@ function ImportPreview({ check, replacing, onClose }: { check: OpeningCheck | nu
           <>
             <DialogHeader>
               <DialogTitle>Check the opening balances</DialogTitle>
+              <AmountsNote />
               <DialogDescription>
                 {check.fileName ? `${check.fileName} · ` : ""}balances as at <span className="figure">{fmt(check.cutoverDate)}</span>. Compare these totals
                 with the register totals before importing.
@@ -392,7 +396,7 @@ function ImportPreview({ check, replacing, onClose }: { check: OpeningCheck | nu
                   <Total label="Loan interest collected" value={money(check.profit.interest)} />
                   <Total label="Late penalties collected" value={money(check.profit.penalties)} />
                   <Total label="Absences" note="meetings members were marked absent at" value={t.absences.toLocaleString()} />
-                  <Total label="Absence charges" note={`${chargedAbsences.toLocaleString()} × ${cur} ${fine.toLocaleString()}`} value={money(absenceCharges)} />
+                  <Total label="Absence charges" note={`${chargedAbsences.toLocaleString()} × ${fine.toLocaleString()}`} value={money(absenceCharges)} />
                   <Total label={`Total profit for ${check.profit.year}`} value={money(profitTotal)} strong />
                   <p className="text-xs text-muted-foreground">
                     Absence charges are taken from members' dividends at the AGM, never more than a member's share

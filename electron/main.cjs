@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, clipboard } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { execFile } = require('child_process');
@@ -144,6 +144,10 @@ ipcMain.handle('db-restore', async () => {
 // all records (for test data).
 require('./openingBalances.cjs').register({ ipcMain, dialog, pool });
 
+// Longest message, once encoded for the link, that is typed into WhatsApp for you (the link stays
+// within the 2,048 characters Windows has long been safe with).
+const MAX_LINK_TEXT = 2000;
+
 // Share text through WhatsApp: the desktop app if one is registered for whatsapp:// links,
 // otherwise WhatsApp Web. With a phone number the chat with that number opens; without one
 // the user picks the recipient. The renderer supplies only the message and number; the URL
@@ -156,14 +160,20 @@ async function openWhatsApp(text, phone) {
     number = digits.startsWith('0') && digits.length === 11 ? `92${digits.slice(1)}` : digits;
     if (number.length < 10 || number.length > 15) return { error: 'The phone number is not valid for WhatsApp.' };
   }
-  const query = `${number ? `phone=${number}&` : ''}text=${encodeURIComponent(text)}`;
+  // A long message (a meeting record with every member's figures) can be cut off or refused when
+  // Windows hands the link to WhatsApp, so it goes on the clipboard instead and WhatsApp opens on
+  // the chat, ready for Ctrl+V.
+  const encoded = encodeURIComponent(text);
+  const copied = encoded.length > MAX_LINK_TEXT;
+  if (copied) clipboard.writeText(text);
+  const query = `${number ? `phone=${number}&` : ''}text=${copied ? '' : encoded}`;
   try {
     if (app.getApplicationNameForProtocol('whatsapp://')) {
       await shell.openExternal(`whatsapp://send?${query}`);
-      return { opened: 'app' };
+      return { opened: 'app', copied };
     }
     await shell.openExternal(`https://web.whatsapp.com/send?${query}`);
-    return { opened: 'web' };
+    return { opened: 'web', copied };
   } catch (err) {
     return { error: err.message };
   }
@@ -272,6 +282,11 @@ async function ensureSchema() {
       );
 
       ALTER TABLE public.monthly_contributions ADD COLUMN IF NOT EXISTS notes TEXT;
+
+      -- Where a meeting was held, recorded with it and shared in the WhatsApp meeting record.
+      -- Meetings recorded before this have none; the record falls back to the venue it was
+      -- scheduled with, if that is still there.
+      ALTER TABLE public.meetings ADD COLUMN IF NOT EXISTS venue TEXT;
 
       -- Settings that belong to the books rather than to one computer (e.g. the cut-over date
       -- from the paper registers), so backups and restores carry them.

@@ -3,6 +3,7 @@ import { DollarSign, Building2, HandCoins, BarChart3 } from "lucide-react";
 import { TablePager, usePaged } from "@/components/TablePager";
 import { useMemo, useEffect } from "react";
 import StatCard from "@/components/StatCard";
+import AmountsNote from "@/components/AmountsNote";
 import ViewReportButton from "@/components/ViewReportButton";
 import { thisYearToDate } from "@/utils/accounting";
 import { format } from "date-fns";
@@ -103,6 +104,7 @@ export default function Budget() {
           <p className="text-sm text-muted-foreground mt-0.5">
             Total budget's running total and the latest meeting's collection
           </p>
+          <AmountsNote />
         </div>
         <ViewReportButton
           request={{ kind: "contribution-register", period: thisYearToDate() }}
@@ -118,7 +120,7 @@ export default function Budget() {
           value={
             isLoading || budgetLoading
               ? "—"
-              : `${settings.currency} ${totalBudget.toLocaleString()}`
+              : totalBudget.toLocaleString()
           }
           note="In the bank account"
           icon={Building2}
@@ -133,7 +135,7 @@ export default function Budget() {
           value={
             isLoading
               ? "—"
-              : `${settings.currency} ${latestMeetingTotal.toLocaleString()}`
+              : latestMeetingTotal.toLocaleString()
           }
           icon={DollarSign}
           iconColor="border-accent/60 bg-accent/15 text-accent-foreground dark:text-accent"
@@ -148,7 +150,7 @@ export default function Budget() {
           value={
             isLoading
               ? "—"
-              : `${settings.currency} ${latestMeetingLoanCollected.toLocaleString()}`
+              : latestMeetingLoanCollected.toLocaleString()
           }
           icon={HandCoins}
           iconColor="border-secondary/40 bg-secondary/10 text-secondary"
@@ -207,7 +209,7 @@ export default function Budget() {
                         {member?.name || "Unknown"}
                       </span>
                       <span className="figure col-span-4 text-xs font-bold text-foreground text-right whitespace-nowrap">
-                        {settings.currency} {c.amount.toLocaleString()}
+                        {c.amount.toLocaleString()}
                       </span>
                     </div>
                   );
@@ -221,11 +223,13 @@ export default function Budget() {
         {/* Monthly Trend */}
         <Card className="shadow-sm rounded-sm flex flex-col lg:col-span-3">
           <CardHeader className="pb-3 border-b border-border">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <div className="w-7 h-7 rounded-sm border-2 border-primary/40 bg-primary/10 flex items-center justify-center">
-                <BarChart3 className="w-4 h-4 text-primary" />
+            <CardTitle className="flex items-center justify-between gap-2 text-base">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-sm border-2 border-primary/40 bg-primary/10 flex items-center justify-center">
+                  <BarChart3 className="w-4 h-4 text-primary" />
+                </div>
+                Monthly Contributions
               </div>
-              Monthly Contributions
             </CardTitle>
             <CardDescription className="text-xs pl-9">
               Contributions collected each month
@@ -263,7 +267,7 @@ export default function Budget() {
                       <Tooltip
                         cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.6 }}
                         formatter={(value) =>
-                          `${settings.currency} ${Number(value).toLocaleString()}`
+                          Number(value).toLocaleString()
                         }
                       />
                       <Bar

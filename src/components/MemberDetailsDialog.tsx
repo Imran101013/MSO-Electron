@@ -14,11 +14,12 @@ import { cn } from "@/lib/utils";
 import { parseLocalDate } from "@/hooks/useLoans";
 import { ATTENDANCE_LABEL, type AttendanceStatus } from "@/hooks/useAttendance";
 import ViewReportButton from "@/components/ViewReportButton";
+import AmountsNote from "@/components/AmountsNote";
 import { TablePager, usePaged } from "@/components/TablePager";
 import { PHOTO_ACCEPT, photoFromFile } from "@/lib/memberPhoto";
 import { ageFrom, durationSince, formatMemberSummary, getMemberRecord, type LoanState, type MemberRecord } from "@/utils/memberRecord";
 
-type ShareResult = { opened?: "app" | "web"; error?: string };
+type ShareResult = { opened?: "app" | "web"; copied?: boolean; error?: string };
 type Bridge = { shareWhatsApp?: (text: string, phone?: string) => Promise<ShareResult> };
 
 interface MemberDetailsDialogProps {
@@ -60,9 +61,7 @@ export default function MemberDetailsDialog({ memberId, open, onOpenChange, onCh
     }
   }, [open, memberId]);
 
-  const cur = settings.currency || "PKR";
   const amount = (v: number) => Number(v).toLocaleString("en-US", { maximumFractionDigits: 2 });
-  const money = (v: number) => `${cur} ${amount(v)}`;
   const day = (key: string | null) => (key ? format(parseLocalDate(key.slice(0, 10)), settings.dateFormat || "dd/MM/yyyy") : "-");
   const ready = record && record.member.id === memberId;
 
@@ -101,6 +100,7 @@ export default function MemberDetailsDialog({ memberId, open, onOpenChange, onCh
     try {
       const res = await api.shareWhatsApp(formatMemberSummary(record, settings), record.member.phone);
       if (res.error) toast.error("Unable to open WhatsApp", { description: res.error });
+      else if (res.copied) toast.success("Summary copied: paste it in WhatsApp", { description: `It's too long to be typed in for you. In ${record.member.name}'s chat, press Ctrl+V.`, duration: 15000 });
       else toast.success(res.opened === "app" ? "WhatsApp opened" : "WhatsApp Web opened", { description: `Summary ready to send to ${record.member.name}.` });
     } finally {
       setSharing(false);
@@ -135,6 +135,7 @@ export default function MemberDetailsDialog({ memberId, open, onOpenChange, onCh
                   <DialogDescription className="text-sm text-muted-foreground mt-0.5">
                     {record.member.father_name ? `Father: ${record.member.father_name} · ` : ""}Member since {day(record.member.join_date)}
                   </DialogDescription>
+                  <AmountsNote className="block mt-1" />
                 </div>
                 {isAdmin && (
                   <div className="flex flex-col gap-2 flex-shrink-0">
@@ -155,14 +156,12 @@ export default function MemberDetailsDialog({ memberId, open, onOpenChange, onCh
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <SummaryTile
                   label="Savings balance"
-                  // unit={cur}
                   value={amount(record.savingsBalance)}
-                  // sub={record.profitTotal > 0 ? `Contributions ${amount(record.contributionsTotal)} + profit ${amount(record.profitTotal)}` : "Total contributions"}
+                  sub={record.profitTotal > 0 ? `Contributions ${amount(record.contributionsTotal)} + profit ${amount(record.profitTotal)}` : "Total contributions"}
                   // tone="good"
                 />
                 <SummaryTile
                   label="Loan outstanding"
-                  // unit={cur}
                   value={amount(record.loanOutstanding)}
                   sub={loanStateNote(record)}
                   tone={record.loans.some((l) => l.state === "Overdue" || l.state === "Defaulted") ? "bad" : undefined}
@@ -180,7 +179,6 @@ export default function MemberDetailsDialog({ memberId, open, onOpenChange, onCh
                 />
                 <SummaryTile
                   label="Last dividend"
-                  // unit={record.lastDividend ? cur : undefined}
                   value={record.lastDividend ? amount(record.lastDividend.amount) : "-"}
                   sub={
                     !record.lastDividend
@@ -259,7 +257,7 @@ export default function MemberDetailsDialog({ memberId, open, onOpenChange, onCh
                         <div key={l.id} className="rounded-sm border border-border/60 overflow-hidden">
                           <div className="flex items-center justify-between gap-3 px-4 py-3 bg-muted/40">
                             <div>
-                              <p className="text-sm font-semibold text-foreground">Loan of {money(l.principal)}</p>
+                              <p className="text-sm font-semibold text-foreground">Loan of {amount(l.principal)}</p>
                               <p className="figure text-xs text-muted-foreground">
                                 Issued {day(l.date)} · due by {day(l.dueDate)} · {l.interestRate}% interest
                               </p>
@@ -268,9 +266,9 @@ export default function MemberDetailsDialog({ memberId, open, onOpenChange, onCh
                           </div>
                           <div className="px-4 py-3 space-y-3">
                             <div className="grid grid-cols-3 gap-3">
-                              <Figure label={l.penaltyTotal > 0 || l.bankCharge > 0 ? "Owed in all" : "Total payable"} value={money(owedInAll)} />
-                              <Figure label="Repaid" value={money(l.repaid)} tone="good" />
-                              <Figure label="Remaining" value={money(l.remaining)} tone={l.remaining > 0 ? "bad" : undefined} />
+                              <Figure label={l.penaltyTotal > 0 || l.bankCharge > 0 ? "Owed in all" : "Total payable"} value={amount(owedInAll)} />
+                              <Figure label="Repaid" value={amount(l.repaid)} tone="good" />
+                              <Figure label="Remaining" value={amount(l.remaining)} tone={l.remaining > 0 ? "bad" : undefined} />
                             </div>
                             <div>
                               <div className="h-1.5 w-full rounded-sm bg-muted overflow-hidden">
@@ -280,12 +278,12 @@ export default function MemberDetailsDialog({ memberId, open, onOpenChange, onCh
                             </div>
                             {l.state === "Overdue" && (
                               <p className="text-xs font-semibold text-destructive">
-                                Overdue: {money(l.arrears)} · {l.daysOverdue} day{l.daysOverdue === 1 ? "" : "s"} past the due date
-                                {l.penaltyTotal > 0 && <> · incl. {money(l.penaltyTotal)} late penalty</>}
+                                Overdue: {amount(l.arrears)} · {l.daysOverdue} day{l.daysOverdue === 1 ? "" : "s"} past the due date
+                                {l.penaltyTotal > 0 && <> · incl. {amount(l.penaltyTotal)} late penalty</>}
                               </p>
                             )}
                             {l.timeLeft && (
-                              <p className="figure text-xs text-foreground">Due by {day(l.dueDate)} · {l.timeLeft} · {money(l.remaining)} to repay, in any amounts</p>
+                              <p className="figure text-xs text-foreground">Due by {day(l.dueDate)} · {l.timeLeft} · {amount(l.remaining)} to repay, in any amounts</p>
                             )}
                             {/* How the balance is made up. Interest and penalties are part of it, not an
                                 extra amount, and are collected together when the loan is repaid in full. */}
@@ -319,7 +317,7 @@ export default function MemberDetailsDialog({ memberId, open, onOpenChange, onCh
                                 <p className="figure text-[11px] text-muted-foreground px-3 pb-2">
                                   {l.income.receivedOn
                                     ? `Interest and penalties collected on ${day(l.income.receivedOn)}, when the loan was repaid in full.`
-                                    : "Interest and penalties are collected when the loan is repaid in full."}
+                                    : "Interest and penalties are calculated when the loan is repaid in full."}
                                 </p>
                               )}
                             </div>

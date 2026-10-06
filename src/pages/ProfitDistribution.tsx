@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import ViewReportButton from "@/components/ViewReportButton";
+import AmountsNote from "@/components/AmountsNote";
 import { useOrganization, type ProfitDistribution as Distribution } from "@/contexts/OrganizationContext";
 import { useSettings } from "@/contexts/SettingsContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -98,9 +99,7 @@ export default function ProfitDistribution() {
   const { settings } = useSettings();
   const { isAdmin } = useAuth();
   const { config: booksConfig } = useBooksConfig();
-  const cur = settings.currency;
   const amount = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const money = (n: number) => `${cur} ${amount(n)}`;
   const fmt = (key: string) => format(dayOf(key), settings.dateFormat);
 
   // The context loads once; make sure loans repaid and contributions recorded elsewhere are in.
@@ -231,6 +230,7 @@ export default function ProfitDistribution() {
           <p className="text-sm text-muted-foreground mt-0.5">
             Each year's profit, from January to December, shared at the Annual General Meeting in July: {settings.reservePercent}% to the reserve fund, the rest to members
           </p>
+          <AmountsNote />
         </div>
       </div>
 
@@ -238,7 +238,9 @@ export default function ProfitDistribution() {
       <Card className="rounded-sm border-t-2 border-t-accent shadow-sm overflow-hidden">
         <div className="grid lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
           <section className="space-y-4 p-5" aria-label="Distribution details">
-            <h3 className="text-base font-bold text-foreground">{saved ? `The ${selectedYear} distribution` : "Distribute a year's profit"}</h3>
+            <div className="flex items-baseline justify-between gap-3">
+              <h3 className="text-base font-bold text-foreground">{saved ? `The ${selectedYear} distribution` : "Distribute a year's profit"}</h3>
+            </div>
 
             <Field label="Year" help={`January to December, shared at the July ${agmYear} AGM.`}>
               <Select value={String(selectedYear)} onValueChange={(v) => selectYear(Number(v))}>
@@ -279,7 +281,7 @@ export default function ProfitDistribution() {
                           <li key={b.id} className="flex items-center gap-3 px-3 py-2">
                             <Landmark className="w-4 h-4 shrink-0 text-primary" />
                             <div className="min-w-0 flex-1">
-                              <p className="figure font-semibold text-foreground">{money(b.amount)}</p>
+                              <p className="figure font-semibold text-foreground">{amount(b.amount)}</p>
                               <p className="text-xs text-muted-foreground">
                                 Credited <span className="figure">{fmt(b.creditedOn)}</span> ·{" "}
                                 {b.isOpening
@@ -306,7 +308,7 @@ export default function ProfitDistribution() {
                         {yearBankProfits.length > 1 && (
                           <li className="flex items-center justify-between px-3 py-2 text-sm font-semibold">
                             <span>Total</span>
-                            <span className="figure">{money(bankProfit)}</span>
+                            <span className="figure">{amount(bankProfit)}</span>
                           </li>
                         )}
                       </ul>
@@ -335,7 +337,7 @@ export default function ProfitDistribution() {
 
                 <p className="text-xs text-muted-foreground">
                   Reserve fund <span className="figure text-foreground">{plan.reservePercent}%</span> of the total; absence charge{" "}
-                  <span className="figure text-foreground">{money(settings.absencePenaltyPerMeeting)}</span> for each meeting missed (Settings → Money rules).
+                  <span className="figure text-foreground">{amount(settings.absencePenaltyPerMeeting)}</span> for each meeting missed (Settings → Money rules).
                 </p>
 
                 {(yearNotOver || cutoverInYear) && (
@@ -368,33 +370,35 @@ export default function ProfitDistribution() {
           <aside className="border-t border-border p-5 lg:border-t-0 lg:border-l" aria-label={`Profit for ${selectedYear}`}>
             <div className="flex items-baseline justify-between gap-3">
               <h3 className="text-base font-bold text-foreground">Profit for {selectedYear}</h3>
-              {saved ? <Badge variant="secondary">Distributed</Badge> : <Badge variant="outline">Preview, not saved</Badge>}
+              <div className="flex items-baseline gap-3">
+                {saved ? <Badge variant="secondary">Distributed</Badge> : <Badge variant="outline">Preview, not saved</Badge>}
+              </div>
             </div>
             <dl className="mt-3 space-y-1.5 text-sm">
-              <Line label="Bank profit" value={money(view.bankProfit)} />
+              <Line label="Bank profit" value={amount(view.bankProfit)} />
               <Line
                 label="Loan interest collected"
                 note={view.fromRegisters ? "from the paper registers" : saved ? "loans repaid in full that year" : `${view.collectedLoans.length} loan${view.collectedLoans.length === 1 ? "" : "s"} repaid in full`}
-                value={money(view.loanInterest)}
+                value={amount(view.loanInterest)}
               />
-              <Line label="Late penalties collected" value={money(view.loanPenalties)} />
+              <Line label="Late penalties collected" value={amount(view.loanPenalties)} />
               <Line
                 label="Absence charges"
-                note={`${view.absences} absence${view.absences === 1 ? "" : "s"} × ${money(view.absenceFine)}, from dividends`}
-                value={money(view.absencePenalties)}
+                note={`${view.absences} absence${view.absences === 1 ? "" : "s"} × ${amount(view.absenceFine)}, from dividends`}
+                value={amount(view.absencePenalties)}
               />
-              <Line label="Total profit" value={money(view.totalProfit)} strong rule="above" />
-              <Line label={`Reserve fund (${view.reservePercent}%)`} value={money(view.reserve)} />
-              <Line label={`Members (${membersPct}%)`} value={money(view.pool)} strong rule="double" />
+              <Line label="Total profit" value={amount(view.totalProfit)} strong rule="above" />
+              <Line label={`Reserve fund (${view.reservePercent}%)`} value={amount(view.reserve)} />
+              <Line label={`Members (${membersPct}%)`} value={amount(view.pool)} strong rule="double" />
             </dl>
 
             <dl className="mt-5 space-y-1.5 text-sm">
-              <Line label="Less: absence charges taken from absent members' dividends" value={view.absencePenalties > EPS ? `(${money(view.absencePenalties)})` : money(0)} />
-              <Line label="Dividends credited to members" value={money(view.dividends)} tone="good" strong />
+              <Line label="Less: absence charges taken from absent members' dividends" value={view.absencePenalties > EPS ? `(${amount(view.absencePenalties)})` : amount(0)} />
+              <Line label="Dividends credited to members" value={amount(view.dividends)} tone="good" strong />
             </dl>
             {view.waived > EPS && (
               <p className="mt-2 text-xs text-muted-foreground">
-                {money(view.waived)} of absence charges is waived: a charge is never more than the member's share.
+                {amount(view.waived)} of absence charges is waived: a charge is never more than the member's share.
               </p>
             )}
 
@@ -424,7 +428,6 @@ export default function ProfitDistribution() {
                           l.penalties > EPS ? amount(l.penalties) : "—",
                         ])}
                         total={["Total", "", "", amount(loanInterestListed), amount(loanPenaltiesListed)]}
-                        currency={cur}
                         noun="loans"
                         resetKey={selectedYear}
                       />
@@ -445,9 +448,11 @@ export default function ProfitDistribution() {
             Members' dividends for {selectedYear}
             {saved ? <Badge variant="secondary">Saved {fmt(dateKey)}</Badge> : <Badge variant="outline">Preview</Badge>}
           </CardTitle>
-          <p className="text-xs text-muted-foreground">
-            {membersPct}% of the total shared by savings on <span className="figure">31/12/{selectedYear}</span>, then each member's absence charges deducted
-          </p>
+          <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+            <p className="text-xs text-muted-foreground">
+              {membersPct}% of the total shared by savings on <span className="figure">31/12/{selectedYear}</span>, then each member's absence charges deducted
+            </p>
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           {view.rows.length === 0 ? (
@@ -469,27 +474,27 @@ export default function ProfitDistribution() {
                 {membersPaged.rows.map((r) => (
                   <TableRow key={r.memberId}>
                     <TableCell className="px-5 py-2 font-medium whitespace-nowrap">{r.name}</TableCell>
-                    <TableCell className="figure px-3 py-2 text-right">{r.savings > EPS ? money(r.savings) : "—"}</TableCell>
+                    <TableCell className="figure px-3 py-2 text-right">{r.savings > EPS ? amount(r.savings) : "—"}</TableCell>
                     <TableCell className="figure px-3 py-2 text-right text-muted-foreground">{(r.ratio * 100).toFixed(2)}%</TableCell>
-                    <TableCell className="figure px-3 py-2 text-right">{money(r.gross)}</TableCell>
+                    <TableCell className="figure px-3 py-2 text-right">{amount(r.gross)}</TableCell>
                     <TableCell className="figure px-3 py-2 text-right">{r.absences || "—"}</TableCell>
                     <TableCell className={cn("figure px-3 py-2 text-right", r.penalty > EPS && "text-destructive")}>
-                      {r.penalty > EPS ? `−${money(r.penalty)}` : "—"}
-                      {r.waived > EPS && <span className="block text-xs text-muted-foreground">{money(r.waived)} waived</span>}
+                      {r.penalty > EPS ? `−${amount(r.penalty)}` : "—"}
+                      {r.waived > EPS && <span className="block text-xs text-muted-foreground">{amount(r.waived)} waived</span>}
                     </TableCell>
-                    <TableCell className="figure px-5 py-2 text-right font-semibold text-secondary">{money(r.dividend)}</TableCell>
+                    <TableCell className="figure px-5 py-2 text-right font-semibold text-secondary">{amount(r.dividend)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
               <TableFooter>
                 <TableRow className="hover:bg-transparent">
                   <TableCell className="px-5 py-2.5 font-semibold">{view.rows.length} members</TableCell>
-                  <TableCell className="figure px-3 py-2.5 text-right font-semibold">{view.totalSavings > EPS ? money(view.totalSavings) : "—"}</TableCell>
+                  <TableCell className="figure px-3 py-2.5 text-right font-semibold">{view.totalSavings > EPS ? amount(view.totalSavings) : "—"}</TableCell>
                   <TableCell className="figure px-3 py-2.5 text-right">100.00%</TableCell>
-                  <TableCell className="figure px-3 py-2.5 text-right font-semibold">{money(view.pool)}</TableCell>
+                  <TableCell className="figure px-3 py-2.5 text-right font-semibold">{amount(view.pool)}</TableCell>
                   <TableCell className="figure px-3 py-2.5 text-right">{view.absences}</TableCell>
-                  <TableCell className="figure px-3 py-2.5 text-right">{view.absencePenalties > EPS ? `−${money(view.absencePenalties)}` : "—"}</TableCell>
-                  <TableCell className="figure px-5 py-2.5 text-right font-bold">{money(view.dividends)}</TableCell>
+                  <TableCell className="figure px-3 py-2.5 text-right">{view.absencePenalties > EPS ? `−${amount(view.absencePenalties)}` : "—"}</TableCell>
+                  <TableCell className="figure px-5 py-2.5 text-right font-bold">{amount(view.dividends)}</TableCell>
                 </TableRow>
               </TableFooter>
             </Table>
@@ -508,7 +513,6 @@ export default function ProfitDistribution() {
               </div>
               Distribution History
             </CardTitle>
-            <p className="text-xs text-muted-foreground">Amounts in {cur}</p>
           </CardHeader>
           <CardContent className="p-0">
             <Table>
@@ -573,8 +577,8 @@ export default function ProfitDistribution() {
             <AlertDialogDescription asChild>
               <div className="space-y-2">
                 <p>
-                  Total profit {money(plan.totalProfit)}: {money(plan.reserve)} ({plan.reservePercent}%) to the reserve fund and {money(plan.dividends)}{" "}
-                  credited to {plan.rows.length} members' savings on {fmt(dateKey)}, after {money(plan.absencePenalties)} of absence charges.
+                  Total profit {amount(plan.totalProfit)}: {amount(plan.reserve)} ({plan.reservePercent}%) to the reserve fund and {amount(plan.dividends)}{" "}
+                  credited to {plan.rows.length} members' savings on {fmt(dateKey)}, after {amount(plan.absencePenalties)} of absence charges.
                 </p>
                 {plan.bankProfit <= EPS && (
                   <p className="font-medium text-foreground">No bank profit is recorded for {selectedYear}. Go ahead only if there was none.</p>
@@ -595,7 +599,7 @@ export default function ProfitDistribution() {
           <AlertDialogHeader>
             <AlertDialogTitle>Remove this bank profit?</AlertDialogTitle>
             <AlertDialogDescription>
-              {removing && <>{money(removing.amount)} credited on {fmt(removing.creditedOn)} will be taken out of the {selectedYear} profit and out of Total Budget.</>}
+              {removing && <>{amount(removing.amount)} credited on {fmt(removing.creditedOn)} will be taken out of the {selectedYear} profit and out of Total Budget.</>}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -643,7 +647,7 @@ function Line({ label, note, value, strong, rule, tone }: { label: string; note?
  * A compact register under the slip; `numeric` columns are right-aligned figures, `total` is the
  * ruled last row (for every row, not just the page shown).
  */
-function DetailTable({ caption, head, numeric, rows, total, currency, noun, resetKey }: { caption: string; head: string[]; numeric: number[]; rows: string[][]; total: string[]; currency: string; noun: string; resetKey: number }) {
+function DetailTable({ caption, head, numeric, rows, total, noun, resetKey }: { caption: string; head: string[]; numeric: number[]; rows: string[][]; total: string[]; noun: string; resetKey: number }) {
   const right = (i: number) => numeric.includes(i);
   const paged = usePaged(rows, resetKey);
   return (
@@ -651,7 +655,6 @@ function DetailTable({ caption, head, numeric, rows, total, currency, noun, rese
     <table className="w-full text-xs">
       <caption className="mb-1.5 text-left text-xs font-semibold text-foreground">
         {caption}
-        <span className="ml-1.5 font-normal text-muted-foreground">amounts in {currency}</span>
       </caption>
       <thead>
         <tr className="border-b border-border text-[11px] uppercase tracking-wider text-muted-foreground">

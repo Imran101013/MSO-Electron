@@ -113,14 +113,14 @@ const norm = (s: string | null) => String(s ?? "").trim().replace(/\s+/g, " ").t
 export const personKey = (name: string | null, fatherName: string | null) => `${norm(name)}|${norm(fatherName)}`;
 const who = (name: string, fatherName: string) => (fatherName ? `${name} (father's name ${fatherName})` : name);
 
-export function checkOpeningFile(file: RawOpeningFile, cutoverDate: string, dateFormat: string, currency: string): OpeningCheck {
+export function checkOpeningFile(file: RawOpeningFile, cutoverDate: string, dateFormat: string): OpeningCheck {
   const problems: OpeningIssue[] = [];
   const warnings: OpeningIssue[] = [];
   const fmt = (key: string) => {
     const [y, m, d] = key.split("-").map(Number);
     return format(new Date(y, m - 1, d), dateFormat || "dd/MM/yyyy");
   };
-  const money = (n: number) => `${currency} ${n.toLocaleString()}`;
+  const money = (n: number) => n.toLocaleString();
 
   const fileCutover = text(file.meta?.cutoverDate ?? null);
   if (!fileCutover) {

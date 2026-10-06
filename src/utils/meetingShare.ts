@@ -4,6 +4,7 @@ import { formatTime as formatClockTime } from "@/lib/utils";
 import { parseLocalDate } from "@/hooks/useLoans";
 import type { DbMeeting } from "@/hooks/useMeetings";
 import type { Settings } from "@/contexts/SettingsContext";
+import { figureBlock, footer, heading, letterhead } from "@/utils/whatsappFormat";
 
 export type AmountRow = { memberId: string; name: string; amount: number };
 export type ReserveEntry = { transaction_type: string; amount: number; donor_name: string | null; notes: string | null };
@@ -87,7 +88,7 @@ export async function getMeetingRecord(meeting: DbMeeting): Promise<MeetingRecor
       `SELECT transaction_type, amount, donor_name, notes FROM public.reserve_transactions WHERE ${since("transaction_date")} ORDER BY transaction_date, created_at`,
       [day, prev],
     ),
-    // Meetings don't store a venue; use the one it was scheduled with, if any.
+    // A meeting recorded before its venue was kept: the venue it was scheduled with, if any.
     dbQuery<{ venue: string }>(
       `SELECT venue FROM public.upcoming_meetings WHERE meeting_date = $1::date AND COALESCE(venue, '') <> '' ORDER BY created_at DESC LIMIT 1`,
       [day],
@@ -105,7 +106,7 @@ export async function getMeetingRecord(meeting: DbMeeting): Promise<MeetingRecor
 
   return {
     meeting,
-    venue: venueRows[0]?.venue ?? null,
+    venue: meeting.venue?.trim() || venueRows[0]?.venue || null,
     attendance,
     presentCount: attendance.filter((a) => a.present).length,
     absent: attendance.filter((a) => !a.present && !a.onLeave).map((a) => a.name),
@@ -126,75 +127,76 @@ export async function getMeetingRecord(meeting: DbMeeting): Promise<MeetingRecor
 }
 
 /**
- * Formats a meeting record as a WhatsApp message. Uses WhatsApp formatting (*bold*,
- * ```monospace``` so names and amounts line up).
+ * Formats a meeting record as a WhatsApp message for the group (layout in utils/whatsappFormat.ts):
+ * the totals at a glance first, then the agenda, attendance and each member's figures.
  */
 export function formatMeetingMessage(record: MeetingRecord, settings: ShareSettings): string {
   const { meeting, savings, collected, newLoans, reserve, attendance, presentCount, absent, onLeave, next, totals } = record;
   const cur = settings.currency || "PKR";
-  const money = (v: number) => `${cur} ${formatAmount(v)}`;
   const date = (key: string) => formatDay(key, settings);
-  const orgName =
-    settings.organizationName?.trim() && settings.organizationName.trim().toUpperCase() !== "MSO"
-      ? settings.organizationName.trim()
-      : "Mogh Students Organisation";
-
-  // Monospace lists share one name width and one amount width, so every amount in the
-  // message lines up in a single column.
-  const lists: Array<[AmountRow[], string]> = [
-    [savings, "Total savings"],
-    [collected, "Total collected"],
-    [newLoans, "Total loans issued"],
-  ];
-  const shown = lists.filter(([rows]) => rows.length);
-  const w = Math.min(18, Math.max(0, ...shown.flatMap(([rows, label]) => [label.length, ...rows.map((r) => r.name.length)])));
-  const aw = Math.max(0, ...shown.flatMap(([rows]) => [formatAmount(sum(rows)).length, ...rows.map((r) => formatAmount(r.amount).length)])) + 2;
-  const table = (rows: AmountRow[], totalLabel: string) => {
-    const name = (s: string) => (s.length > w ? `${s.slice(0, w - 1)}…` : s.padEnd(w));
-    const lines = rows.map((r) => name(r.name) + formatAmount(r.amount).padStart(aw));
-    lines.push("-".repeat(w + aw), name(totalLabel) + formatAmount(sum(rows)).padStart(aw));
-    return "```" + lines.join("\n") + "```";
+  const longDate = (key: string) => `${format(parseLocalDate(key.slice(0, 10)), "EEEE")}, ${date(key)}`;
+  const numbered = (names: string[]) => names.map((n, i) => `${i + 1}. ${n}`).join("\n");
+  // Members' figures with a total; a member who paid nothing shows why, if their attendance says.
+  const table = (rows: AmountRow[], nothing?: (memberId: string) => string) =>
+    figureBlock([
+      ...rows.map((r) => ({ label: r.name, amount: Number(r.amount) > 0 || !nothing ? Number(r.amount) : nothing(r.memberId) })),
+      "rule",
+      { label: "Total", amount: sum(rows) },
+    ]);
+  const paidNothing = (memberId: string) => {
+    const a = attendance.find((x) => x.memberId === memberId);
+    return a?.onLeave ? "on leave" : a && !a.present ? "absent" : "–";
   };
 
-  const out: string[] = [`*${orgName} (MSO)*`, `*Monthly Meeting: ${date(meeting.meeting_date)}*`];
+  const out: string[] = [...letterhead(settings, "Monthly Meeting Record"), `📅 ${longDate(meeting.meeting_date)}`];
   if (record.venue) out.push(`📍 ${record.venue}`);
+  // The currency is named once here, not with every amount.
+  out.push(`_Amounts in ${cur}_`);
 
-  out.push("", "📝*Agenda*", meeting.agenda?.trim() || "-");
-  if (meeting.decisions?.trim()) out.push("", "✅ *Decisions*", meeting.decisions.trim());
+
+  out.push("", heading("Agenda"), meeting.agenda?.trim() || "-");
+  if (meeting.decisions?.trim()) out.push("", heading("Decisions"), meeting.decisions.trim());
 
   if (attendance.length) {
-    out.push("", `*Attendance: ${presentCount} of ${attendance.length} present${onLeave.length ? `, ${onLeave.length} on leave` : ""}*`);
-    out.push(
-      "",
-      `*Absent members (${absent.length})*`,
-      absent.length ? absent.map((n, i) => `${i + 1}. ${n}`).join("\n") : onLeave.length ? "None." : "None - all members were present.",
-    );
-    if (onLeave.length) out.push("", `*On leave (${onLeave.length})*`, onLeave.map((n, i) => `${i + 1}. ${n}`).join("\n"));
+    out.push("", heading("Attendance"), `Present ${presentCount} · Absent ${absent.length} · On leave ${onLeave.length}`);
+    // if (absent.length) out.push("Absent:", numbered(absent));
+    // if (onLeave.length) out.push("On leave:", numbered(onLeave));
+    // if (!absent.length && !onLeave.length) out.push("All members were present.");
   }
 
-  out.push("", "*Savings*", savings.length ? table(savings, "Total savings") : "No members recorded.");
-
-  out.push("", "*Loans collected*");
-  out.push(collected.length ? table(collected, "Total collected") : "No loan repayments were received.");
-
-  out.push("", `*Total collected (savings + loans): ${money(totals.totalCollected)}*`);
-
-  if (newLoans.length) {
-    out.push("", "*New loans issued*", table(newLoans, "Total loans issued"));
-  }
+  out.push("", heading("Savings"), savings.length ? table(savings, paidNothing) : "No members recorded.");
+  out.push("", heading("Loans collected"), collected.length ? table(collected) : "No loan repayments were received.");
+  if (newLoans.length) out.push("", heading("New loans issued"), table(newLoans));
 
   if (reserve.length) {
-    out.push("", "*Reserve fund*");
-    for (const t of reserve) out.push(`${t.transaction_type === "expense" ? "-" : "+"} ${reserveLabel(t)}: ${money(t.amount)}`);
+    out.push("", heading("Reserve fund"));
+    for (const t of reserve) out.push(`• ${reserveLabel(t)}: ${t.transaction_type === "expense" ? "-" : "+"}${formatAmount(t.amount)}`);
   }
-
   if (record.bankProfits.length) {
-    out.push("", "*Bank profit*");
-    for (const b of record.bankProfits) out.push(`+ Bank profit for ${b.profit_year}, credited ${date(b.credited_on)}: ${money(b.amount)}`);
+    out.push("", heading("Bank profit"));
+    for (const b of record.bankProfits) out.push(`• Profit for ${b.profit_year}, credited ${date(b.credited_on)}: +${formatAmount(b.amount)}`);
   }
 
-  if (next) out.push("", "*Next meeting*", [date(next.meeting_date), formatTime(next.meeting_time, settings), next.venue].filter(Boolean).join(" · "));
+  out.push(
+    "",
+    heading("Summary"),
+    figureBlock([
+      ...(attendance.length ? [{ label: "Members present", amount: `${presentCount} of ${attendance.length}` }] : []),
+      { label: "Savings", amount: totals.savings },
+      { label: "Loans collected", amount: totals.collected },
+      "rule",
+      { label: "Total collected", amount: totals.totalCollected },
+      ...(newLoans.length ? [{ label: "New loans issued", amount: totals.newLoans }] : []),
+    ]),
+  );
 
+  if (next) {
+    const time = formatTime(next.meeting_time, settings);
+    out.push("", heading("Next meeting"), `📅 ${longDate(next.meeting_date)}${time ? ` · ${time}` : ""}`);
+    if (next.venue) out.push(`📍 ${next.venue}`);
+  }
+
+  out.push(...footer("Prepared from the MSO meeting record."));
   return out.join("\n");
 }
 

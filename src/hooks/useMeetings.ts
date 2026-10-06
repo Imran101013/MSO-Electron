@@ -9,6 +9,8 @@ export interface DbMeeting {
   meeting_date: string;
   agenda: string;
   decisions: string | null;
+  /** Where it was held (null for meetings recorded before the venue was kept). */
+  venue: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -25,6 +27,7 @@ export interface MeetingFormData {
   meeting_date: string;
   agenda: string;
   decisions?: string;
+  venue?: string;
 }
 
 export interface UpcomingMeetingFormData {
@@ -67,8 +70,8 @@ export function useMeetings() {
       const block = await cutoverBlock(formData.meeting_date, settings.dateFormat);
       if (block) { toast({ title: "Date is before the cut-over", description: block, variant: "destructive" }); return null; }
       const rows = await dbQuery<DbMeeting>(
-        'INSERT INTO public.meetings (meeting_date, agenda, decisions) VALUES ($1,$2,$3) RETURNING *',
-        [formData.meeting_date, formData.agenda, formData.decisions || null]
+        'INSERT INTO public.meetings (meeting_date, agenda, decisions, venue) VALUES ($1,$2,$3,$4) RETURNING *',
+        [formData.meeting_date, formData.agenda, formData.decisions || null, formData.venue?.trim() || null]
       );
       toast({ title: "Meeting Added", description: "Meeting has been successfully recorded." });
       await fetchMeetings();

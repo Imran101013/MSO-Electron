@@ -15,10 +15,12 @@ import { format } from "date-fns";
 import { useSettings } from "@/contexts/SettingsContext";
 import { useAuth } from "@/contexts/AuthContext";
 import ViewReportButton from "@/components/ViewReportButton";
+import AmountsNote from "@/components/AmountsNote";
 import { thisYearToDate } from "@/utils/accounting";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { DatePicker } from "@/components/ui/date-picker";
 import { useMeetings, DbMeeting, DbUpcomingMeeting } from "@/hooks/useMeetings";
+import { dbQuery } from "@/lib/db";
 import { useMembers } from "@/hooks/useMembers";
 import { attendanceLockedYear, attendanceStatus, saveMeetingAttendance, useAttendance, type AttendanceStatus } from "@/hooks/useAttendance";
 import { useContributions } from "@/hooks/useContributions";
@@ -31,7 +33,7 @@ import { TablePager, usePaged } from "@/components/TablePager";
 import { addBankProfit, bankProfitProblem } from "@/hooks/useBankProfits";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-const meetingSchema = z.object({ date: z.date(), agenda: z.string().min(1, "Agenda is required"), decisions: z.string().optional() });
+const meetingSchema = z.object({ date: z.date(), venue: z.string().trim().min(1, "Venue is required"), agenda: z.string().min(1, "Agenda is required"), decisions: z.string().optional() });
 const upcomingMeetingSchema = z.object({ date: z.date(), time: z.string().min(1, "Time is required"), venue: z.string().min(1, "Venue is required") });
 type MeetingFormValues = z.infer<typeof meetingSchema>;
 type UpcomingMeetingFormValues = z.infer<typeof upcomingMeetingSchema>;
@@ -41,7 +43,7 @@ interface AttendanceEditRow { memberId: string; name: string; status: Attendance
 const NO_EDIT_ROWS: AttendanceEditRow[] = [];
 const NO_RESERVE: MeetingRecord["reserve"] = [];
 const NO_BANK_PROFITS: MeetingRecord["bankProfits"] = [];
-type ShareResult = { opened?: "app" | "web"; error?: string };
+type ShareResult = { opened?: "app" | "web"; copied?: boolean; error?: string };
 type WhatsAppBridge = { shareWhatsApp?: (text: string) => Promise<ShareResult> };
 
 export default function Meetings() {
@@ -78,9 +80,21 @@ export default function Meetings() {
   const reservePaged = usePaged(viewRecord?.reserve ?? NO_RESERVE, viewRecord?.meeting.id ?? null);
   const bankProfitsPaged = usePaged(viewRecord?.bankProfits ?? NO_BANK_PROFITS, viewRecord?.meeting.id ?? null);
 
-  const form = useForm<MeetingFormValues>({ resolver: zodResolver(meetingSchema), defaultValues: { date: undefined, agenda: "", decisions: "" } });
+  const form = useForm<MeetingFormValues>({ resolver: zodResolver(meetingSchema), defaultValues: { date: undefined, venue: "", agenda: "", decisions: "" } });
   const scheduleForm = useForm<UpcomingMeetingFormValues>({ resolver: zodResolver(upcomingMeetingSchema), defaultValues: { date: undefined, time: "", venue: "" } });
   const approvedMembers = members;
+
+  // Meetings set up with Schedule Meeting (date and venue), loaded when Add New Meeting opens.
+  const [schedules, setSchedules] = useState<{ meeting_date: string; venue: string }[]>([]);
+  // Where the venue filled in came from, shown under the field until it is typed over.
+  const [venueFrom, setVenueFrom] = useState<string | null>(null);
+  const scheduledNote = (key: string) => `From the meeting scheduled for ${formatDay(key, settings)}`;
+  // Fills in the venue unless it has been typed in by hand.
+  const fillVenue = (venue: string, from: string | null) => {
+    if (form.getFieldState("venue").isDirty) return;
+    form.resetField("venue", { defaultValue: venue });
+    setVenueFrom(venue ? from : null);
+  };
 
   const handleOpenAddDialog = () => {
     setMemberContributions(approvedMembers.map(m => ({ memberId: m.id, memberName: m.name, amount: 0, status: "present" })));
@@ -88,6 +102,33 @@ export default function Meetings() {
     setBankCreditedOn(undefined);
     setBankYear(null);
     setIsAddOpen(true);
+    // A fresh venue each time (not one typed before a Cancel); until the schedule loads, where the
+    // last meeting was.
+    form.resetField("venue", { defaultValue: "" });
+    const last = meetings.find((m) => m.venue?.trim());
+    fillVenue(last?.venue ?? "", last ? `Same as the last meeting (${formatDay(last.meeting_date, settings)})` : null);
+    // The venue set in Schedule Meeting. Past schedules count too: a meeting is often entered a day
+    // or two after it is held. The one being recorded is the latest scheduled on or before today
+    // that has no meeting yet, else the next one.
+    dbQuery<{ meeting_date: string; venue: string }>(
+      "SELECT meeting_date::text AS meeting_date, venue FROM public.upcoming_meetings WHERE COALESCE(TRIM(venue), '') <> '' ORDER BY meeting_date, created_at",
+    )
+      .then((rows) => {
+        setSchedules(rows);
+        const recorded = new Set(meetings.map((m) => m.meeting_date.slice(0, 10)));
+        const today = format(new Date(), "yyyy-MM-dd");
+        const open = rows.filter((r) => !recorded.has(r.meeting_date.slice(0, 10)));
+        const due = [...open].reverse().find((r) => r.meeting_date <= today) ?? open.find((r) => r.meeting_date > today);
+        if (due) fillVenue(due.venue, scheduledNote(due.meeting_date));
+      })
+      .catch(() => setSchedules([]));
+  };
+
+  const pickMeetingDate = (date: Date | undefined, onChange: (d: Date | undefined) => void) => {
+    onChange(date);
+    const key = date ? format(date, "yyyy-MM-dd") : null;
+    const scheduled = schedules.find((s) => s.meeting_date.slice(0, 10) === key);
+    if (scheduled) fillVenue(scheduled.venue, scheduledNote(scheduled.meeting_date));
   };
 
   const updateContribution = (memberId: string, field: 'amount' | 'status', value: number | AttendanceStatus) =>
@@ -104,7 +145,7 @@ export default function Meetings() {
       if (problem) { toast.error("Bank profit not recorded", { description: problem }); return; }
     }
     setIsSubmitting(true);
-    const newMeeting = await addMeeting({ meeting_date: dateString, agenda: data.agenda, decisions: data.decisions });
+    const newMeeting = await addMeeting({ meeting_date: dateString, venue: data.venue, agenda: data.agenda, decisions: data.decisions });
     if (newMeeting) {
       await bulkRecordAttendance(newMeeting.id, memberContributions.map(mc => ({ memberId: mc.memberId, status: mc.status })));
       await bulkAddContributions(newMeeting.id, memberContributions.map(mc => ({ memberId: mc.memberId, amount: mc.amount })), dateString);
@@ -187,6 +228,7 @@ export default function Meetings() {
     try {
       const res = await api.shareWhatsApp(await buildMeetingShareMessage(latest, settings));
       if (res.error) toast.error("Unable to open WhatsApp", { description: res.error });
+      else if (res.copied) toast.success("Meeting record copied: paste it in WhatsApp", { description: "It's too long to be typed in for you. Choose who to send it to, then press Ctrl+V.", duration: 15000 });
       else toast.success(res.opened === "app" ? "WhatsApp opened" : "WhatsApp Web opened", { description: "Choose who to send the meeting record to." });
     } catch (err) {
       toast.error("Unable to prepare the meeting record", { description: err instanceof Error ? err.message : String(err) });
@@ -208,20 +250,41 @@ export default function Meetings() {
             <CalendarDays className="w-5 h-5 text-primary" />
           </div>
           <div>
-            <h2 className="text-2xl font-bold text-foreground mt-1">Meeting Records</h2>
-            <p className="text-sm text-muted-foreground mt-0.5">Schedule and document meetings</p>
+            <h2 className="text-2xl font-bold text-foreground mt-1">
+              Meeting Records
+            </h2>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Schedule and document meetings
+            </p>
+            <AmountsNote />
           </div>
         </div>
         {isAdmin && (
           <div className="flex flex-wrap gap-2">
-            <ViewReportButton request={{ kind: "meetings-register", period: thisYearToDate() }} label="Meetings & Attendance Register" size="default" />
-            <Button variant="secondary" className="gap-2" onClick={shareLatestMeeting} disabled={isSharing}>
-              {isSharing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Share2 className="w-4 h-4" />} Share Latest Meeting
+            <ViewReportButton
+              request={{ kind: "meetings-register", period: thisYearToDate() }}
+              label="Meetings & Attendance Register"
+              size="default"
+            />
+            <Button
+              variant="secondary"
+              className="gap-2"
+              onClick={shareLatestMeeting}
+              disabled={isSharing}
+            >
+              {isSharing ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Share2 className="w-4 h-4" />
+              )}{" "}
+              Share Latest Meeting
             </Button>
             {/* Schedule Dialog */}
             <Dialog open={isScheduleOpen} onOpenChange={setIsScheduleOpen}>
               <DialogTrigger asChild>
-                <Button variant="outline" className="gap-2"><Clock className="w-4 h-4" /> Schedule Meeting</Button>
+                <Button variant="outline" className="gap-2">
+                  <Clock className="w-4 h-4" /> Schedule Meeting
+                </Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-[440px] flex flex-col max-h-[90vh] p-0 gap-0 overflow-hidden">
                 {/* Header */}
@@ -230,26 +293,94 @@ export default function Meetings() {
                     <Clock className="w-5 h-5 text-primary" />
                   </div>
                   <div>
-                    <DialogTitle className="text-base font-bold text-foreground">Schedule Upcoming Meeting</DialogTitle>
-                    <p className="text-xs text-muted-foreground">Set date, time and venue</p>
+                    <DialogTitle className="text-base font-bold text-foreground">
+                      Schedule Upcoming Meeting
+                    </DialogTitle>
+                    <p className="text-xs text-muted-foreground">
+                      Set date, time and venue
+                    </p>
                   </div>
                 </div>
                 <Form {...scheduleForm}>
-                  <form onSubmit={scheduleForm.handleSubmit(onScheduleSubmit)} className="flex flex-col min-h-0 flex-1">
+                  <form
+                    onSubmit={scheduleForm.handleSubmit(onScheduleSubmit)}
+                    className="flex flex-col min-h-0 flex-1"
+                  >
                     <div className="overflow-y-auto flex-1 px-6 py-5 space-y-4">
-                      <FormField control={scheduleForm.control} name="date" render={({ field }) => (
-                        <FormItem><FormLabel className="text-xs font-medium">Meeting Date</FormLabel><FormControl><DatePicker date={field.value} onDateChange={field.onChange} placeholder="Select date" /></FormControl><FormMessage className="text-xs" /></FormItem>
-                      )} />
-                      <FormField control={scheduleForm.control} name="time" render={({ field }) => (
-                        <FormItem><FormLabel className="text-xs font-medium">Meeting Time</FormLabel><FormControl><Input type="time" {...field} className="h-9" /></FormControl><FormMessage className="text-xs" /></FormItem>
-                      )} />
-                      <FormField control={scheduleForm.control} name="venue" render={({ field }) => (
-                        <FormItem><FormLabel className="text-xs font-medium">Venue</FormLabel><FormControl><Textarea {...field} placeholder="Meeting venue…" className="resize-none" rows={3} /></FormControl><FormMessage className="text-xs" /></FormItem>
-                      )} />
+                      <FormField
+                        control={scheduleForm.control}
+                        name="date"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs font-medium">
+                              Meeting Date
+                            </FormLabel>
+                            <FormControl>
+                              <DatePicker
+                                date={field.value}
+                                onDateChange={field.onChange}
+                                placeholder="Select date"
+                              />
+                            </FormControl>
+                            <FormMessage className="text-xs" />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={scheduleForm.control}
+                        name="time"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs font-medium">
+                              Meeting Time
+                            </FormLabel>
+                            <FormControl>
+                              <Input type="time" {...field} className="h-9" />
+                            </FormControl>
+                            <FormMessage className="text-xs" />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={scheduleForm.control}
+                        name="venue"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs font-medium">
+                              Venue
+                            </FormLabel>
+                            <FormControl>
+                              <Textarea
+                                {...field}
+                                placeholder="Meeting venue…"
+                                className="resize-none"
+                                rows={3}
+                              />
+                            </FormControl>
+                            <FormMessage className="text-xs" />
+                          </FormItem>
+                        )}
+                      />
                     </div>
                     <div className="flex-shrink-0 flex justify-end gap-3 px-6 py-4 border-t bg-muted/20">
-                      <Button type="button" variant="outline" size="sm" onClick={() => setIsScheduleOpen(false)}>Cancel</Button>
-                      <Button type="submit" size="sm" disabled={isSubmitting}>{isSubmitting ? <><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />Scheduling…</> : "Schedule Meeting"}</Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setIsScheduleOpen(false)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button type="submit" size="sm" disabled={isSubmitting}>
+                        {isSubmitting ? (
+                          <>
+                            <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                            Scheduling…
+                          </>
+                        ) : (
+                          "Schedule Meeting"
+                        )}
+                      </Button>
                     </div>
                   </form>
                 </Form>
@@ -257,9 +388,17 @@ export default function Meetings() {
             </Dialog>
 
             {/* Add Meeting Dialog */}
-            <Dialog open={isAddOpen} onOpenChange={(o) => { if (o) handleOpenAddDialog(); else setIsAddOpen(false); }}>
+            <Dialog
+              open={isAddOpen}
+              onOpenChange={(o) => {
+                if (o) handleOpenAddDialog();
+                else setIsAddOpen(false);
+              }}
+            >
               <DialogTrigger asChild>
-                <Button className="gap-2 shadow-sm"><Plus className="w-4 h-4" /> Add New Meeting</Button>
+                <Button className="gap-2 shadow-sm">
+                  <Plus className="w-4 h-4" /> Add New Meeting
+                </Button>
               </DialogTrigger>
               <DialogContent className="max-w-3xl flex flex-col max-h-[90vh] p-0 gap-0 overflow-hidden">
                 {/* Header */}
@@ -268,57 +407,172 @@ export default function Meetings() {
                     <Plus className="w-5 h-5 text-primary" />
                   </div>
                   <div>
-                    <DialogTitle className="text-base font-bold text-foreground">Add New Meeting</DialogTitle>
-                    <p className="text-xs text-muted-foreground">Record meeting details and member contributions</p>
+                    <DialogTitle className="text-base font-bold text-foreground">
+                      Add New Meeting
+                    </DialogTitle>
+                    <p className="text-xs text-muted-foreground">
+                      Record meeting details and member contributions
+                    </p>
+                    <AmountsNote />
                   </div>
                 </div>
                 <Form {...form}>
-                  <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col min-h-0 flex-1">
+                  <form
+                    onSubmit={form.handleSubmit(onSubmit)}
+                    className="flex flex-col min-h-0 flex-1"
+                  >
                     <div className="overflow-y-auto flex-1 px-6 py-5 space-y-5">
                       {/* Meeting Info */}
                       <div className="space-y-3">
-                        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Meeting Information</p>
-                        <FormField control={form.control} name="date" render={({ field }) => (
-                          <FormItem><FormLabel className="text-xs font-medium">Meeting Date</FormLabel><FormControl><DatePicker date={field.value} onDateChange={field.onChange} placeholder="Select date" disabledThrough={books.cutoverDate} /></FormControl><FormMessage className="text-xs" /></FormItem>
-                        )} />
-                        <FormField control={form.control} name="agenda" render={({ field }) => (
-                          <FormItem><FormLabel className="text-xs font-medium">Agenda</FormLabel><FormControl><Textarea {...field} placeholder="Meeting agenda…" className="resize-none" rows={2} /></FormControl><FormMessage className="text-xs" /></FormItem>
-                        )} />
-                        <FormField control={form.control} name="decisions" render={({ field }) => (
-                          <FormItem><FormLabel className="text-xs font-medium">Decisions Made</FormLabel><FormControl><Textarea {...field} placeholder="Decisions made during the meeting…" className="resize-none" rows={2} /></FormControl><FormMessage className="text-xs" /></FormItem>
-                        )} />
+                        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                          Meeting Information
+                        </p>
+                        <FormField
+                          control={form.control}
+                          name="date"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-xs font-medium">
+                                Meeting Date
+                              </FormLabel>
+                              <FormControl>
+                                <DatePicker
+                                  date={field.value}
+                                  onDateChange={(d) => pickMeetingDate(d, field.onChange)}
+                                  placeholder="Select date"
+                                  disabledThrough={books.cutoverDate}
+                                />
+                              </FormControl>
+                              <FormMessage className="text-xs" />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="venue"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-xs font-medium">
+                                Venue
+                              </FormLabel>
+                              <FormControl>
+                                <Input
+                                  {...field}
+                                  placeholder="Where the meeting was held"
+                                  className="h-9 text-sm"
+                                />
+                              </FormControl>
+                              {venueFrom && field.value && !form.formState.dirtyFields.venue && (
+                                <p className="text-xs text-muted-foreground">{venueFrom}</p>
+                              )}
+                              <FormMessage className="text-xs" />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="agenda"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-xs font-medium">
+                                Agenda
+                              </FormLabel>
+                              <FormControl>
+                                <Textarea
+                                  {...field}
+                                  placeholder="Meeting agenda…"
+                                  className="resize-none"
+                                  rows={2}
+                                />
+                              </FormControl>
+                              <FormMessage className="text-xs" />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="decisions"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-xs font-medium">
+                                Decisions Made
+                              </FormLabel>
+                              <FormControl>
+                                <Textarea
+                                  {...field}
+                                  placeholder="Decisions made during the meeting…"
+                                  className="resize-none"
+                                  rows={2}
+                                />
+                              </FormControl>
+                              <FormMessage className="text-xs" />
+                            </FormItem>
+                          )}
+                        />
                       </div>
                       {/* Bank profit reported at this meeting (optional) */}
                       <div className="space-y-3">
                         <div>
-                          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Bank Profit</p>
-                          <p className="text-xs text-muted-foreground mt-0.5">Only if the bank has credited its profit on the account since the last meeting. Leave blank otherwise.</p>
+                          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                            Bank Profit
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            Only if the bank has credited its profit on the
+                            account since the last meeting. Leave blank
+                            otherwise.
+                          </p>
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                           <div className="space-y-1.5">
-                            <p className="text-xs font-medium">Amount ({settings.currency})</p>
-                            <Input inputMode="decimal" placeholder="0" value={bankAmount} onChange={(e) => setBankAmount(e.target.value)} className="h-9 text-sm" id="bankProfitAmount" />
+                            <p className="text-xs font-medium">Amount</p>
+                            <Input
+                              inputMode="decimal"
+                              placeholder="0"
+                              value={bankAmount}
+                              onChange={(e) => setBankAmount(e.target.value)}
+                              className="h-9 text-sm"
+                              id="bankProfitAmount"
+                            />
                           </div>
                           <div className="space-y-1.5">
-                            <p className="text-xs font-medium">Credited by the bank on</p>
+                            <p className="text-xs font-medium">
+                              Credited by the bank on
+                            </p>
                             <DatePicker
                               date={bankCreditedOn ?? form.watch("date")}
-                              onDateChange={(d) => { setBankCreditedOn(d); setBankYear(null); }}
+                              onDateChange={(d) => {
+                                setBankCreditedOn(d);
+                                setBankYear(null);
+                              }}
                               placeholder="The meeting date"
                               disabledThrough={books.cutoverDate}
                             />
                           </div>
                           <div className="space-y-1.5">
-                            <p className="text-xs font-medium">Profit for the year</p>
+                            <p className="text-xs font-medium">
+                              Profit for the year
+                            </p>
                             {(() => {
-                              const credited = bankCreditedOn ?? form.watch("date");
-                              const y = credited ? credited.getFullYear() : new Date().getFullYear();
+                              const credited =
+                                bankCreditedOn ?? form.watch("date");
+                              const y = credited
+                                ? credited.getFullYear()
+                                : new Date().getFullYear();
                               return (
-                                <Select value={String(bankYear ?? y)} onValueChange={(v) => setBankYear(Number(v))}>
-                                  <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                                <Select
+                                  value={String(bankYear ?? y)}
+                                  onValueChange={(v) => setBankYear(Number(v))}
+                                >
+                                  <SelectTrigger className="h-9 text-sm">
+                                    <SelectValue />
+                                  </SelectTrigger>
                                   <SelectContent>
-                                    <SelectItem value={String(y)}>{y}</SelectItem>
-                                    <SelectItem value={String(y - 1)}>{y - 1}</SelectItem>
+                                    <SelectItem value={String(y)}>
+                                      {y}
+                                    </SelectItem>
+                                    <SelectItem value={String(y - 1)}>
+                                      {y - 1}
+                                    </SelectItem>
                                   </SelectContent>
                                 </Select>
                               );
@@ -328,42 +582,108 @@ export default function Meetings() {
                       </div>
                       {/* Attendance */}
                       <div className="space-y-3">
-                        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Member Attendance & Contributions</p>
+                        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                          Member Attendance & Contributions
+                        </p>
                         {memberContributions.length > 0 && (
                           <AttendanceTally
-                            statuses={memberContributions.map((mc) => mc.status)}
-                            onMarkAll={(s) => setMemberContributions((prev) => prev.map((mc) => ({ ...mc, status: s })))}
+                            statuses={memberContributions.map(
+                              (mc) => mc.status,
+                            )}
+                            onMarkAll={(s) =>
+                              setMemberContributions((prev) =>
+                                prev.map((mc) => ({ ...mc, status: s })),
+                              )
+                            }
                           />
                         )}
                         <div className="grid grid-cols-12 px-3 py-2 bg-muted/50 rounded-sm">
-                          <span className="col-span-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Member</span>
-                          <span className="col-span-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Present</span>
-                          <span className="col-span-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Amount ({settings.currency})</span>
+                          <span className="col-span-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                            Member
+                          </span>
+                          <span className="col-span-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                            Present
+                          </span>
+                          <span className="col-span-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                            Amount
+                          </span>
                         </div>
-                        <p className="px-3 text-xs text-muted-foreground">On leave: not at the meeting but excused (e.g. sent their contribution). No absence charge.</p>
+                        <p className="px-3 text-xs text-muted-foreground">
+                          On leave: not at the meeting but excused (e.g. sent
+                          their contribution). No absence charge.
+                        </p>
                         <div className="space-y-1.5">
                           {addPaged.rows.map((mc) => (
-                            <div key={mc.memberId} className="grid grid-cols-12 items-center px-3 py-2 rounded-sm border border-border/60 hover:bg-muted/20 transition-colors">
+                            <div
+                              key={mc.memberId}
+                              className="grid grid-cols-12 items-center px-3 py-2 rounded-sm border border-border/60 hover:bg-muted/20 transition-colors"
+                            >
                               <div className="col-span-4 flex items-center gap-2 min-w-0">
-                                <Avatar className="h-7 w-7"><AvatarFallback className="bg-gradient-primary text-white text-xs">{mc.memberName.split(" ").map(n => n[0]).join("")}</AvatarFallback></Avatar>
-                                <span className="text-sm font-medium truncate">{mc.memberName}</span>
+                                <Avatar className="h-7 w-7">
+                                  <AvatarFallback className="bg-gradient-primary text-white text-xs">
+                                    {mc.memberName
+                                      .split(" ")
+                                      .map((n) => n[0])
+                                      .join("")}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <span className="text-sm font-medium truncate">
+                                  {mc.memberName}
+                                </span>
                               </div>
                               <div className="col-span-4">
-                                <AttendanceToggle value={mc.status} memberName={mc.memberName} onChange={(s) => updateContribution(mc.memberId, 'status', s)} />
+                                <AttendanceToggle
+                                  value={mc.status}
+                                  memberName={mc.memberName}
+                                  onChange={(s) =>
+                                    updateContribution(mc.memberId, "status", s)
+                                  }
+                                />
                               </div>
                               <div className="col-span-4">
-                                <Input type="number" placeholder="0" value={mc.amount || ""} className="h-8 text-sm"
-                                  onChange={(e) => updateContribution(mc.memberId, 'amount', Number(e.target.value) || 0)} />
+                                <Input
+                                  type="number"
+                                  placeholder="0"
+                                  value={mc.amount || ""}
+                                  className="h-8 text-sm"
+                                  onChange={(e) =>
+                                    updateContribution(
+                                      mc.memberId,
+                                      "amount",
+                                      Number(e.target.value) || 0,
+                                    )
+                                  }
+                                />
                               </div>
                             </div>
                           ))}
                         </div>
-                        <TablePager paged={addPaged} noun="members" className="px-0 border-t-0" />
+                        <TablePager
+                          paged={addPaged}
+                          noun="members"
+                          className="px-0 border-t-0"
+                        />
                       </div>
                     </div>
                     <div className="flex-shrink-0 flex justify-end gap-3 px-6 py-4 border-t bg-muted/20">
-                      <Button type="button" variant="outline" size="sm" onClick={() => setIsAddOpen(false)}>Cancel</Button>
-                      <Button type="submit" size="sm" disabled={isSubmitting}>{isSubmitting ? <><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />Saving…</> : "Save Meeting"}</Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setIsAddOpen(false)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button type="submit" size="sm" disabled={isSubmitting}>
+                        {isSubmitting ? (
+                          <>
+                            <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                            Saving…
+                          </>
+                        ) : (
+                          "Save Meeting"
+                        )}
+                      </Button>
                     </div>
                   </form>
                 </Form>
@@ -382,27 +702,47 @@ export default function Meetings() {
                 <Clock className="w-4 h-4 text-primary" />
               </div>
               Upcoming Meetings
-              <span className="figure ml-auto text-xs text-muted-foreground bg-muted px-2.5 py-1 rounded-sm font-normal">{upcomingMeetings.length} scheduled</span>
+              <span className="figure ml-auto text-xs text-muted-foreground bg-muted px-2.5 py-1 rounded-sm font-normal">
+                {upcomingMeetings.length} scheduled
+              </span>
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
             <div className="divide-y divide-border/60">
               {upcomingPaged.rows.map((meeting) => (
-                <div key={meeting.id} className="flex items-center justify-between px-5 py-2 hover:bg-muted/30 transition-colors">
+                <div
+                  key={meeting.id}
+                  className="flex items-center justify-between px-5 py-2 hover:bg-muted/30 transition-colors"
+                >
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-sm border-2 border-primary/30 bg-primary/5 flex items-center justify-center flex-shrink-0">
                       <Calendar className="w-4 h-4 text-primary" />
                     </div>
                     <div>
                       <p className="figure text-sm font-bold text-primary">
-                        {format(new Date(meeting.meeting_date), settings.dateFormat)}
-                        {meeting.meeting_time && <span className="text-muted-foreground font-normal"> at {formatTime(meeting.meeting_time, settings)}</span>}
+                        {format(
+                          new Date(meeting.meeting_date),
+                          settings.dateFormat,
+                        )}
+                        {meeting.meeting_time && (
+                          <span className="text-muted-foreground font-normal">
+                            {" "}
+                            at {formatTime(meeting.meeting_time, settings)}
+                          </span>
+                        )}
                       </p>
-                      <p className="text-xs text-muted-foreground mt-0.5">{meeting.venue}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {meeting.venue}
+                      </p>
                     </div>
                   </div>
                   {isAdmin && (
-                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-sm text-destructive hover:text-destructive" onClick={() => setUpcomingToDelete(meeting)}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 rounded-sm text-destructive hover:text-destructive"
+                      onClick={() => setUpcomingToDelete(meeting)}
+                    >
                       <Trash2 className="w-4 h-4" />
                     </Button>
                   )}
@@ -424,7 +764,11 @@ export default function Meetings() {
               </div>
               All Meetings
             </div>
-            {meetings.length > 0 && <span className="figure text-xs text-muted-foreground bg-muted px-2.5 py-1 rounded-sm font-normal">{meetings.length} records</span>}
+            {meetings.length > 0 && (
+              <span className="figure text-xs text-muted-foreground bg-muted px-2.5 py-1 rounded-sm font-normal">
+                {meetings.length} records
+              </span>
+            )}
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
@@ -433,25 +777,52 @@ export default function Meetings() {
               <div className="w-12 h-12 rounded-sm border-2 border-border bg-muted flex items-center justify-center mx-auto mb-3">
                 <CalendarDays className="w-6 h-6 text-muted-foreground" />
               </div>
-              <p className="text-sm text-muted-foreground">No meetings recorded yet</p>
+              <p className="text-sm text-muted-foreground">
+                No meetings recorded yet
+              </p>
             </div>
           ) : (
             <div className="divide-y divide-border/60">
               {meetingsPaged.rows.map((meeting) => (
-                <div key={meeting.id} className="flex items-center justify-between px-5 py-2 hover:bg-muted/30 transition-colors">
+                <div
+                  key={meeting.id}
+                  className="flex items-center justify-between px-5 py-2 hover:bg-muted/30 transition-colors"
+                >
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-sm border-2 border-primary/30 bg-primary/5 flex items-center justify-center flex-shrink-0">
                       <Calendar className="w-4 h-4 text-primary" />
                     </div>
                     <div>
-                      <p className="figure text-sm font-semibold text-foreground">{format(new Date(meeting.meeting_date), settings.dateFormat)}</p>
-                      <p className="text-xs text-muted-foreground truncate max-w-xs">{meeting.agenda}</p>
+                      <p className="figure text-sm font-semibold text-foreground">
+                        {format(
+                          new Date(meeting.meeting_date),
+                          settings.dateFormat,
+                        )}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate max-w-xs">
+                        {meeting.agenda}
+                      </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Dialog open={viewMeetingId === meeting.id} onOpenChange={(o) => { if (o) handleViewMeeting(meeting); else { setViewMeetingId(null); setAttendanceEdit(null); } }}>
+                    <Dialog
+                      open={viewMeetingId === meeting.id}
+                      onOpenChange={(o) => {
+                        if (o) handleViewMeeting(meeting);
+                        else {
+                          setViewMeetingId(null);
+                          setAttendanceEdit(null);
+                        }
+                      }}
+                    >
                       <DialogTrigger asChild>
-                        <Button variant="outline" size="sm" className="gap-1.5 h-8"><Eye className="w-3.5 h-3.5" /> View</Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-1.5 h-8"
+                        >
+                          <Eye className="w-3.5 h-3.5" /> View
+                        </Button>
                       </DialogTrigger>
                       <DialogContent className="max-w-2xl flex flex-col max-h-[90vh] p-0 gap-0 overflow-hidden">
                         {/* Header */}
@@ -460,192 +831,381 @@ export default function Meetings() {
                             <Eye className="w-5 h-5 text-primary" />
                           </div>
                           <div>
-                            <DialogTitle className="text-base font-bold text-foreground">Meeting Details</DialogTitle>
+                            <DialogTitle className="text-base font-bold text-foreground">
+                              Meeting Details
+                            </DialogTitle>
                             <p className="figure text-xs text-muted-foreground">
                               {formatDay(meeting.meeting_date, settings)}
-                              {viewRecord?.meeting.id === meeting.id && viewRecord.venue && (
-                                <span className="inline-flex items-center gap-1 ml-2 font-sans"><MapPin className="w-3 h-3" />{viewRecord.venue}</span>
-                              )}
+                              {viewRecord?.meeting.id === meeting.id &&
+                                viewRecord.venue && (
+                                  <span className="inline-flex items-center gap-1 ml-2 font-sans">
+                                    <MapPin className="w-3 h-3" />
+                                    {viewRecord.venue}
+                                  </span>
+                                )}
                             </p>
+                            <AmountsNote />
                           </div>
                         </div>
-                        {viewedMeeting && viewRecord?.meeting.id !== meeting.id && (
-                          <div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
-                        )}
-                        {viewedMeeting && viewRecord?.meeting.id === meeting.id && (
-                          <div className="overflow-y-auto flex-1 px-6 py-5 space-y-5">
-                            <div className="p-4 rounded-sm bg-muted/40 border border-border/60 space-y-3">
-                              <div>
-                                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">Agenda</p>
-                                <p className="text-sm text-foreground">{viewedMeeting.agenda}</p>
-                              </div>
-                              {viewedMeeting.decisions && (
-                                <div className="pt-3 border-t border-border/60">
-                                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">Decisions</p>
-                                  <p className="text-sm text-foreground">{viewedMeeting.decisions}</p>
-                                </div>
-                              )}
+                        {viewedMeeting &&
+                          viewRecord?.meeting.id !== meeting.id && (
+                            <div className="flex items-center justify-center py-16">
+                              <Loader2 className="w-6 h-6 animate-spin text-primary" />
                             </div>
-                            {/* Attendance */}
-                            <div>
-                              <div className="flex items-start justify-between gap-3">
-                                <SectionLabel>
-                                  Attendance{viewRecord.attendance.length ? `: ${viewRecord.presentCount} of ${viewRecord.attendance.length} present` : ""}
-                                </SectionLabel>
-                                {isAdmin && !attendanceEdit && (
-                                  <Button variant="outline" size="sm" className="-mt-1.5 h-7 gap-1.5 px-2.5 text-xs" onClick={() => startAttendanceEdit(viewRecord)}>
-                                    <Pencil className="w-3 h-3" /> {viewRecord.attendance.length ? "Edit" : "Record"}
-                                  </Button>
+                          )}
+                        {viewedMeeting &&
+                          viewRecord?.meeting.id === meeting.id && (
+                            <div className="overflow-y-auto flex-1 px-6 py-5 space-y-5">
+                              <div className="p-4 rounded-sm bg-muted/40 border border-border/60 space-y-3">
+                                <div>
+                                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+                                    Agenda
+                                  </p>
+                                  <p className="text-sm text-foreground">
+                                    {viewedMeeting.agenda}
+                                  </p>
+                                </div>
+                                {viewedMeeting.decisions && (
+                                  <div className="pt-3 border-t border-border/60">
+                                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+                                      Decisions
+                                    </p>
+                                    <p className="text-sm text-foreground">
+                                      {viewedMeeting.decisions}
+                                    </p>
+                                  </div>
                                 )}
                               </div>
-                              {attendanceEdit ? (
-                                <div className="space-y-3">
-                                  <AttendanceTally
-                                    statuses={attendanceEdit.map((r) => r.status)}
-                                    onMarkAll={(s) => setAttendanceEdit((prev) => prev && prev.map((r) => ({ ...r, status: s })))}
-                                  />
-                                  <div className="rounded-sm border border-border/60 divide-y divide-border/60">
-                                    {editPaged.rows.map((r) => (
-                                      <div key={r.memberId} className="flex items-center justify-between gap-3 px-4 py-1.5">
-                                        <span className="text-sm font-medium truncate">{r.name}</span>
-                                        <AttendanceToggle
-                                          value={r.status}
-                                          memberName={r.name}
-                                          onChange={(s) => setAttendanceEdit((prev) => prev && prev.map((x) => (x.memberId === r.memberId ? { ...x, status: s } : x)))}
-                                        />
-                                      </div>
-                                    ))}
-                                    <TablePager paged={editPaged} noun="members" />
-                                  </div>
-                                  <p className="text-xs text-muted-foreground">
-                                    The {viewRecord.meeting.meeting_date.slice(0, 4)} absence charges follow these marks; on leave is excused.
-                                    {attendanceEdit.some((r) => !r.status) && " Members left unmarked stay unrecorded for this meeting."}
-                                  </p>
-                                  <div className="flex justify-end gap-2">
-                                    <Button variant="outline" size="sm" disabled={isSavingAttendance} onClick={() => setAttendanceEdit(null)}>Cancel</Button>
-                                    <Button size="sm" disabled={isSavingAttendance} onClick={() => saveAttendanceEdit(meeting)}>
-                                      {isSavingAttendance ? <><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />Saving…</> : "Save attendance"}
+                              {/* Attendance */}
+                              <div>
+                                <div className="flex items-start justify-between gap-3">
+                                  <SectionLabel>
+                                    Attendance
+                                    {viewRecord.attendance.length
+                                      ? `: ${viewRecord.presentCount} of ${viewRecord.attendance.length} present`
+                                      : ""}
+                                  </SectionLabel>
+                                  {isAdmin && !attendanceEdit && (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="-mt-1.5 h-7 gap-1.5 px-2.5 text-xs"
+                                      onClick={() =>
+                                        startAttendanceEdit(viewRecord)
+                                      }
+                                    >
+                                      <Pencil className="w-3 h-3" />{" "}
+                                      {viewRecord.attendance.length
+                                        ? "Edit"
+                                        : "Record"}
                                     </Button>
-                                  </div>
-                                </div>
-                              ) : viewRecord.attendance.length === 0 ? (
-                                <p className="text-sm text-muted-foreground">Attendance was not recorded for this meeting.</p>
-                              ) : (
-                                <div className="space-y-3">
-                                  <div className="grid grid-cols-3 gap-3">
-                                    <div className="p-4 rounded-sm border-2 border-secondary/40 bg-secondary/10 text-center">
-                                      <p className="text-xs font-semibold text-secondary mb-1">Present</p>
-                                      <p className="figure text-3xl font-bold text-secondary">{viewRecord.presentCount}</p>
-                                    </div>
-                                    <div className="p-4 rounded-sm border-2 border-destructive/40 bg-destructive/10 text-center">
-                                      <p className="text-xs font-semibold text-destructive mb-1">Absent</p>
-                                      <p className="figure text-3xl font-bold text-destructive">{viewRecord.absent.length}</p>
-                                    </div>
-                                    <div className="p-4 rounded-sm border-2 border-accent/50 bg-accent/10 text-center">
-                                      <p className="text-xs font-semibold text-primary mb-1">On leave</p>
-                                      <p className="figure text-3xl font-bold text-primary">{viewRecord.onLeave.length}</p>
-                                    </div>
-                                  </div>
-                                  <div>
-                                    <p className="text-xs font-semibold text-muted-foreground mb-2">Absent members ({viewRecord.absent.length})</p>
-                                    {viewRecord.absent.length === 0 ? (
-                                      <p className="text-sm text-muted-foreground">{viewRecord.onLeave.length ? "None." : "None - all members were present."}</p>
-                                    ) : (
-                                      <NameList names={viewRecord.absent} resetKey={viewRecord.meeting.id} noun="absent members" />
-                                    )}
-                                  </div>
-                                  {viewRecord.onLeave.length > 0 && (
-                                    <div>
-                                      <p className="text-xs font-semibold text-muted-foreground mb-2">On leave ({viewRecord.onLeave.length})</p>
-                                      <NameList names={viewRecord.onLeave} resetKey={viewRecord.meeting.id} noun="members on leave" />
-                                    </div>
                                   )}
                                 </div>
+                                {attendanceEdit ? (
+                                  <div className="space-y-3">
+                                    <AttendanceTally
+                                      statuses={attendanceEdit.map(
+                                        (r) => r.status,
+                                      )}
+                                      onMarkAll={(s) =>
+                                        setAttendanceEdit(
+                                          (prev) =>
+                                            prev &&
+                                            prev.map((r) => ({
+                                              ...r,
+                                              status: s,
+                                            })),
+                                        )
+                                      }
+                                    />
+                                    <div className="rounded-sm border border-border/60 divide-y divide-border/60">
+                                      {editPaged.rows.map((r) => (
+                                        <div
+                                          key={r.memberId}
+                                          className="flex items-center justify-between gap-3 px-4 py-1.5"
+                                        >
+                                          <span className="text-sm font-medium truncate">
+                                            {r.name}
+                                          </span>
+                                          <AttendanceToggle
+                                            value={r.status}
+                                            memberName={r.name}
+                                            onChange={(s) =>
+                                              setAttendanceEdit(
+                                                (prev) =>
+                                                  prev &&
+                                                  prev.map((x) =>
+                                                    x.memberId === r.memberId
+                                                      ? { ...x, status: s }
+                                                      : x,
+                                                  ),
+                                              )
+                                            }
+                                          />
+                                        </div>
+                                      ))}
+                                      <TablePager
+                                        paged={editPaged}
+                                        noun="members"
+                                      />
+                                    </div>
+                                    <p className="text-xs text-muted-foreground">
+                                      The{" "}
+                                      {viewRecord.meeting.meeting_date.slice(
+                                        0,
+                                        4,
+                                      )}{" "}
+                                      absence charges follow these marks; on
+                                      leave is excused.
+                                      {attendanceEdit.some((r) => !r.status) &&
+                                        " Members left unmarked stay unrecorded for this meeting."}
+                                    </p>
+                                    <div className="flex justify-end gap-2">
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={isSavingAttendance}
+                                        onClick={() => setAttendanceEdit(null)}
+                                      >
+                                        Cancel
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        disabled={isSavingAttendance}
+                                        onClick={() =>
+                                          saveAttendanceEdit(meeting)
+                                        }
+                                      >
+                                        {isSavingAttendance ? (
+                                          <>
+                                            <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                                            Saving…
+                                          </>
+                                        ) : (
+                                          "Save attendance"
+                                        )}
+                                      </Button>
+                                    </div>
+                                  </div>
+                                ) : viewRecord.attendance.length === 0 ? (
+                                  <p className="text-sm text-muted-foreground">
+                                    Attendance was not recorded for this
+                                    meeting.
+                                  </p>
+                                ) : (
+                                  <div className="space-y-3">
+                                    <div className="grid grid-cols-3 gap-3">
+                                      <div className="p-4 rounded-sm border-2 border-secondary/40 bg-secondary/10 text-center">
+                                        <p className="text-xs font-semibold text-secondary mb-1">
+                                          Present
+                                        </p>
+                                        <p className="figure text-3xl font-bold text-secondary">
+                                          {viewRecord.presentCount}
+                                        </p>
+                                      </div>
+                                      <div className="p-4 rounded-sm border-2 border-destructive/40 bg-destructive/10 text-center">
+                                        <p className="text-xs font-semibold text-destructive mb-1">
+                                          Absent
+                                        </p>
+                                        <p className="figure text-3xl font-bold text-destructive">
+                                          {viewRecord.absent.length}
+                                        </p>
+                                      </div>
+                                      <div className="p-4 rounded-sm border-2 border-accent/50 bg-accent/10 text-center">
+                                        <p className="text-xs font-semibold text-primary mb-1">
+                                          On leave
+                                        </p>
+                                        <p className="figure text-3xl font-bold text-primary">
+                                          {viewRecord.onLeave.length}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <p className="text-xs font-semibold text-muted-foreground mb-2">
+                                        Absent members (
+                                        {viewRecord.absent.length})
+                                      </p>
+                                      {viewRecord.absent.length === 0 ? (
+                                        <p className="text-sm text-muted-foreground">
+                                          {viewRecord.onLeave.length
+                                            ? "None."
+                                            : "None - all members were present."}
+                                        </p>
+                                      ) : (
+                                        <NameList
+                                          names={viewRecord.absent}
+                                          resetKey={viewRecord.meeting.id}
+                                          noun="absent members"
+                                        />
+                                      )}
+                                    </div>
+                                    {viewRecord.onLeave.length > 0 && (
+                                      <div>
+                                        <p className="text-xs font-semibold text-muted-foreground mb-2">
+                                          On leave ({viewRecord.onLeave.length})
+                                        </p>
+                                        <NameList
+                                          names={viewRecord.onLeave}
+                                          resetKey={viewRecord.meeting.id}
+                                          noun="members on leave"
+                                        />
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Savings */}
+                              <div>
+                                <SectionLabel>Savings</SectionLabel>
+                                <AmountTable
+                                  rows={viewRecord.savings.filter(
+                                    (r) =>
+                                      !(
+                                        Number(r.amount) === 0 &&
+                                        viewRecord.attendance.find(
+                                          (a) => a.memberId === r.memberId,
+                                        )?.present === false
+                                      ),
+                                  )}
+                                  totalLabel="Total savings"
+                                  empty="No savings were collected."
+                                />
+                              </div>
+
+                              {/* Loans collected */}
+                              <div>
+                                <SectionLabel>Loans collected</SectionLabel>
+                                <AmountTable
+                                  rows={viewRecord.collected}
+                                  totalLabel="Total collected"
+                                  empty="No loan repayments were received."
+                                />
+                              </div>
+
+                              <div className="flex items-center justify-between px-4 py-3 rounded-sm border-2 border-primary/40 bg-primary/10">
+                                <span className="text-sm font-semibold text-foreground">
+                                  Total collected (savings + loans)
+                                </span>
+                                <span className="figure text-base font-bold text-primary">
+                                  {formatAmount(
+                                    viewRecord.totals.totalCollected,
+                                  )}
+                                </span>
+                              </div>
+
+                              {viewRecord.newLoans.length > 0 && (
+                                <div>
+                                  <SectionLabel>New loans issued</SectionLabel>
+                                  <AmountTable
+                                    rows={viewRecord.newLoans}
+                                    totalLabel="Total loans issued"
+                                    empty=""
+                                  />
+                                </div>
+                              )}
+
+                              {viewRecord.reserve.length > 0 && (
+                                <div>
+                                  <SectionLabel>Reserve fund</SectionLabel>
+                                  <div className="divide-y divide-border/60 rounded-sm border border-border/60 overflow-hidden">
+                                    {reservePaged.rows.map((t, i) => (
+                                      <div
+                                        key={reservePaged.offset + i}
+                                        className="flex items-center justify-between gap-4 px-4 py-2.5"
+                                      >
+                                        <span className="text-sm">
+                                          {reserveLabel(t)}
+                                        </span>
+                                        <span
+                                          className={cn(
+                                            "figure text-sm font-bold whitespace-nowrap",
+                                            t.transaction_type === "expense"
+                                              ? "text-destructive"
+                                              : "text-secondary",
+                                          )}
+                                        >
+                                          {t.transaction_type === "expense"
+                                            ? "-"
+                                            : "+"}{" "}
+                                          {formatAmount(t.amount)}
+                                        </span>
+                                      </div>
+                                    ))}
+                                    <TablePager
+                                      paged={reservePaged}
+                                      noun="reserve entries"
+                                    />
+                                  </div>
+                                </div>
+                              )}
+
+                              {viewRecord.bankProfits.length > 0 && (
+                                <div>
+                                  <SectionLabel>Bank profit</SectionLabel>
+                                  <div className="divide-y divide-border/60 rounded-sm border border-border/60 overflow-hidden">
+                                    {bankProfitsPaged.rows.map((b, i) => (
+                                      <div
+                                        key={bankProfitsPaged.offset + i}
+                                        className="flex items-center justify-between gap-4 px-4 py-2.5"
+                                      >
+                                        <span className="text-sm">
+                                          Bank profit for {b.profit_year},
+                                          credited{" "}
+                                          <span className="figure">
+                                            {formatDay(b.credited_on, settings)}
+                                          </span>
+                                        </span>
+                                        <span className="figure text-sm font-bold whitespace-nowrap text-secondary">
+                                          + {formatAmount(b.amount)}
+                                        </span>
+                                      </div>
+                                    ))}
+                                    <TablePager
+                                      paged={bankProfitsPaged}
+                                      noun="bank profits"
+                                    />
+                                  </div>
+                                </div>
+                              )}
+
+                              {viewRecord.next && (
+                                <div>
+                                  <SectionLabel>Next meeting</SectionLabel>
+                                  <div className="flex items-center gap-3 px-4 py-3 rounded-sm border border-border/60 bg-muted/40">
+                                    <CalendarDays className="w-4 h-4 text-primary flex-shrink-0" />
+                                    <span className="figure text-sm text-foreground">
+                                      {[
+                                        formatDay(
+                                          viewRecord.next.meeting_date,
+                                          settings,
+                                        ),
+                                        formatTime(
+                                          viewRecord.next.meeting_time,
+                                          settings,
+                                        ),
+                                        viewRecord.next.venue,
+                                      ]
+                                        .filter(Boolean)
+                                        .join(" · ")}
+                                    </span>
+                                  </div>
+                                </div>
                               )}
                             </div>
-
-                            {/* Savings */}
-                            <div>
-                              <SectionLabel>Savings</SectionLabel>
-                              <AmountTable
-                                rows={viewRecord.savings.filter(
-                                  (r) => !(Number(r.amount) === 0 && viewRecord.attendance.find((a) => a.memberId === r.memberId)?.present === false)
-                                )}
-                                totalLabel="Total savings"
-                                currency={settings.currency}
-                                empty="No savings were collected."
-                              />
-                            </div>
-
-                            {/* Loans collected */}
-                            <div>
-                              <SectionLabel>Loans collected</SectionLabel>
-                              <AmountTable rows={viewRecord.collected} totalLabel="Total collected" currency={settings.currency} empty="No loan repayments were received." />
-                            </div>
-
-                            <div className="flex items-center justify-between px-4 py-3 rounded-sm border-2 border-primary/40 bg-primary/10">
-                              <span className="text-sm font-semibold text-foreground">Total collected (savings + loans)</span>
-                              <span className="figure text-base font-bold text-primary">{settings.currency} {formatAmount(viewRecord.totals.totalCollected)}</span>
-                            </div>
-
-                            {viewRecord.newLoans.length > 0 && (
-                              <div>
-                                <SectionLabel>New loans issued</SectionLabel>
-                                <AmountTable rows={viewRecord.newLoans} totalLabel="Total loans issued" currency={settings.currency} empty="" />
-                              </div>
-                            )}
-
-                            {viewRecord.reserve.length > 0 && (
-                              <div>
-                                <SectionLabel>Reserve fund</SectionLabel>
-                                <div className="divide-y divide-border/60 rounded-sm border border-border/60 overflow-hidden">
-                                  {reservePaged.rows.map((t, i) => (
-                                    <div key={reservePaged.offset + i} className="flex items-center justify-between gap-4 px-4 py-2.5">
-                                      <span className="text-sm">{reserveLabel(t)}</span>
-                                      <span className={cn("figure text-sm font-bold whitespace-nowrap", t.transaction_type === "expense" ? "text-destructive" : "text-secondary")}>
-                                        {t.transaction_type === "expense" ? "-" : "+"} {settings.currency} {formatAmount(t.amount)}
-                                      </span>
-                                    </div>
-                                  ))}
-                                  <TablePager paged={reservePaged} noun="reserve entries" />
-                                </div>
-                              </div>
-                            )}
-
-                            {viewRecord.bankProfits.length > 0 && (
-                              <div>
-                                <SectionLabel>Bank profit</SectionLabel>
-                                <div className="divide-y divide-border/60 rounded-sm border border-border/60 overflow-hidden">
-                                  {bankProfitsPaged.rows.map((b, i) => (
-                                    <div key={bankProfitsPaged.offset + i} className="flex items-center justify-between gap-4 px-4 py-2.5">
-                                      <span className="text-sm">
-                                        Bank profit for {b.profit_year}, credited <span className="figure">{formatDay(b.credited_on, settings)}</span>
-                                      </span>
-                                      <span className="figure text-sm font-bold whitespace-nowrap text-secondary">+ {settings.currency} {formatAmount(b.amount)}</span>
-                                    </div>
-                                  ))}
-                                  <TablePager paged={bankProfitsPaged} noun="bank profits" />
-                                </div>
-                              </div>
-                            )}
-
-                            {viewRecord.next && (
-                              <div>
-                                <SectionLabel>Next meeting</SectionLabel>
-                                <div className="flex items-center gap-3 px-4 py-3 rounded-sm border border-border/60 bg-muted/40">
-                                  <CalendarDays className="w-4 h-4 text-primary flex-shrink-0" />
-                                  <span className="figure text-sm text-foreground">
-                                    {[formatDay(viewRecord.next.meeting_date, settings), formatTime(viewRecord.next.meeting_time, settings), viewRecord.next.venue].filter(Boolean).join(" · ")}
-                                  </span>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        )}
+                          )}
                       </DialogContent>
                     </Dialog>
                     {isAdmin && (
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => { setMeetingToDelete(meeting); setDeleteDialogOpen(true); }}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive hover:text-destructive"
+                        onClick={() => {
+                          setMeetingToDelete(meeting);
+                          setDeleteDialogOpen(true);
+                        }}
+                      >
                         <Trash2 className="w-4 h-4" />
                       </Button>
                     )}
@@ -660,20 +1220,58 @@ export default function Meetings() {
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
-          <AlertDialogHeader><AlertDialogTitle>Delete Meeting</AlertDialogTitle><AlertDialogDescription>Are you sure you want to delete this meeting? This action cannot be undone.</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Meeting</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this meeting? This action cannot
+              be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={async () => { if (meetingToDelete) { await deleteMeeting(meetingToDelete.id); setMeetingToDelete(null); } setDeleteDialogOpen(false); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+            <AlertDialogAction
+              onClick={async () => {
+                if (meetingToDelete) {
+                  await deleteMeeting(meetingToDelete.id);
+                  setMeetingToDelete(null);
+                }
+                setDeleteDialogOpen(false);
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={!!upcomingToDelete} onOpenChange={(o) => { if (!o) setUpcomingToDelete(null); }}>
+      <AlertDialog
+        open={!!upcomingToDelete}
+        onOpenChange={(o) => {
+          if (!o) setUpcomingToDelete(null);
+        }}
+      >
         <AlertDialogContent>
-          <AlertDialogHeader><AlertDialogTitle>Cancel Scheduled Meeting</AlertDialogTitle><AlertDialogDescription>Are you sure you want to remove this scheduled meeting? This action cannot be undone.</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel Scheduled Meeting</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to remove this scheduled meeting? This
+              action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={async () => { if (upcomingToDelete) { await deleteUpcomingMeeting(upcomingToDelete.id); setUpcomingToDelete(null); } }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+            <AlertDialogAction
+              onClick={async () => {
+                if (upcomingToDelete) {
+                  await deleteUpcomingMeeting(upcomingToDelete.id);
+                  setUpcomingToDelete(null);
+                }
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -749,10 +1347,9 @@ function SectionLabel({ children }: { children: ReactNode }) {
 }
 
 /** Member / amount list with a total row, matching the lists in the WhatsApp message. */
-function AmountTable({ rows, totalLabel, currency, empty }: {
+function AmountTable({ rows, totalLabel, empty }: {
   rows: AmountRow[];
   totalLabel: string;
-  currency: string;
   empty: string;
 }) {
   const paged = usePaged(rows);
@@ -777,7 +1374,7 @@ function AmountTable({ rows, totalLabel, currency, empty }: {
       })}
       <div className="grid grid-cols-12 px-4 py-2.5 bg-muted/40">
         <span className="col-span-8 text-xs font-semibold text-muted-foreground">{totalLabel}</span>
-        <span className="figure col-span-4 text-sm font-bold text-foreground text-right">{currency} {formatAmount(total)}</span>
+        <span className="figure col-span-4 text-sm font-bold text-foreground text-right">{formatAmount(total)}</span>
       </div>
       <TablePager paged={paged} noun="members" />
     </div>

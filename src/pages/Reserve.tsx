@@ -19,6 +19,7 @@ import { useMemo, useState } from "react";
 import { TablePager, usePaged } from "@/components/TablePager";
 import { DatePicker } from "@/components/ui/date-picker";
 import StatCard from "@/components/StatCard";
+import AmountsNote from "@/components/AmountsNote";
 import ViewReportButton from "@/components/ViewReportButton";
 import { Badge } from "@/components/ui/badge";
 import { useSettings } from "@/contexts/SettingsContext";
@@ -86,6 +87,7 @@ export default function Reserve() {
           <div>
             <h2 className="text-2xl font-bold text-foreground mt-1">Reserve Fund</h2>
             <p className="text-sm text-muted-foreground mt-0.5">Track donations and fund allocation</p>
+            <AmountsNote />
           </div>
         </div>
 
@@ -123,18 +125,18 @@ export default function Reserve() {
                   </div>
   
                   <div className="space-y-1.5">
-                    <Label htmlFor="amount" className="text-xs font-medium">Amount ({settings.currency})</Label>
+                    <Label htmlFor="amount" className="text-xs font-medium">Amount</Label>
                     <Input id="amount" name="amount" type="number" min="0" step="0.01" placeholder="Enter amount" className="h-9"
                       value={formData.amount} onChange={handleInputChange} required />
                   </div>
 
                   {needsCharge && (
                     <div className="space-y-1.5">
-                      <Label htmlFor="bankCharge" className="text-xs font-medium">Bank charge on this withdrawal ({settings.currency})</Label>
+                      <Label htmlFor="bankCharge" className="text-xs font-medium">Bank charge on this withdrawal</Label>
                       <Input id="bankCharge" name="bankCharge" type="number" min="0" step="0.01" placeholder="From the bank statement" className="h-9"
                         value={formData.bankCharge} onChange={handleInputChange} />
                       <p className="text-xs text-muted-foreground">
-                        Expenses above {settings.currency} {settings.bankChargeThreshold.toLocaleString()} are paid by a cheque the bank charges for. The reserve fund pays the
+                        Expenses above {settings.bankChargeThreshold.toLocaleString()} are paid by a cheque the bank charges for. The reserve fund pays the
                         charge; it is recorded as a second expense on the same day.
                       </p>
                     </div>
@@ -181,19 +183,19 @@ export default function Reserve() {
         <StatCard
           icon={Wallet}
           title="Current Balance"
-          value={`${settings.currency} ${reserveFund.toLocaleString()}`}
+          value={reserveFund.toLocaleString()}
           iconColor="border-primary/40 bg-primary/10 text-primary"
         />
         <StatCard
           icon={TrendingUp}
           title="Total Deposits"
-          value={`${settings.currency} ${totalDonations.toLocaleString()}`}
+          value={totalDonations.toLocaleString()}
           iconColor="border-secondary/40 bg-secondary/10 text-secondary"
         />
         <StatCard
           icon={ArrowDownCircle}
           title="Total Expenses"
-          value={`${settings.currency} ${totalExpenses.toLocaleString()}`}
+          value={totalExpenses.toLocaleString()}
           iconColor="border-destructive/40 bg-destructive/10 text-destructive"
         />
       </div>
@@ -208,11 +210,13 @@ export default function Reserve() {
               </div>
               Transactions
             </CardTitle>
-            {reserveTransactions.length > 0 && (
-              <span className="figure text-xs text-muted-foreground bg-muted px-2.5 py-1 rounded-sm">
-                {reserveTransactions.length} record{reserveTransactions.length !== 1 ? "s" : ""}
-              </span>
-            )}
+            <div className="flex items-center gap-3">
+              {reserveTransactions.length > 0 && (
+                <span className="figure text-xs text-muted-foreground bg-muted px-2.5 py-1 rounded-sm">
+                  {reserveTransactions.length} record{reserveTransactions.length !== 1 ? "s" : ""}
+                </span>
+              )}
+            </div>
           </div>
         </CardHeader>
 
@@ -284,7 +288,7 @@ export default function Reserve() {
                       ? "text-secondary"
                       : "text-destructive"
                   )}>
-                    {isInflow ? "+" : "-"}{settings.currency} {tx.amount.toLocaleString()}
+                    {isInflow ? "+" : "-"}{tx.amount.toLocaleString()}
                   </span>
                 </div>
                 );
