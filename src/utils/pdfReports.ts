@@ -302,7 +302,7 @@ class Report {
     this.font(8.8, "normal", C.ink);
     this.text(sub, cx, this.y + 5.8, { align: "center" });
     this.font(7.2, "italic", C.muted);
-    this.text(this.ctx.currency === "PKR" ? "(Amounts in Pakistani Rupees)" : `(Amounts in ${this.ctx.currency})`, cx, this.y + 10.4, { align: "center" });
+    // this.text(this.ctx.currency === "PKR" ? "(Amounts in Pakistani Rupees)" : `(Amounts in ${this.ctx.currency})`, cx, this.y + 10.4, { align: "center" });
     this.y += 16.5;
   }
 

@@ -38,7 +38,6 @@ import {
 import { checkOpeningFile, type OpeningCheck, type OpeningIssue } from "@/utils/openingBalances";
 import { cn } from "@/lib/utils";
 import { TablePager, usePaged } from "@/components/TablePager";
-import AmountsNote from "@/components/AmountsNote";
 
 const keyOf = (d: Date) => format(d, "yyyy-MM-dd");
 const dayOf = (key: string) => {
@@ -155,7 +154,6 @@ export function PaperRegistersCard() {
       <div className="px-5 pt-4">
         <div className="flex items-baseline justify-between gap-3">
           <h3 className="text-base font-bold text-foreground">Moving from paper registers</h3>
-          {opening && <AmountsNote />}
         </div>
         <p className="text-sm text-muted-foreground mt-0.5 max-w-[90ch]">
           The cut-over date is the last day kept in the paper registers. The balances on that day are brought in once from an Excel
@@ -376,7 +374,6 @@ function ImportPreview({ check, replacing, onClose }: { check: OpeningCheck | nu
           <>
             <DialogHeader>
               <DialogTitle>Check the opening balances</DialogTitle>
-              <AmountsNote />
               <DialogDescription>
                 {check.fileName ? `${check.fileName} · ` : ""}balances as at <span className="figure">{fmt(check.cutoverDate)}</span>. Compare these totals
                 with the register totals before importing.

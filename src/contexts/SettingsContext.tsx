@@ -82,7 +82,17 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     try {
       // Merged over the defaults so settings added in later versions get a value.
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) return { ...defaults, ...(JSON.parse(raw) as Partial<Settings>) };
+      if (raw) {
+        const saved = JSON.parse(raw) as Partial<Settings>;
+        // Migrate: fix the last line of the circular so WhatsApp right-aligns it.
+        // Replace any variant of the last line (with or without previous migration marks) with
+        // the Arabic Letter Mark prefix that forces RTL alignment on mixed-direction messages.
+        if (saved.circularTemplate) {
+          saved.circularTemplate = saved.circularTemplate
+            .replace(/[\u200F\u061C]*(\u0627\u06CC\u0645 \u0627\u06CC\u0633 \u0627\u0648)[\u200F\u061C\n]*$/, "\u061C$1");
+        }
+        return { ...defaults, ...saved };
+      }
     } catch (e) {
       // ignore parse errors
     }
