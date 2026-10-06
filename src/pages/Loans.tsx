@@ -648,7 +648,7 @@ export default function Loans() {
             )}
           </div>
           <p className="text-xs text-muted-foreground px-5 py-3 border-t border-border">
-            Interest is added once, when a loan is issued; after the due date a late penalty is added for each full month the loan stays unpaid, until it is marked defaulted. Both are part of the loan's outstanding balance, not an amount owed on top of it. Repayments are never split, so a loan's interest and penalties are collected together when it is repaid in full.
+            Interest is added once, when a loan is issued; after the due date a late penalty is added for each full month the loan stays unpaid, until it is marked defaulted.
           </p>
         </CardContent>
       </Card>

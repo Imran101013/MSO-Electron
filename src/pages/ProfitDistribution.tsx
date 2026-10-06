@@ -508,7 +508,7 @@ export default function ProfitDistribution() {
               </div>
               Distribution History
             </CardTitle>
-            <p className="text-xs text-muted-foreground">Amounts in {cur} · choose a year to see its members' dividends above</p>
+            <p className="text-xs text-muted-foreground">Amounts in {cur}</p>
           </CardHeader>
           <CardContent className="p-0">
             <Table>

@@ -54,11 +54,11 @@ export default function Layout({ children }: LayoutProps) {
     <SidebarProvider>
       <Sidebar className="border-r border-sidebar-border">
         {/* Letterhead mark */}
-        <SidebarHeader className="px-2 py-3">
+        <SidebarHeader className="px-2 py-4">
           <div className="flex items-center gap-3">
-            <MsoMark className="w-12 h-12 flex-shrink-0" />
+            <MsoMark className="w-16 h-16 flex-shrink-0" />
             <div className="min-w-0">
-              <p className="tracked-label text-[10px] font-semibold text-sidebar-foreground/60 leading-tight uppercase">Mogh Students Org.</p>
+              <p className="tracked-label text-[10px] font-semibold text-sidebar-foreground/60 leading-tight uppercase">Mogh Students Organization</p>
               <p className="text-[30px] font-bold leading-tight text-sidebar-foreground tracking-tight">MSO</p>
             </div>
           </div>

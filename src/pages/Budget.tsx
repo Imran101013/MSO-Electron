@@ -97,34 +97,66 @@ export default function Budget() {
       {/* Header */}
       <div className="flex items-center justify-between border-b-2 border-accent/70 pb-4">
         <div>
-          <h2 className="text-2xl font-bold text-foreground mt-1">Monthly Budget</h2>
-          <p className="text-sm text-muted-foreground mt-0.5">The fund's running total and the latest meeting's collection</p>
+          <h2 className="text-2xl font-bold text-foreground mt-1">
+            Monthly Budget
+          </h2>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Total budget's running total and the latest meeting's collection
+          </p>
         </div>
-        <ViewReportButton request={{ kind: "contribution-register", period: thisYearToDate() }} label="Contribution Register" size="default" />
+        <ViewReportButton
+          request={{ kind: "contribution-register", period: thisYearToDate() }}
+          label="Contribution Register"
+          size="default"
+        />
       </div>
 
       {/* Stat cards */}
       <div className="grid gap-4 md:grid-cols-3">
         <StatCard
           title="Total Budget"
-          value={isLoading || budgetLoading ? "—" : `${settings.currency} ${totalBudget.toLocaleString()}`}
+          value={
+            isLoading || budgetLoading
+              ? "—"
+              : `${settings.currency} ${totalBudget.toLocaleString()}`
+          }
           note="In the bank account"
           icon={Building2}
           iconColor="border-primary/40 bg-primary/10 text-primary"
         />
         <StatCard
-          title={isLatestMeetingToday ? "Today's Meeting Total" : "Latest Meeting Total"}
-          value={isLoading ? "—" : `${settings.currency} ${latestMeetingTotal.toLocaleString()}`}
+          title={
+            isLatestMeetingToday
+              ? "Today's Meeting Total"
+              : "Latest Meeting Total"
+          }
+          value={
+            isLoading
+              ? "—"
+              : `${settings.currency} ${latestMeetingTotal.toLocaleString()}`
+          }
           icon={DollarSign}
           iconColor="border-accent/60 bg-accent/15 text-accent-foreground dark:text-accent"
-          note={latestMeeting ? `Savings collected on ${format(new Date(latestMeeting.meeting_date), settings.dateFormat)}` : "No meeting yet"}
+          note={
+            latestMeeting
+              ? `Savings collected on ${format(new Date(latestMeeting.meeting_date), settings.dateFormat)}`
+              : "No meeting yet"
+          }
         />
         <StatCard
           title="Loans Collected"
-          value={isLoading ? "—" : `${settings.currency} ${latestMeetingLoanCollected.toLocaleString()}`}
+          value={
+            isLoading
+              ? "—"
+              : `${settings.currency} ${latestMeetingLoanCollected.toLocaleString()}`
+          }
           icon={HandCoins}
           iconColor="border-secondary/40 bg-secondary/10 text-secondary"
-          note={latestMeeting ? "Loan repayments at the same meeting" : "No meeting yet"}
+          note={
+            latestMeeting
+              ? `Loans collected on ${format(new Date(latestMeeting.meeting_date), settings.dateFormat)}`
+              : "No meeting yet"
+          }
         />
       </div>
 
@@ -141,25 +173,42 @@ export default function Budget() {
                 Members Contributions
               </div>
             </CardTitle>
-            <CardDescription className="text-xs">Each member's contribution at the latest meeting</CardDescription>
+            <CardDescription className="text-xs pl-9">
+              Each member's contribution at the latest meeting
+            </CardDescription>
           </CardHeader>
           <CardContent className="p-0 flex-1">
             {!latestMeeting ? (
-              <p className="text-center text-muted-foreground py-6 text-xs">No meeting recorded yet</p>
+              <p className="text-center text-muted-foreground py-6 text-xs">
+                No meeting recorded yet
+              </p>
             ) : latestMeetingContributions.length === 0 ? (
-              <p className="text-center text-muted-foreground py-6 text-xs">No contributions recorded for this meeting</p>
+              <p className="text-center text-muted-foreground py-6 text-xs">
+                No contributions recorded for this meeting
+              </p>
             ) : (
               <div className="divide-y divide-border/50">
                 <div className="grid grid-cols-12 px-4 py-1.5 bg-muted/50">
-                  <span className="col-span-8 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Member</span>
-                  <span className="col-span-4 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground text-right">Amount</span>
+                  <span className="col-span-8 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Member
+                  </span>
+                  <span className="col-span-4 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground text-right">
+                    Amount
+                  </span>
                 </div>
                 {contributionsPaged.rows.map((c) => {
-                  const member = members.find(m => m.id === c.member_id);
+                  const member = members.find((m) => m.id === c.member_id);
                   return (
-                    <div key={c.id} className="grid grid-cols-12 px-4 py-1.5 items-center hover:bg-muted/30 transition-colors">
-                      <span className="col-span-8 truncate pr-2 text-xs font-medium text-foreground">{member?.name || "Unknown"}</span>
-                      <span className="figure col-span-4 text-xs font-bold text-foreground text-right whitespace-nowrap">{settings.currency} {c.amount.toLocaleString()}</span>
+                    <div
+                      key={c.id}
+                      className="grid grid-cols-12 px-4 py-1.5 items-center hover:bg-muted/30 transition-colors"
+                    >
+                      <span className="col-span-8 truncate pr-2 text-xs font-medium text-foreground">
+                        {member?.name || "Unknown"}
+                      </span>
+                      <span className="figure col-span-4 text-xs font-bold text-foreground text-right whitespace-nowrap">
+                        {settings.currency} {c.amount.toLocaleString()}
+                      </span>
                     </div>
                   );
                 })}
@@ -178,7 +227,9 @@ export default function Budget() {
               </div>
               Monthly Contributions
             </CardTitle>
-            <CardDescription className="text-xs">Contributions collected each month</CardDescription>
+            <CardDescription className="text-xs pl-9">
+              Contributions collected each month
+            </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-1 flex-col px-3 pt-3 pb-3">
             {monthlyTrend.length > 0 ? (
@@ -186,18 +237,50 @@ export default function Budget() {
               <div className="relative min-h-[240px] flex-1">
                 <div className="absolute inset-0">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={monthlyTrend} margin={{ top: 6, right: 8, bottom: 0, left: 0 }}>
-                      <CartesianGrid vertical={false} stroke="hsl(var(--border))" />
-                      <XAxis dataKey="month" tick={axisTick} tickLine={false} axisLine={{ stroke: "hsl(var(--border))" }} interval="preserveStartEnd" minTickGap={18} />
-                      <YAxis tickFormatter={(v: number) => compact.format(v)} tick={axisTick} tickLine={false} axisLine={false} width={44} />
-                      <Tooltip cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.6 }} formatter={(value) => `${settings.currency} ${Number(value).toLocaleString()}`} />
-                      <Bar dataKey="total" fill="hsl(var(--primary))" name="Collected" radius={[2, 2, 0, 0]} maxBarSize={28} />
+                    <BarChart
+                      data={monthlyTrend}
+                      margin={{ top: 6, right: 8, bottom: 0, left: 0 }}
+                    >
+                      <CartesianGrid
+                        vertical={false}
+                        stroke="hsl(var(--border))"
+                      />
+                      <XAxis
+                        dataKey="month"
+                        tick={axisTick}
+                        tickLine={false}
+                        axisLine={{ stroke: "hsl(var(--border))" }}
+                        interval="preserveStartEnd"
+                        minTickGap={18}
+                      />
+                      <YAxis
+                        tickFormatter={(v: number) => compact.format(v)}
+                        tick={axisTick}
+                        tickLine={false}
+                        axisLine={false}
+                        width={44}
+                      />
+                      <Tooltip
+                        cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.6 }}
+                        formatter={(value) =>
+                          `${settings.currency} ${Number(value).toLocaleString()}`
+                        }
+                      />
+                      <Bar
+                        dataKey="total"
+                        fill="hsl(var(--primary))"
+                        name="Collected"
+                        radius={[2, 2, 0, 0]}
+                        maxBarSize={28}
+                      />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
               </div>
             ) : (
-              <p className="text-center text-muted-foreground py-8 text-sm">No contributions recorded yet</p>
+              <p className="text-center text-muted-foreground py-8 text-sm">
+                No contributions recorded yet
+              </p>
             )}
           </CardContent>
         </Card>
