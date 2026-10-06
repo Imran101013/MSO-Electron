@@ -136,9 +136,6 @@ export default function ReportsPage() {
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <div className="w-11 h-11 rounded-sm border-2 border-primary/50 bg-primary/10 flex items-center justify-center">
-          <FileText className="w-5 h-5 text-primary" />
-        </div>
         <div>
           <h2 className="text-2xl font-bold text-foreground mt-1">Reports</h2>
           <p className="text-sm text-muted-foreground mt-0.5">
@@ -214,7 +211,7 @@ export default function ReportsPage() {
         </CardContent>
       </Card>
 
-      <Section title="Financial Statements" icon={Landmark}>
+      <Section title="Financial Statements">
         {card("financial-statements", "period", {
           icon: Landmark,
           title: "Financial Statements",
@@ -235,7 +232,7 @@ export default function ReportsPage() {
         })}
       </Section>
 
-      <Section title="Member Accounts" icon={Users}>
+      <Section title="Member Accounts">
         {card(
           "member-statement",
           "period",
@@ -281,7 +278,7 @@ export default function ReportsPage() {
         })}
       </Section>
 
-      <Section title="Loans" icon={HandCoins}>
+      <Section title="Loans">
         {card("loan-portfolio", "as-at", {
           icon: HandCoins,
           title: "Loan Portfolio",
@@ -335,7 +332,7 @@ export default function ReportsPage() {
         )}
       </Section>
 
-      <Section title="Funds & Collections" icon={PiggyBank}>
+      <Section title="Funds & Collections">
         {card("contribution-register", "period", {
           icon: ClipboardList,
           title: "Contribution Register",
@@ -390,7 +387,7 @@ export default function ReportsPage() {
         )}
       </Section>
 
-      <Section title="Governance" icon={CalendarDays}>
+      <Section title="Governance">
         {card("meetings-register", "period", {
           icon: CalendarDays,
           title: "Meetings & Attendance Register",
@@ -410,16 +407,14 @@ function Section({
   children,
 }: {
   title: string;
-  icon: React.ElementType;
+  icon?: React.ElementType;
   children: React.ReactNode;
 }) {
   // One card per section, a row per report. The rows lay out by the card's width, not the window's.
   return (
     <Card className="border border-border/60 shadow-sm rounded-sm overflow-hidden [container-type:inline-size]">
       <div className="flex items-center gap-2.5 border-b border-border px-5 py-3">
-        <div className="w-7 h-7 rounded-sm border-2 border-primary/40 bg-primary/10 text-primary flex items-center justify-center">
-          <Icon className="w-3.5 h-3.5" />
-        </div>
+        {Icon && <div className="w-7 h-7 rounded-sm border-2 border-primary/40 bg-primary/10 text-primary flex items-center justify-center"><Icon className="w-3.5 h-3.5" /></div>}
         <h3 className="text-base font-semibold text-foreground">{title}</h3>
       </div>
       <div className="divide-y divide-border">{children}</div>

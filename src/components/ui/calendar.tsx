@@ -1,13 +1,80 @@
 import * as React from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { DayPicker, CaptionProps } from "react-day-picker";
+import { DayPicker, useDayPicker, useNavigation, type CaptionProps } from "react-day-picker";
+import { format, setMonth, setYear, getYear, getMonth } from "date-fns";
 
 import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export type CalendarProps = React.ComponentProps<typeof DayPicker> & {
   onCaptionClick?: () => void;
 };
+
+function CaptionWithYearNav({ displayMonth }: CaptionProps) {
+  const { goToMonth, nextMonth, previousMonth } = useNavigation();
+  const { fromYear, toYear } = useDayPicker();
+
+  const currentYear = getYear(displayMonth);
+  const currentMonth = getMonth(displayMonth);
+  const startYear = fromYear ?? currentYear - 80;
+  const endYear = toYear ?? currentYear + 20;
+  const years = Array.from({ length: endYear - startYear + 1 }, (_, i) => startYear + i);
+  const months = Array.from({ length: 12 }, (_, i) => i);
+
+  return (
+    <div className="flex items-center justify-between gap-1 px-1">
+      <button
+        onClick={() => previousMonth && goToMonth(previousMonth)}
+        disabled={!previousMonth}
+        className={cn(buttonVariants({ variant: "outline" }), "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100")}
+        aria-label="Previous month"
+      >
+        <ChevronLeft className="h-4 w-4" />
+      </button>
+      <div className="flex gap-1">
+        <Select
+          value={String(currentMonth)}
+          onValueChange={(v) => goToMonth(setMonth(displayMonth, Number(v)))}
+        >
+          <SelectTrigger className="h-7 w-[100px] text-xs px-2 rounded-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {months.map((m) => (
+              <SelectItem key={m} value={String(m)} className="text-xs">
+                {format(setMonth(new Date(), m), "MMMM")}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select
+          value={String(currentYear)}
+          onValueChange={(v) => goToMonth(setYear(displayMonth, Number(v)))}
+        >
+          <SelectTrigger className="h-7 w-[70px] text-xs px-2 rounded-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {years.map((y) => (
+              <SelectItem key={y} value={String(y)} className="text-xs">
+                {y}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <button
+        onClick={() => nextMonth && goToMonth(nextMonth)}
+        disabled={!nextMonth}
+        className={cn(buttonVariants({ variant: "outline" }), "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100")}
+        aria-label="Next month"
+      >
+        <ChevronRight className="h-4 w-4" />
+      </button>
+    </div>
+  );
+}
 
 function Calendar({
   className,
@@ -54,6 +121,7 @@ function Calendar({
         ...classNames,
       }}
       components={{
+        Caption: CaptionWithYearNav,
         IconLeft: ({ ..._props }) => <ChevronLeft className="h-4 w-4" />,
         IconRight: ({ ..._props }) => <ChevronRight className="h-4 w-4" />,
       }}

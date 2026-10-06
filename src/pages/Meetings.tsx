@@ -245,9 +245,6 @@ export default function Meetings() {
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-b-2 border-accent/70 pb-4">
         <div className="flex shrink-0 items-center gap-4">
-          <div className="w-11 h-11 rounded-sm border-2 border-primary/40 bg-primary/10 flex items-center justify-center">
-            <CalendarDays className="w-5 h-5 text-primary" />
-          </div>
           <div>
             <h2 className="text-2xl font-bold text-foreground mt-1">
               Meeting Records
