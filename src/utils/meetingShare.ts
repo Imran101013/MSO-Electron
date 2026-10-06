@@ -151,7 +151,6 @@ export function formatMeetingMessage(record: MeetingRecord, settings: ShareSetti
   const out: string[] = [...letterhead(settings, "Monthly Meeting Record"), `📅 ${longDate(meeting.meeting_date)}`];
   if (record.venue) out.push(`📍 ${record.venue}`);
   // The currency is named once here, not with every amount.
-  out.push(`_Amounts in ${cur}_`);
 
 
   out.push("", heading("Agenda"), meeting.agenda?.trim() || "-");

@@ -144,9 +144,11 @@ ipcMain.handle('db-restore', async () => {
 // all records (for test data).
 require('./openingBalances.cjs').register({ ipcMain, dialog, pool });
 
-// Longest message, once encoded for the link, that is typed into WhatsApp for you (the link stays
-// within the 2,048 characters Windows has long been safe with).
-const MAX_LINK_TEXT = 2000;
+// Longest raw message that is typed into WhatsApp via the URI. encodeURIComponent triples the
+// size of backticks (used in monospace blocks) and other characters, so we check the raw length
+// rather than the encoded length — the WhatsApp desktop app decodes the URI itself and handles
+// much longer strings than the encoded form would suggest.
+const MAX_LINK_TEXT = 2500;
 
 // Share text through WhatsApp: the desktop app if one is registered for whatsapp:// links,
 // otherwise WhatsApp Web. With a phone number the chat with that number opens; without one
@@ -162,11 +164,12 @@ async function openWhatsApp(text, phone) {
   }
   // A long message (a meeting record with every member's figures) can be cut off or refused when
   // Windows hands the link to WhatsApp, so it goes on the clipboard instead and WhatsApp opens on
-  // the chat, ready for Ctrl+V.
-  const encoded = encodeURIComponent(text);
-  const copied = encoded.length > MAX_LINK_TEXT;
+  // the chat, ready for Ctrl+V. Check raw length: backticks in monospace blocks encode to %60,
+  // tripling their size and pushing encoded length over the limit even for short messages.
+  const copied = text.length > MAX_LINK_TEXT;
   if (copied) clipboard.writeText(text);
-  const query = `${number ? `phone=${number}&` : ''}text=${copied ? '' : encoded}`;
+  const encoded = copied ? '' : encodeURIComponent(text);
+  const query = `${number ? `phone=${number}&` : ''}text=${encoded}`;
   try {
     if (app.getApplicationNameForProtocol('whatsapp://')) {
       await shell.openExternal(`whatsapp://send?${query}`);

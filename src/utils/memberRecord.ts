@@ -211,7 +211,6 @@ export function formatMemberSummary(record: MemberRecord, settings: Pick<Setting
     ...letterhead(settings, "Member Account Summary"),
     `Assalam-o-Alaikum *${member.name}*,`,
     `Here is your MSO account as at *${today}*.`,
-    `_Amounts in ${cur}_`,
     "",
     heading("Member"),
     member.name,

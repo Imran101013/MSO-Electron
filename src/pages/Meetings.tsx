@@ -228,8 +228,7 @@ export default function Meetings() {
     try {
       const res = await api.shareWhatsApp(await buildMeetingShareMessage(latest, settings));
       if (res.error) toast.error("Unable to open WhatsApp", { description: res.error });
-      else if (res.copied) toast.success("Meeting record copied: paste it in WhatsApp", { description: "It's too long to be typed in for you. Choose who to send it to, then press Ctrl+V.", duration: 15000 });
-      else toast.success(res.opened === "app" ? "WhatsApp opened" : "WhatsApp Web opened", { description: "Choose who to send the meeting record to." });
+      else if (res.copied) toast.success("Meeting record copied", { description: "Press Ctrl+V in WhatsApp to paste it.", duration: 15000 });
     } catch (err) {
       toast.error("Unable to prepare the meeting record", { description: err instanceof Error ? err.message : String(err) });
     } finally {
