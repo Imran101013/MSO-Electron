@@ -11,6 +11,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `npm run electron:build` — builds the renderer then packages the desktop app via `electron-builder` into `release/` (NSIS installer on Windows, code signing disabled).
 - `npm run lint` — ESLint over the whole repo (flat config in `eslint.config.js`).
 - `npm run preview` — preview the built `dist/` output via Vite.
+- `npm run seed:sample` — fills an *empty* database (Settings → Clear all records first; it refuses otherwise) with dummy records that exercise every feature: cut-over 31/12/2024 via the real Excel import, 21 meetings Jan 2025–Sep 2026, loans in every state, reserve entries, the 2024 AGM distributed and 2025 left to distribute. It runs the app hidden on its own Vite server and enters everything through the app's own hooks (`scripts/sample-data/seed.cjs`; records in `data.cjs`), using the money rules saved in the dev app's Settings (read from a copy of its `%APPDATA%/Mso-connect` profile, since settings live in localStorage, not the database).
 - There is no test runner configured in this repo (no test script, no test files).
 
 ## Architecture

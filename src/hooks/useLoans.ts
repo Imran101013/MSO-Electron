@@ -115,6 +115,21 @@ function penaltyInput(s: PenaltySnapshot): PenaltyInput {
   };
 }
 
+/**
+ * What a loan owes once a payment is counted, before it is taken off: the balance with late penalties
+ * worked out again, since a payment dated before a penalty was charged can cancel that penalty. A
+ * payment above this is more than the member owes. Null if the loan doesn't exist.
+ */
+export async function owedWithPayment(loanId: string, payment: { date: string; amount: number }): Promise<number | null> {
+  const [snapshot] = await dbQuery<PenaltySnapshot>(`${SNAPSHOT_SQL} WHERE l.id = $1`, [loanId]);
+  if (!snapshot) return null;
+  const input = penaltyInput(snapshot);
+  // Only the penalties the app works out can change; month 0 came from the paper registers.
+  const chargedNow = snapshot.penalties.filter((p) => p.month !== 0).reduce((s, p) => s + Number(p.amount), 0);
+  const chargedAfter = penaltiesDue({ ...input, payments: [...input.payments, payment] }, todayKey()).reduce((s, c) => s + c.amount, 0);
+  return r2(Number(snapshot.remaining_amount) - chargedNow + chargedAfter);
+}
+
 // Brings stored late penalties in line with penaltiesDue() for every unpaid loan (or just one).
 // Charges are added as months pass and removed if a back-dated payment means they no longer
 // apply. Each loan is updated in one statement that changes the charges and remaining_amount
@@ -241,18 +256,8 @@ export function useLoans() {
     try {
       const block = await cutoverBlock(formData.payment_date, settings.dateFormat);
       if (block) { toast({ title: "Date is before the cut-over", description: block, variant: "destructive" }); return false; }
-      const [snapshot] = await dbQuery<PenaltySnapshot>(`${SNAPSHOT_SQL} WHERE l.id = $1`, [formData.loan_id]);
-      if (!snapshot) { toast({ title: "Error", description: "Loan not found", variant: "destructive" }); return false; }
-      // A payment dated before a penalty was charged can cancel that penalty, so check it against
-      // what is owed once penalties are recalculated with this payment included.
-      const input = penaltyInput(snapshot);
-      // Only the penalties the app works out can change; month 0 came from the paper registers.
-      const chargedNow = snapshot.penalties.filter((p) => p.month !== 0).reduce((s, p) => s + Number(p.amount), 0);
-      const chargedAfter = penaltiesDue(
-        { ...input, payments: [...input.payments, { date: formData.payment_date, amount: formData.amount }] },
-        todayKey()
-      ).reduce((s, c) => s + c.amount, 0);
-      const owed = r2(Number(snapshot.remaining_amount) - chargedNow + chargedAfter);
+      const owed = await owedWithPayment(formData.loan_id, { date: formData.payment_date, amount: formData.amount });
+      if (owed === null) { toast({ title: "Error", description: "Loan not found", variant: "destructive" }); return false; }
       if (formData.amount > owed + 0.005) {
         toast({ title: "Error", description: `Payment exceeds the balance owed (${settings.currency} ${owed.toLocaleString()})`, variant: "destructive" });
         return false;

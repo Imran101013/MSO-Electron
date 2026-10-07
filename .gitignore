@@ -27,3 +27,6 @@ release/
 *.njsproj
 *.sln
 *.sw?
+
+# Made by npm run seed:sample
+scripts/sample-data/*.xlsx

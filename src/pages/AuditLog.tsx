@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -15,11 +14,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { History, Loader2, Eye, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
+import { History, Loader2, Undo2, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { useSettings } from "@/contexts/SettingsContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuditLog, AuditLogEntry } from "@/hooks/useAuditLog";
+import { parseLocalDate } from "@/hooks/useLoans";
+import { useToast } from "@/hooks/use-toast";
+import { prepareUndo, undoKind, type PreparedUndo, type UndoFormat } from "@/lib/auditUndo";
 import { timePattern } from "@/lib/utils";
 
 const AUDITED_TABLES = [
@@ -44,10 +47,51 @@ const ACTION_BADGE_VARIANT: Record<AuditLogEntry["action"], "secondary" | "defau
 export default function AuditLog() {
   const { settings } = useSettings();
   const { isAdmin } = useAuth();
-  const { entries, tableFilter, setTableFilter, page, setPage, hasMore, isLoading, deleteEntry } = useAuditLog();
-  const [selectedEntry, setSelectedEntry] = useState<AuditLogEntry | null>(null);
+  const { refreshData } = useOrganization();
+  const { toast } = useToast();
+  const { entries, tableFilter, setTableFilter, page, setPage, hasMore, isLoading, deleteEntry, refresh } = useAuditLog();
   const [entryToDelete, setEntryToDelete] = useState<AuditLogEntry | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  // Undo: the entry being checked against the records, then the confirmation saying what will change.
+  const [checkingId, setCheckingId] = useState<string | null>(null);
+  const [pendingUndo, setPendingUndo] = useState<PreparedUndo | null>(null);
+  const [isUndoing, setIsUndoing] = useState(false);
+
+  const undoFormat: UndoFormat = {
+    day: (key) => format(parseLocalDate(key), settings.dateFormat),
+    money: (n) => `${settings.currency} ${n.toLocaleString(undefined, { maximumFractionDigits: 2 })}`,
+    dateFormat: settings.dateFormat,
+  };
+
+  const startUndo = async (entry: AuditLogEntry) => {
+    setCheckingId(entry.id);
+    try {
+      const prepared = await prepareUndo(entry, undoFormat);
+      if ("reason" in prepared) toast({ title: "Can't undo this change", description: prepared.reason, variant: "destructive" });
+      else setPendingUndo(prepared);
+    } catch (err: unknown) {
+      toast({ title: "Error", description: err instanceof Error ? err.message : "Failed to check the change", variant: "destructive" });
+    } finally {
+      setCheckingId(null);
+    }
+  };
+
+  const handleUndoConfirm = async () => {
+    if (!pendingUndo) return;
+    setIsUndoing(true);
+    try {
+      const message = await pendingUndo.run();
+      toast({ title: "Change undone", description: message });
+      await refresh();
+      // Other pages read the shared records, which this has just changed.
+      refreshData().catch(() => {});
+    } catch (err: unknown) {
+      toast({ title: "Not undone", description: err instanceof Error ? err.message : "Failed to undo the change", variant: "destructive" });
+    } finally {
+      setIsUndoing(false);
+      setPendingUndo(null);
+    }
+  };
 
   const handleDeleteConfirm = async () => {
     if (!entryToDelete) return;
@@ -105,11 +149,13 @@ export default function AuditLog() {
                     <TableHead className="text-xs font-semibold uppercase tracking-wider">Table</TableHead>
                     <TableHead className="text-xs font-semibold uppercase tracking-wider">Action</TableHead>
                     <TableHead className="text-xs font-semibold uppercase tracking-wider">Changed By</TableHead>
-                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-right">Detail</TableHead>
+                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {entries.map((entry) => (
+                  {entries.map((entry) => {
+                    const undo = undoKind(entry);
+                    return (
                     <TableRow key={entry.id} className="hover:bg-muted/30">
                       <TableCell className="figure text-sm text-muted-foreground">
                         {format(new Date(entry.changed_at), `${settings.dateFormat} ${timePattern(settings.timeFormat)}`)}
@@ -121,9 +167,24 @@ export default function AuditLog() {
                       <TableCell className="text-sm">{entry.changed_by || "unknown"}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
-                          <Button variant="ghost" size="sm" className="gap-1.5 rounded-sm" onClick={() => setSelectedEntry(entry)}>
-                            <Eye className="w-3.5 h-3.5" /> View
-                          </Button>
+                          {isAdmin && (undo.kind ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="gap-1.5 rounded-sm"
+                              disabled={checkingId !== null || isUndoing}
+                              onClick={() => startUndo(entry)}
+                            >
+                              {checkingId === entry.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Undo2 className="w-3.5 h-3.5" />} Undo
+                            </Button>
+                          ) : (
+                            // A disabled button gets no hover, so the reason is on its wrapper.
+                            <span title={undo.reason} className="inline-flex">
+                              <Button variant="ghost" size="sm" className="gap-1.5 rounded-sm" disabled aria-label={`Undo: ${undo.reason}`}>
+                                <Undo2 className="w-3.5 h-3.5" /> Undo
+                              </Button>
+                            </span>
+                          ))}
                           {isAdmin && (
                             <Button
                               variant="ghost"
@@ -137,7 +198,8 @@ export default function AuditLog() {
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))}
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
@@ -154,36 +216,28 @@ export default function AuditLog() {
         </Button>
       </div>
 
-      {/* Diff Dialog */}
-      <Dialog open={!!selectedEntry} onOpenChange={(o) => { if (!o) setSelectedEntry(null); }}>
-        <DialogContent className="sm:max-w-[640px] flex flex-col max-h-[85vh] p-0 gap-0 overflow-hidden rounded-sm">
-          <div className="flex items-center gap-4 px-6 py-5 border-b bg-muted/30 flex-shrink-0">
-            <div className="w-10 h-10 rounded-sm border-2 border-primary/40 bg-primary/10 flex items-center justify-center flex-shrink-0">
-              <History className="w-5 h-5 text-primary" />
-            </div>
-            <div>
-              <h2 className="text-base font-bold text-foreground capitalize">{selectedEntry?.action} on {selectedEntry?.table_name}</h2>
-              <p className="figure text-xs text-muted-foreground">
-                {selectedEntry && format(new Date(selectedEntry.changed_at), `${settings.dateFormat} ${timePattern(settings.timeFormat)}`)} · {selectedEntry?.changed_by || "unknown"}
-              </p>
-            </div>
-          </div>
-          <div className="overflow-y-auto flex-1 px-6 py-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Before</p>
-              <pre className="figure text-xs bg-muted/50 rounded-sm p-3 overflow-x-auto whitespace-pre-wrap break-all">
-                {selectedEntry?.old_data ? JSON.stringify(selectedEntry.old_data, null, 2) : "—"}
-              </pre>
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">After</p>
-              <pre className="figure text-xs bg-muted/50 rounded-sm p-3 overflow-x-auto whitespace-pre-wrap break-all">
-                {selectedEntry?.new_data ? JSON.stringify(selectedEntry.new_data, null, 2) : "—"}
-              </pre>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* Undo Confirmation */}
+      <AlertDialog open={!!pendingUndo} onOpenChange={(o) => { if (!o && !isUndoing) setPendingUndo(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{pendingUndo?.title}</AlertDialogTitle>
+            <AlertDialogDescription>{pendingUndo?.body}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isUndoing}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                // Stays open until the undo has finished.
+                e.preventDefault();
+                handleUndoConfirm();
+              }}
+              disabled={isUndoing}
+            >
+              {isUndoing ? "Undoing…" : "Undo"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Delete Confirmation */}
       <AlertDialog open={!!entryToDelete} onOpenChange={(o) => { if (!o) setEntryToDelete(null); }}>

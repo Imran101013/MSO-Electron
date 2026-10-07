@@ -424,9 +424,6 @@ export default function Loans() {
         <CardHeader className="pb-3 border-b border-border">
           <CardTitle className="flex items-center justify-between text-base">
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-sm border-2 border-primary/40 bg-primary/10 flex items-center justify-center">
-                <HandCoins className="w-4 h-4 text-primary" />
-              </div>
               Active Loans
             </div>
           </CardTitle>
@@ -600,9 +597,6 @@ export default function Loans() {
         <CardHeader className="pb-3 border-b border-border">
           <CardTitle className="flex items-center justify-between text-base">
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-sm border-2 border-secondary/40 bg-secondary/10 flex items-center justify-center">
-                <Percent className="w-4 h-4 text-secondary" />
-              </div>
               Interest & Penalties
             </div>
             <div className="flex items-center gap-4">

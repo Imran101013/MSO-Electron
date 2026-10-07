@@ -61,5 +61,7 @@ export function useAuditLog() {
     }
   };
 
-  return { entries, tableFilter, setTableFilter: changeTableFilter, page, setPage, hasMore, isLoading, deleteEntry };
+  const refresh = () => fetchAuditLog(tableFilter, page);
+
+  return { entries, tableFilter, setTableFilter: changeTableFilter, page, setPage, hasMore, isLoading, deleteEntry, refresh };
 }

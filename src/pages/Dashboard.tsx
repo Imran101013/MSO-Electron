@@ -288,9 +288,6 @@ export default function Dashboard() {
         <Card className="shadow-sm rounded-sm flex flex-col">
           <CardHeader className="flex-row items-center justify-between space-y-0 gap-3 px-5 py-3 border-b border-border">
             <CardTitle className="flex items-center gap-2 text-base">
-              <div className="w-7 h-7 rounded-sm border-2 border-destructive/40 bg-destructive/10 flex items-center justify-center">
-                <HandCoins className="w-4 h-4 text-destructive" />
-              </div>
               Active Loans
               {!loansLoading && activeLoanRows.length > 0 && (
                 <span className="figure text-xs font-normal text-muted-foreground">
@@ -404,9 +401,6 @@ export default function Dashboard() {
         <Card className="shadow-sm rounded-sm flex flex-col">
           <CardHeader className="flex-row items-center justify-between space-y-0 gap-3 px-5 py-3 border-b border-border">
             <CardTitle className="flex items-center gap-2 text-base">
-              <div className="w-7 h-7 rounded-sm border-2 border-primary/40 bg-primary/10 flex items-center justify-center">
-                <Calendar className="w-4 h-4 text-primary" />
-              </div>
               Meetings
             </CardTitle>
             <div className="flex items-center gap-4">
@@ -613,9 +607,6 @@ export default function Dashboard() {
           <CardHeader className="flex-row items-start justify-between gap-3 px-5 py-3 border-b border-border space-y-0">
             <div>
               <CardTitle className="flex items-center gap-2 text-base">
-                <div className="w-7 h-7 rounded-sm border-2 border-primary/40 bg-primary/10 flex items-center justify-center">
-                  <Wallet className="w-4 h-4 text-primary" />
-                </div>
                 Monthly Contributions
               </CardTitle>
               <CardDescription className="text-xs mt-1">
@@ -683,9 +674,7 @@ export default function Dashboard() {
           <CardHeader className="flex-row items-start justify-between gap-3 px-5 py-3 border-b border-border space-y-0">
             <div>
               <CardTitle className="flex items-center gap-2 text-base">
-                <div className="w-7 h-7 rounded-sm border-2 border-secondary/40 bg-secondary/10 flex items-center justify-center">
-                  <HandCoins className="w-4 h-4 text-secondary" />
-                </div>
+               
                 Monthly Loans
               </CardTitle>
               <CardDescription className="text-xs mt-1">

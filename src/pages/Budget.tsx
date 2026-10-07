@@ -169,13 +169,10 @@ export default function Budget() {
           <CardHeader className="pb-3 border-b border-border">
             <CardTitle className="flex items-center justify-between gap-2 text-base">
               <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-sm border-2 border-primary/40 bg-primary/10 flex items-center justify-center">
-                  <DollarSign className="w-4 h-4 text-primary" />
-                </div>
                 Members Contributions
               </div>
             </CardTitle>
-            <CardDescription className="text-xs pl-9">
+            <CardDescription className="text-xs">
               Each member's contribution at the latest meeting
             </CardDescription>
           </CardHeader>
@@ -225,13 +222,10 @@ export default function Budget() {
           <CardHeader className="pb-3 border-b border-border">
             <CardTitle className="flex items-center justify-between gap-2 text-base">
               <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-sm border-2 border-primary/40 bg-primary/10 flex items-center justify-center">
-                  <BarChart3 className="w-4 h-4 text-primary" />
-                </div>
                 Monthly Contributions
               </div>
             </CardTitle>
-            <CardDescription className="text-xs pl-9">
+            <CardDescription className="text-xs">
               Contributions collected each month
             </CardDescription>
           </CardHeader>

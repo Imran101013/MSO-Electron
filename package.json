@@ -12,7 +12,8 @@
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
-    "generate-icon": "electron scripts/generate-icon.cjs"
+    "generate-icon": "electron scripts/generate-icon.cjs",
+    "seed:sample": "electron scripts/sample-data/seed.cjs"
   },
   "build": {
     "appId": "com.mso.Msoconnect",

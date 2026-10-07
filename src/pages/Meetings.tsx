@@ -755,9 +755,6 @@ export default function Meetings() {
         <CardHeader className="pb-3 border-b border-border">
           <CardTitle className="flex items-center justify-between text-base">
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-sm border-2 border-primary/40 bg-primary/10 flex items-center justify-center">
-                <CalendarDays className="w-4 h-4 text-primary" />
-              </div>
               All Meetings
             </div>
             {meetings.length > 0 && (
