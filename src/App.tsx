@@ -57,7 +57,8 @@ const AppRoutes = () => {
   }
 
   return (
-    <HashRouter>
+    // React Router v7 behaviour, opted into now (silences its future-flag warnings).
+    <HashRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       {isAuthenticated ? (
         <Layout>
           <Routes>
