@@ -1,6 +1,5 @@
 export const ORGANIZATION_CONFIG = {
   // Finance settings
-  LOAN_INTEREST_RATE: 10, // Loan interest rate in percentage
   // Taken from a member's dividend for each meeting of the year they were marked absent at.
   ABSENCE_PENALTY_PER_MEETING: 50,
   // Share of each year's profit (bank profit + loan interest + penalties + absence charges)
@@ -48,10 +47,10 @@ export const ORGANIZATION_CONFIG = {
     DEFAULTED: "Defaulted",
   } as const,
 
-  // Loans run for a fixed period; the whole balance is due by its end and may be repaid in any
-  // amounts, at any time, until then (there is no instalment plan).
+  // Duration given to loans brought in from the paper registers (the Excel import). Loans issued in
+  // the app have their own interest rate and duration, entered when they are issued.
   LOAN_PERIOD_MONTHS: 12,
-  // Charged for each full month a loan is still unpaid after its period ends (see utils/loanPenalty.ts).
+  // Charged for each full month a loan is still unpaid after its due date (see utils/loanPenalty.ts).
   LATE_PENALTY_PER_MONTH: 500,
 } as const;
 

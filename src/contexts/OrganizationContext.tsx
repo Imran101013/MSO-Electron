@@ -1,6 +1,5 @@
 import { createContext, useContext, useState, ReactNode, useEffect, useMemo, useRef } from "react";
 import { ORGANIZATION_CONFIG, LoanStatus } from "@/config/organization";
-import { useSettings } from "./SettingsContext";
 import { useMembers, DbMember } from "@/hooks/useMembers";
 import { useLoans, DbLoan, DbLoanInstallment } from "@/hooks/useLoans";
 import { useContributions, DbContribution } from "@/hooks/useContributions";
@@ -52,7 +51,7 @@ export interface Loan {
   /** Includes late penalties charged. */
   remainingAmount: number;
   installments: LoanInstallment[];
-  // Terms as recorded on the loan when it was issued (not the current global setting)
+  // Terms agreed for the loan and recorded when it was issued
   interestRate: number;
   totalPayable: number;
   termMonths: number;
@@ -61,7 +60,7 @@ export interface Loan {
   defaultedOn?: string | null;
   /** The bank's charge on the cheque withdrawal, repaid by the member with the loan. */
   bankCharge?: number;
-  /** Late penalties charged after the loan period ended, oldest first. */
+  /** Late penalties charged after the loan's due date, oldest first. */
   penalties: LoanPenalty[];
 }
 
@@ -199,19 +198,11 @@ interface OrganizationContextType {
   reserveTransactions: ReserveTransaction[];
   /** `bankCharge`: for an expense above the limit in Settings, the bank's charge on the cheque (paid by the reserve). */
   addReserveTransaction: (t: Omit<ReserveTransaction, "id"> & { bankCharge?: number }) => Promise<boolean>;
-  addLoanIssue: (memberId: number, amount: number, date: string) => void;
   addLoanCollection: (
     memberId: number,
     loanId: number,
     amount: number,
     date: string
-  ) => void;
-  addPastLoan: (
-    memberId: number,
-    amount: number,
-    date: string,
-    status: LoanStatus,
-    remainingAmount: number
   ) => void;
   totalDonations: number;
   totalExpenses: number;
@@ -252,12 +243,6 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   const [profitDistributions, setProfitDistributions] = useState<
     ProfitDistribution[]
   >([]);
-
-  // access runtime-editable settings
-  const { settings } = useSettings();
-  const effectiveInterestRate = settings.applyLoanInterest
-    ? settings.loanInterestRate
-    : 0;
 
   // Load data from Postgres via the Electron IPC bridge
   const { members: dbMembers, fetchMembers: refetchMembers } = useMembers();
@@ -703,36 +688,6 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       ? { amount: reserveFund, percentage: 100 }
       : null;
 
-  // Function to add a new loan issue
-  const addLoanIssue = (memberId: number, amount: number, date: string) => {
-    const member = members.find((m) => m.id === memberId);
-    if (!member) return;
-
-    // Calculate amount with configured interest rate (per-loan, respect applyLoanInterest)
-    const loanWithInterest = amount * (1 + effectiveInterestRate / 100);
-
-    const newLoan: Loan = {
-      id: member.loans.length + 1,
-      dbId: `local-${member.dbId}-${Date.now()}`,
-      amount,
-      date,
-      status: ORGANIZATION_CONFIG.LOAN_STATUS.ACTIVE,
-      remainingAmount: loanWithInterest,
-      installments: [],
-      interestRate: effectiveInterestRate,
-      totalPayable: loanWithInterest,
-      termMonths: ORGANIZATION_CONFIG.LOAN_PERIOD_MONTHS,
-      penaltyPerMonth: settings.latePenaltyPerMonth,
-      penalties: [],
-    };
-
-    const updatedMembers = members.map((m) =>
-      m.id === memberId ? { ...m, loans: [...m.loans, newLoan] } : m
-    );
-
-    setMembers(updatedMembers);
-  };
-
   // Function to add a loan collection (payment/installment)
   const addLoanCollection = (
     memberId: number,
@@ -781,39 +736,6 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     setMembers(updatedMembers);
   };
 
-  // Function to add a past loan
-  const addPastLoan = (
-    memberId: number,
-    amount: number,
-    date: string,
-    status: LoanStatus,
-    remainingAmount: number
-  ) => {
-    const member = members.find((m) => m.id === memberId);
-    if (!member) return;
-
-    const newLoan: Loan = {
-      id: member.loans.length + 1,
-      dbId: `local-${member.dbId}-${Date.now()}`,
-      amount,
-      date,
-      status,
-      remainingAmount,
-      installments: [],
-      interestRate: 0,
-      totalPayable: Math.max(amount, remainingAmount),
-      termMonths: ORGANIZATION_CONFIG.LOAN_PERIOD_MONTHS,
-      penaltyPerMonth: settings.latePenaltyPerMonth,
-      penalties: [],
-    };
-
-    const updatedMembers = members.map((m) =>
-      m.id === memberId ? { ...m, loans: [...m.loans, newLoan] } : m
-    );
-
-    setMembers(updatedMembers);
-  };
-
   // Function to add a reserve transaction — persists to Postgres via useReserveTransactions;
   // the dbReserveTransactions -> reserveTransactions transform effect above picks up the result.
   const addReserveTransaction = async (t: Omit<ReserveTransaction, "id"> & { bankCharge?: number }): Promise<boolean> => {
@@ -853,9 +775,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         reserveFund,
         reserveTransactions,
         addReserveTransaction,
-        addLoanIssue,
         addLoanCollection,
-        addPastLoan,
         totalDonations: transactionDonations,
         totalExpenses: transactionExpenses,
         totalLoanCollected,

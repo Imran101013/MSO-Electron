@@ -41,9 +41,12 @@ const openingMembers = [
   { key: 'adeel', name: 'Adeel Raza', fatherName: 'Raza Hussain', phone: '03181234519', address: VILLAGE, joinDate: '2024-12-08', savings: 0, absences2024: 1 },
 ];
 
+/** The interest rate (%) the registers charged: used for the interest written in the opening-balances file. */
+const REGISTER_INTEREST_RATE = 10;
+
 /**
  * Loans still owing at the cut-over (amounts in PKR, as written in the registers). Their interest is
- * worked out at the interest rate in the app's Settings, like the loans issued in the app.
+ * worked out at REGISTER_INTEREST_RATE. The import gives them a duration of one year.
  */
 const openingLoans = [
   // Repaid in full in April 2025, before its due date: its interest counts in the 2025 profit.
@@ -63,7 +66,7 @@ const openingReserve = 185000;
 /**
  * The 2024 profit, still to be shared at the July 2025 AGM ("Profit not yet shared" sheet). The loan
  * interest collected in 2024 is worked out from the amount lent on the loans repaid in full that year,
- * at the app's interest rate.
+ * at REGISTER_INTEREST_RATE.
  */
 const openingProfit = { bankProfit: 128400, lentOnLoansRepaid: 145000, penalties: 1000 };
 
@@ -161,10 +164,10 @@ const meetings = [
     decisions: "PKR 12,000 paid from the reserve fund for funeral arrangements. Naveed Akhtar cleared his late loan with two months' penalties." },
   { date: '2026-05-10', time: '15:00', venue: 'hall', absent: [], leave: ['shahid'],
     agenda: 'Monthly contributions; loan for Kamran Yousaf',
-    decisions: 'Second loan of PKR 20,000 approved for Kamran Yousaf.' },
+    decisions: 'Second loan of PKR 20,000 approved for Kamran Yousaf, at 8% for 6 months.' },
   { date: '2026-06-14', time: '15:00', venue: 'hall', absent: ['hamza'], leave: ['zafar'],
     agenda: 'Monthly contributions; loan for Muhammad Ali (s/o Abdul Majeed)',
-    decisions: 'Loan of PKR 50,000 approved for Muhammad Ali (s/o Abdul Majeed); at the limit, so no bank charge.' },
+    decisions: 'Loan of PKR 50,000 approved for Muhammad Ali (s/o Abdul Majeed), at 12% for 18 months; at the limit, so no bank charge.' },
   { date: '2026-07-12', time: '10:30', venue: 'rehman', absent: [], leave: ['ehsan'],
     agenda: 'Annual General Meeting: accounts for 2025 and sharing of the 2025 profit',
     decisions: 'Accounts for 2025 presented. Bank profit for January-June 2026 noted.',
@@ -174,7 +177,7 @@ const meetings = [
     decisions: 'Noman Tariq (s/o Tariq Javed) admitted as a member.' },
   { date: '2026-09-13', time: '15:00', venue: 'masjid', absent: ['hamza'], leave: ['faisal'],
     agenda: "Monthly contributions; Hamza Rasheed's unpaid loan; loan for Abdul Rehman",
-    decisions: "Hamza Rasheed's loan marked defaulted by the committee; no more penalties after today. Loan of PKR 150,000 approved for Abdul Rehman (bank charge to be entered from the statement). Abdul Rehman gave PKR 5,000 to the reserve fund." },
+    decisions: "Hamza Rasheed's loan marked defaulted by the committee; no more penalties after today. Loan of PKR 150,000 approved for Abdul Rehman, at 10% for 24 months (bank charge to be entered from the statement). Abdul Rehman gave PKR 5,000 to the reserve fund." },
 ];
 
 /** Meetings scheduled but not yet held. */
@@ -184,23 +187,24 @@ const upcoming = [
 ];
 
 /**
- * Loans issued in the app, on the Loans page. `pay`: repayments as [date, amount]; amount 'rest'
- * clears whatever is owed that day (penalties included). `bankChargeLater` is entered afterwards
- * from the bank statement (Loans -> View -> Bank charge).
+ * Loans issued in the app, on the Loans page, each with the interest rate (%) and duration (months)
+ * agreed for it. `pay`: repayments as [date, amount]; amount 'rest' clears whatever is owed that day
+ * (penalties included). `bankChargeLater` is entered afterwards from the bank statement
+ * (Loans -> View -> Bank charge).
  */
 const appLoans = [
-  { key: 'A-naveed', member: 'naveed', date: '2025-01-12', amount: 45000, pay: [['2025-06-08', 15000], ['2025-10-12', 15000], ['2026-04-12', 'rest']] },
-  { key: 'A-asif', member: 'asif', date: '2025-02-09', amount: 60000, bankCharge: 150, pay: [['2025-05-11', 20000], ['2025-08-10', 20000], ['2025-11-09', 'rest']] },
-  { key: 'A-kamran1', member: 'kamran', date: '2025-03-09', amount: 15000, pay: [['2025-06-08', 5000], ['2025-09-14', 'rest']] },
-  { key: 'A-danish', member: 'danish', date: '2025-04-13', amount: 30000, pay: [['2025-07-13', 10000], ['2025-12-14', 10000], ['2026-03-08', 'rest']] },
-  { key: 'A-imran', member: 'imran', date: '2025-06-08', amount: 100000, bankChargeLater: { on: '2025-07-13', amount: 250 },
+  { key: 'A-naveed', member: 'naveed', date: '2025-01-12', amount: 45000, rate: 10, months: 12, pay: [['2025-06-08', 15000], ['2025-10-12', 15000], ['2026-04-12', 'rest']] },
+  { key: 'A-asif', member: 'asif', date: '2025-02-09', amount: 60000, rate: 10, months: 12, bankCharge: 150, pay: [['2025-05-11', 20000], ['2025-08-10', 20000], ['2025-11-09', 'rest']] },
+  { key: 'A-kamran1', member: 'kamran', date: '2025-03-09', amount: 15000, rate: 10, months: 12, pay: [['2025-06-08', 5000], ['2025-09-14', 'rest']] },
+  { key: 'A-danish', member: 'danish', date: '2025-04-13', amount: 30000, rate: 10, months: 12, pay: [['2025-07-13', 10000], ['2025-12-14', 10000], ['2026-03-08', 'rest']] },
+  { key: 'A-imran', member: 'imran', date: '2025-06-08', amount: 100000, rate: 10, months: 12, bankChargeLater: { on: '2025-07-13', amount: 250 },
     pay: [['2025-09-14', 25000], ['2025-12-14', 25000], ['2026-03-08', 20000], ['2026-06-14', 10000], ['2026-08-09', 5000], ['2026-09-13', 5000]] },
-  { key: 'A-hamza', member: 'hamza', date: '2025-08-10', amount: 40000, pay: [['2025-11-09', 5000], ['2026-02-08', 5000]], defaultedOn: '2026-09-13' },
-  { key: 'A-junaid', member: 'junaid', date: '2025-10-12', amount: 25000, pay: [['2026-01-11', 5000], ['2026-04-12', 5000], ['2026-07-12', 5000], ['2026-09-13', 5000]] },
-  { key: 'A-aliNoor', member: 'aliNoor', date: '2026-01-11', amount: 75000, bankCharge: 200, pay: [['2026-04-12', 15000], ['2026-07-12', 15000], ['2026-09-13', 10000]] },
-  { key: 'A-kamran2', member: 'kamran', date: '2026-05-10', amount: 20000, pay: [['2026-08-09', 5000]] },
-  { key: 'A-aliMajeed', member: 'aliMajeed', date: '2026-06-14', amount: 50000, pay: [] },
-  { key: 'A-rehman', member: 'rehman', date: '2026-09-13', amount: 150000, pay: [] },
+  { key: 'A-hamza', member: 'hamza', date: '2025-08-10', amount: 40000, rate: 10, months: 12, pay: [['2025-11-09', 5000], ['2026-02-08', 5000]], defaultedOn: '2026-09-13' },
+  { key: 'A-junaid', member: 'junaid', date: '2025-10-12', amount: 25000, rate: 10, months: 12, pay: [['2026-01-11', 5000], ['2026-04-12', 5000], ['2026-07-12', 5000], ['2026-09-13', 5000]] },
+  { key: 'A-aliNoor', member: 'aliNoor', date: '2026-01-11', amount: 75000, rate: 10, months: 12, bankCharge: 200, pay: [['2026-04-12', 15000], ['2026-07-12', 15000], ['2026-09-13', 10000]] },
+  { key: 'A-kamran2', member: 'kamran', date: '2026-05-10', amount: 20000, rate: 8, months: 6, pay: [['2026-08-09', 5000]] },
+  { key: 'A-aliMajeed', member: 'aliMajeed', date: '2026-06-14', amount: 50000, rate: 12, months: 18, pay: [] },
+  { key: 'A-rehman', member: 'rehman', date: '2026-09-13', amount: 150000, rate: 10, months: 24, pay: [] },
 ];
 
 /** Repayments in the app on loans brought in from the registers. */
@@ -231,6 +235,6 @@ const corrections = {
 };
 
 module.exports = {
-  CUTOVER, importedOn, VENUES, openingMembers, openingLoans, openingReserve, openingProfit, monthly, newMembers,
+  CUTOVER, importedOn, VENUES, openingMembers, REGISTER_INTEREST_RATE, openingLoans, openingReserve, openingProfit, monthly, newMembers,
   memberUpdates, meetings, upcoming, appLoans, openingLoanPayments, reserve, corrections,
 };

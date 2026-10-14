@@ -25,7 +25,6 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { DEFAULT_SETTINGS, useSettings, type Settings as AppSettings } from "@/contexts/SettingsContext";
-import { ORGANIZATION_CONFIG } from "@/config/organization";
 import { backupAge, backupDatabase, restoreDatabase, useBackupStatus } from "@/lib/backup";
 import { cn, timePattern } from "@/lib/utils";
 import { ClearRecordsStrip, PaperRegistersCard } from "@/components/PaperRegisters";
@@ -64,8 +63,6 @@ const rowsPerPage = z
   .max(100, "At most 100");
 
 const settingsSchema = z.object({
-  applyLoanInterest: z.boolean(),
-  loanInterestRate: percent,
   latePenaltyPerMonth: z.number({ invalid_type_error: "Enter an amount" }).min(0, "Can't be negative"),
   absencePenaltyPerMeeting: z.number({ invalid_type_error: "Enter an amount" }).min(0, "Can't be negative"),
   reservePercent: percent,
@@ -85,15 +82,13 @@ const settingsSchema = z.object({
 type FormValues = z.infer<typeof settingsSchema>;
 
 const SECTIONS: Record<string, Array<keyof FormValues>> = {
-  "Money rules": ["applyLoanInterest", "loanInterestRate", "latePenaltyPerMonth", "absencePenaltyPerMeeting", "reservePercent", "bankChargeThreshold"],
+  "Money rules": ["latePenaltyPerMonth", "absencePenaltyPerMeeting", "reservePercent", "bankChargeThreshold"],
   "Display & lists": ["theme", "dateFormat", "timeFormat", "currency", "enableAnimations", "membersPerPage", "itemsPerPage"],
   "Meeting circular": ["circularTemplate"],
   "Data safety": ["backupReminderDays", "backupReminderTrigger"],
 };
 
 const toForm = (s: AppSettings): FormValues => ({
-  applyLoanInterest: s.applyLoanInterest,
-  loanInterestRate: s.loanInterestRate,
   latePenaltyPerMonth: s.latePenaltyPerMonth,
   absencePenaltyPerMeeting: s.absencePenaltyPerMeeting,
   reservePercent: s.reservePercent,
@@ -210,7 +205,6 @@ export default function SettingsPage() {
   };
 
   const cur = v.currency?.trim() || settings.currency;
-  const period = ORGANIZATION_CONFIG.LOAN_PERIOD_MONTHS;
   const shareNow = finite(v.reservePercent);
   const dateFmt = v.dateFormat || settings.dateFormat;
   const now = new Date();
@@ -266,34 +260,8 @@ export default function SettingsPage() {
           <div className="divide-y divide-border px-5 [@container(min-width:54rem)]:border-r">
             <SettingRow
               holdHint
-              label="Interest on new loans"
-              help="A flat rate added once when a loan is issued, and repaid with the loan in any amounts by its due date."
-              htmlFor="loanInterestRate"
-              error={errors.loanInterestRate?.message}
-              hint={was("loanInterestRate", `${settings.loanInterestRate}%`) ?? was("applyLoanInterest", settings.applyLoanInterest ? "charged" : "not charged", false)}
-            >
-              <div className="flex items-center gap-3">
-                <Controller
-                  control={control}
-                  name="applyLoanInterest"
-                  render={({ field }) => (
-                    <Switch checked={field.value} onCheckedChange={field.onChange} aria-label="Charge interest on new loans" />
-                  )}
-                />
-                <UnitInput
-                  id="loanInterestRate"
-                  suffix="%"
-                  inputMode="decimal"
-                  disabled={!v.applyLoanInterest}
-                  invalid={!!errors.loanInterestRate}
-                  {...register("loanInterestRate", { setValueAs: asNumber })}
-                />
-              </div>
-            </SettingRow>
-            <SettingRow
-              holdHint
               label="Late penalty"
-              help={`Added for each full month after a loan's ${period}-month term until it is paid in full, penalties included, or the committee marks it defaulted.`}
+              help="Added for each full month after a loan's due date (the end of the duration set when it was issued) until it is paid in full, penalties included, or the committee marks it defaulted."
               htmlFor="latePenaltyPerMonth"
               error={errors.latePenaltyPerMonth?.message}
               hint={was("latePenaltyPerMonth", `${money(settings.latePenaltyPerMonth)} a month`)}

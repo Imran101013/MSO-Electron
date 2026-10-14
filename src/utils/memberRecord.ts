@@ -21,7 +21,7 @@ export interface MemberLoan {
   repaid: number;
   remaining: number;
   termMonths: number;
-  /** One year after issue. */
+  /** Its duration after issue. */
   dueDate: string;
   penaltyPerMonth: number;
   /** Late penalties charged so far (included in `remaining`). */
@@ -135,7 +135,7 @@ export async function getMemberRecord(memberId: string): Promise<MemberRecord> {
     const penaltyTotal = r2(Number(l.penalty_total) || 0);
     const remaining = Math.max(0, r2(Number(l.remaining_amount)));
     const repayments = installments.filter((i) => i.loan_id === l.id).map((i) => ({ date: i.payment_date, amount: Number(i.amount) }));
-    const dueDate = loanDueDate(l.loan_date);
+    const dueDate = loanDueDate(l.loan_date, l.term_months);
     // There is no instalment plan: a loan is repaid in any amounts, and only the due date makes it overdue.
     const pastDue = dueDate < today;
     const status = String(l.status).toLowerCase();
@@ -150,7 +150,7 @@ export async function getMemberRecord(memberId: string): Promise<MemberRecord> {
       bankCharge,
       repaid: r2(totalPayable + bankCharge + penaltyTotal - remaining),
       remaining,
-      termMonths: l.term_months || 1,
+      termMonths: l.term_months,
       dueDate,
       penaltyPerMonth: Number(l.penalty_per_month) || 0,
       penaltyTotal,

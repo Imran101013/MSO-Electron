@@ -3,7 +3,6 @@ import { Button } from "@/components/ui/button";
 import { Plus, TrendingDown, CheckCircle2, Loader2, HandCoins, AlertTriangle, BookOpen, Ban, Percent, ArrowRight, Landmark } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
-import { ORGANIZATION_CONFIG } from "@/config/organization";
 import StatCard from "@/components/StatCard";
 import AmountsNote from "@/components/AmountsNote";
 import ViewReportButton from "@/components/ViewReportButton";
@@ -29,14 +28,42 @@ import { cn } from "@/lib/utils";
 import { useBooksConfig } from "@/lib/books";
 import { TablePager, usePaged } from "@/components/TablePager";
 
+/** Longest duration a loan can be given, so a typo (120 for 12) is caught. Checked by the schema,
+ * not the input's max, so the browser's own tooltip doesn't replace the form's message. */
+const MAX_LOAN_MONTHS = 60;
+
+// A number the committee must type in: left blank it is "required", not 0 (as z.coerce would make it).
+const typedIn = (v: unknown) => (v === "" || v === null || v === undefined ? undefined : Number(v));
+
 const issueSchema = z.object({
   memberId: z.string().min(1, "Please select a member"),
   amount: z.coerce.number({ invalid_type_error: "Enter a valid amount" }).positive("Amount must be greater than 0"),
+  /** Flat interest on the amount lent, agreed for this loan (0 for none). */
+  interestRate: z.preprocess(
+    typedIn,
+    z.number({ required_error: "Enter the interest rate (0 for none)", invalid_type_error: "Enter a number" }).min(0, "Can't be negative").max(100, "Can't be above 100%")
+  ),
+  /** Months the member has to repay it. */
+  termMonths: z.preprocess(
+    typedIn,
+    z.number({ required_error: "Enter the duration in months", invalid_type_error: "Enter a number" })
+      .int("Whole months only")
+      .min(1, "At least 1 month")
+      .max(MAX_LOAN_MONTHS, `At most ${MAX_LOAN_MONTHS} months`)
+  ),
   date: z.date({ required_error: "Please pick a date" }),
   /** The bank's charge on the cheque withdrawal, for loans above the limit in Settings. */
   bankCharge: z.coerce.number({ invalid_type_error: "Enter a valid amount" }).min(0, "Can't be negative").optional(),
 });
 type IssueFormValues = z.infer<typeof issueSchema>;
+// The rate and duration start blank: they are agreed for each loan.
+const blankIssue = (): Partial<IssueFormValues> => ({ memberId: "", amount: 0, interestRate: undefined, termMonths: undefined, date: new Date(), bankCharge: undefined });
+
+/** What has been typed in a number field, or null if it is blank or not a number yet. */
+const typedNumber = (v: unknown): number | null => {
+  const text = String(v ?? "").trim();
+  return text !== "" && Number.isFinite(Number(text)) ? Number(text) : null;
+};
 
 const buildPaymentSchema = (maxAmount: number) =>
   z.object({
@@ -68,7 +95,7 @@ export default function Loans() {
 
   const issueForm = useForm<IssueFormValues>({
     resolver: zodResolver(issueSchema),
-    defaultValues: { memberId: "", amount: 0, date: new Date() },
+    defaultValues: blankIssue(),
   });
 
   const paymentForm = useForm<PaymentFormValues>({
@@ -80,15 +107,19 @@ export default function Loans() {
     defaultValues: { memberId: "", loanId: "", amount: 0, date: new Date() },
   });
 
-  // Terms shown in the Issue Loan dialog, worked out the same way issueLoan records them.
-  const issueRate = settings.applyLoanInterest ? settings.loanInterestRate : 0;
-  const issueTotal = Math.round((Number(issueForm.watch("amount")) || 0) * (1 + issueRate / 100) * 100) / 100;
+  // Terms shown in the Issue Loan dialog as the rate and duration are typed, worked out the same way
+  // issueLoan records them. Null until a usable value is entered.
+  const typedRate = typedNumber(issueForm.watch("interestRate"));
+  const issueRate = typedRate !== null && typedRate >= 0 && typedRate <= 100 ? typedRate : null;
+  const typedTerm = typedNumber(issueForm.watch("termMonths"));
+  const issueTerm = typedTerm !== null && Number.isInteger(typedTerm) && typedTerm >= 1 && typedTerm <= MAX_LOAN_MONTHS ? typedTerm : null;
+  const issueTotal = Math.round((Number(issueForm.watch("amount")) || 0) * (1 + (issueRate ?? 0) / 100) * 100) / 100;
   // A cheque withdrawal above the limit in Settings carries a bank charge, repaid by the member with the loan.
   const issueNeedsCharge = (Number(issueForm.watch("amount")) || 0) > settings.bankChargeThreshold;
   const issueCharge = issueNeedsCharge ? Math.max(0, Number(issueForm.watch("bankCharge")) || 0) : 0;
   const issueOwed = Math.round((issueTotal + issueCharge) * 100) / 100;
   const issueDate = issueForm.watch("date");
-  const issueDueDate = issueDate ? loanDueDate(format(issueDate, "yyyy-MM-dd")) : null;
+  const issueDueDate = issueDate && issueTerm ? loanDueDate(format(issueDate, "yyyy-MM-dd"), issueTerm) : null;
 
   const watchedMemberId = paymentForm.watch("memberId");
   // Payments can only be recorded against active loans, so only their borrowers are offered.
@@ -107,11 +138,13 @@ export default function Loans() {
       member_id: values.memberId,
       amount: values.amount,
       loan_date: format(values.date, "yyyy-MM-dd"),
+      interest_rate: values.interestRate,
+      term_months: values.termMonths,
       bank_charge: values.amount > settings.bankChargeThreshold ? Number(values.bankCharge) || 0 : 0,
     });
     setIsSubmitting(false);
     setOpenIssue(false);
-    issueForm.reset({ memberId: "", amount: 0, date: new Date(), bankCharge: undefined });
+    issueForm.reset(blankIssue());
   };
 
   const handleViewLoan = (loan: LoanWithMember) => setViewLoan(loan);
@@ -133,7 +166,7 @@ export default function Loans() {
     setDefaultSaving(false);
     if (ok) { setDefaultOpen(false); setViewLoan(null); }
   };
-  const viewDueDate = viewLoan ? loanDueDate(viewLoan.loan_date) : null;
+  const viewDueDate = viewLoan ? loanDueDate(viewLoan.loan_date, viewLoan.term_months) : null;
   const viewPenalties = viewLoan ? penalties.filter((p) => p.loan_id === viewLoan.id) : [];
   const viewRepayments = (() => {
     if (!viewLoan) return [];
@@ -238,7 +271,7 @@ export default function Loans() {
             <ViewReportButton request={{ kind: "paid-loans" }} label="Paid Loans" size="default" />
             <ViewReportButton request={{ kind: "loan-portfolio" }} label="Loan Portfolio" size="default" />
             {/* Issue Loan Dialog */}
-            <Dialog open={openIssue} onOpenChange={(o) => { setOpenIssue(o); if (!o) issueForm.reset({ memberId: "", amount: 0, date: new Date() }); }}>
+            <Dialog open={openIssue} onOpenChange={(o) => { setOpenIssue(o); if (!o) issueForm.reset(blankIssue()); }}>
               <DialogTrigger asChild>
                 <Button className="gap-2 shadow-sm rounded-sm"><Plus className="w-4 h-4" /> Issue Loan</Button>
               </DialogTrigger>
@@ -277,6 +310,29 @@ export default function Loans() {
                           <FormMessage className="text-xs" />
                         </FormItem>
                       )} />
+                      <div className="grid grid-cols-2 gap-3">
+                        <FormField control={issueForm.control} name="interestRate" render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs font-medium">Interest rate (%)</FormLabel>
+                            <FormControl>
+                              <Input type="number" step="any" placeholder="e.g. 10" className="h-9 rounded-sm figure" {...field} value={field.value ?? ""} />
+                            </FormControl>
+                            <FormMessage className="text-xs" />
+                          </FormItem>
+                        )} />
+                        <FormField control={issueForm.control} name="termMonths" render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs font-medium">Duration (months)</FormLabel>
+                            <FormControl>
+                              <Input type="number" step="any" placeholder="e.g. 12" className="h-9 rounded-sm figure" {...field} value={field.value ?? ""} />
+                            </FormControl>
+                            <FormMessage className="text-xs" />
+                          </FormItem>
+                        )} />
+                        <p className="col-span-2 -mt-1 text-xs text-muted-foreground">
+                          Agreed for this loan. The interest is flat: charged once on the amount lent, whatever the duration. Enter 0 for no interest.
+                        </p>
+                      </div>
                       {issueNeedsCharge && (
                         <FormField control={issueForm.control} name="bankCharge" render={({ field }) => (
                           <FormItem>
@@ -302,12 +358,18 @@ export default function Loans() {
                         </FormItem>
                       )} />
                       <div className="rounded-sm border bg-muted/30 px-3.5 py-3 space-y-1.5 text-xs text-muted-foreground">
-                        <p className="font-semibold text-foreground">Repayment terms · within {ORGANIZATION_CONFIG.LOAN_PERIOD_MONTHS} months</p>
-                        <p className="figure">
-                          {issueRate > 0 ? `Interest ${issueRate}% flat · ` : ""}Total payable {issueTotal.toLocaleString()}
-                          {issueCharge > 0 && <> + bank charge {issueCharge.toLocaleString()} = {issueOwed.toLocaleString()} owed</>}
-                          {issueDueDate && <> · due by {format(parseLocalDate(issueDueDate), settings.dateFormat)}</>}
+                        <p className="font-semibold text-foreground">
+                          Repayment terms{issueTerm !== null && <> · within {issueTerm} month{issueTerm === 1 ? "" : "s"}</>}
                         </p>
+                        {issueRate === null || issueTerm === null ? (
+                          <p>Enter the interest rate and duration to see what the member will owe and by when.</p>
+                        ) : (
+                          <p className="figure">
+                            {issueRate > 0 ? `Interest ${issueRate}% flat · ` : "No interest · "}Total payable {issueTotal.toLocaleString()}
+                            {issueCharge > 0 && <> + bank charge {issueCharge.toLocaleString()} = {issueOwed.toLocaleString()} owed</>}
+                            {issueDueDate && <> · due by {format(parseLocalDate(issueDueDate), settings.dateFormat)}</>}
+                          </p>
+                        )}
                         <p>Repaid in any amounts, at any time, until it is all paid by the due date.</p>
                         {settings.latePenaltyPerMonth > 0 && (
                           <p className="figure">
@@ -455,7 +517,7 @@ export default function Loans() {
                 <TableBody>
                   {activePaged.rows.map((loan) => {
                     const overdue = isOverdue(loan);
-                    const due = dueIn(loanDueDate(loan.loan_date), todayStr);
+                    const due = dueIn(loanDueDate(loan.loan_date, loan.term_months), todayStr);
                     const penaltyTotal = Number(loan.penalty_total) || 0;
                     const interest = Math.round((Number(loan.total_payable) - Number(loan.amount)) * 100) / 100;
                     return (
@@ -481,7 +543,7 @@ export default function Loans() {
                         <TableCell className="text-sm">
                           <div className="flex flex-col items-start gap-1">
                             <span className={cn("text-muted-foreground figure whitespace-nowrap", overdue && "text-destructive font-semibold")}>
-                              {format(parseLocalDate(loanDueDate(loan.loan_date)), settings.dateFormat)}
+                              {format(parseLocalDate(loanDueDate(loan.loan_date, loan.term_months)), settings.dateFormat)}
                             </span>
                             {overdue ? (
                               <Badge variant="destructive" className="gap-1"><AlertTriangle className="w-3 h-3" />{due.text}</Badge>
@@ -564,7 +626,7 @@ export default function Loans() {
                           {loan.remaining_amount.toLocaleString()}
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground figure whitespace-nowrap">
-                          {format(parseLocalDate(loanDueDate(loan.loan_date)), settings.dateFormat)}
+                          {format(parseLocalDate(loanDueDate(loan.loan_date, loan.term_months)), settings.dateFormat)}
                         </TableCell>
                         <TableCell className="text-sm figure whitespace-nowrap">
                           {loan.defaulted_on ? (
@@ -660,7 +722,9 @@ export default function Loans() {
             <div>
               <DialogTitle className="text-base font-bold text-foreground">Loan Account</DialogTitle>
               <p className="text-xs text-muted-foreground figure">
-                {viewLoan?.member_name || "Unknown"} · Total Payable {viewLoan?.total_payable?.toLocaleString()}
+                {viewLoan?.member_name || "Unknown"}
+                {viewLoan && <> · {Number(viewLoan.interest_rate)}% flat over {viewLoan.term_months} month{viewLoan.term_months === 1 ? "" : "s"}</>}
+                {" · "}Total Payable {viewLoan?.total_payable?.toLocaleString()}
                 {Number(viewLoan?.bank_charge) > 0 && <> + bank charge {Number(viewLoan?.bank_charge).toLocaleString()}</>}
                 {viewDueDate && <> · Due by {format(parseLocalDate(viewDueDate), settings.dateFormat)}</>}
                 {viewDueDate && viewLoan?.status === "active" && Number(viewLoan.remaining_amount) > 0.005 && <> ({dueIn(viewDueDate, todayStr).text})</>}

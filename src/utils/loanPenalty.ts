@@ -1,5 +1,4 @@
 import { addDays, addMonths, differenceInCalendarDays, differenceInMonths, format } from "date-fns";
-import { ORGANIZATION_CONFIG } from "@/config/organization";
 
 const toKey = (d: Date) => format(d, "yyyy-MM-dd");
 
@@ -9,9 +8,9 @@ const fromKey = (key: string) => {
   return new Date(y, m - 1, d);
 };
 
-/** yyyy-MM-dd by which a loan must be repaid in full: one loan period after it was issued. */
-export function loanDueDate(loanDate: string): string {
-  return toKey(addMonths(fromKey(loanDate), ORGANIZATION_CONFIG.LOAN_PERIOD_MONTHS));
+/** yyyy-MM-dd by which a loan must be repaid in full: its duration (set when it was issued) after the loan date. */
+export function loanDueDate(loanDate: string, termMonths: number): string {
+  return toKey(addMonths(fromKey(loanDate), termMonths));
 }
 
 /**
@@ -38,6 +37,8 @@ export interface PenaltyCharge {
 
 export interface PenaltyInput {
   loanDate: string;
+  /** The loan's duration in months: it is due that long after the loan date. */
+  termMonths: number;
   /** Amount lent + interest. */
   totalPayable: number;
   penaltyPerMonth: number;
@@ -68,7 +69,7 @@ export interface PenaltyInput {
 export function penaltiesDue(loan: PenaltyInput, asOf: string): PenaltyCharge[] {
   const charges: PenaltyCharge[] = [];
   if (!(loan.penaltyPerMonth > 0)) return charges;
-  const due = fromKey(loanDueDate(loan.loanDate));
+  const due = fromKey(loanDueDate(loan.loanDate, loan.termMonths));
   // A charge falls the day after its month ends, so it is made only if that day is on or before both
   // today and the day the loan was marked defaulted.
   const until = loan.defaultedOn && loan.defaultedOn.slice(0, 10) < asOf ? loan.defaultedOn.slice(0, 10) : asOf;

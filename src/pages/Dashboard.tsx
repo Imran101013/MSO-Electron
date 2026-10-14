@@ -152,7 +152,7 @@ export default function Dashboard() {
   // Active loans for the register: overdue ones first, then by the date they fall due.
   const activeLoanRows = loans
     .filter(loan => loan.status === "active")
-    .map(loan => ({ ...loan, due: loanDueDate(loan.loan_date), overdue: isOverdue(loan) }))
+    .map(loan => ({ ...loan, due: loanDueDate(loan.loan_date, loan.term_months), overdue: isOverdue(loan) }))
     .sort((a, b) => (a.overdue === b.overdue ? a.due.localeCompare(b.due) : a.overdue ? -1 : 1));
 
   // Aggregate budget contributions by month-year

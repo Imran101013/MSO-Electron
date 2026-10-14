@@ -9,8 +9,6 @@ import { ORGANIZATION_CONFIG } from "@/config/organization";
 import { DEFAULT_CIRCULAR } from "@/lib/circular";
 
 export interface Settings {
-  loanInterestRate: number;
-  applyLoanInterest: boolean;
   /** Penalty per full month late, recorded on each loan when it is issued. */
   latePenaltyPerMonth: number;
   /** Taken from a member's dividend for each meeting of the year they missed; part of the year's profit. */
@@ -56,8 +54,6 @@ const SettingsContext = createContext<SettingsContextType | undefined>(
 const STORAGE_KEY = "hc_settings_v1";
 
 export const DEFAULT_SETTINGS: Settings = {
-  loanInterestRate: ORGANIZATION_CONFIG.LOAN_INTEREST_RATE,
-  applyLoanInterest: true,
   latePenaltyPerMonth: ORGANIZATION_CONFIG.LATE_PENALTY_PER_MONTH,
   absencePenaltyPerMeeting: ORGANIZATION_CONFIG.ABSENCE_PENALTY_PER_MEETING,
   reservePercent: ORGANIZATION_CONFIG.RESERVE_PERCENT_OF_PROFIT,
@@ -83,7 +79,12 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       // Merged over the defaults so settings added in later versions get a value.
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
-        const saved = JSON.parse(raw) as Partial<Settings>;
+        // The loan interest rate is no longer a setting (each loan's rate and duration are entered
+        // when it is issued), so a value saved by an older version is dropped.
+        const { loanInterestRate: _rate, applyLoanInterest: _apply, ...saved } = JSON.parse(raw) as Partial<Settings> & {
+          loanInterestRate?: unknown;
+          applyLoanInterest?: unknown;
+        };
         // Migrate: fix the last line of the circular so WhatsApp right-aligns it.
         // Replace any variant of the last line (with or without previous migration marks) with
         // the Arabic Letter Mark prefix that forces RTL alignment on mixed-direction messages.

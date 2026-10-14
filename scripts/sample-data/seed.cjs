@@ -11,7 +11,8 @@
 // the hooks behind the Members, Meetings, Loans and Reserve pages, and the year-end distribution as the
 // Profit Distribution page works it out. Penalties, balances and the AGM figures are therefore exactly
 // what the app produces. It follows the money rules saved in the app on this computer (Settings:
-// interest rate, late penalty, absence charge, reserve share), read from a copy of the app's profile.
+// late penalty, absence charge, reserve share), read from a copy of the app's profile. Each loan's
+// interest rate and duration are in ./data.cjs, as the committee enters them when issuing it.
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -95,9 +96,9 @@ async function readAppSettings() {
 }
 
 // The opening-balances template, made by the app as Settings does, filled in as the committee would.
-// The registers' loans carry interest at the app's rate, like the loans issued in the app.
+// The registers' loans carry interest at the registers' rate (data.REGISTER_INTEREST_RATE).
 async function writeOpeningFile(settings) {
-  const rate = settings.applyLoanInterest ? Number(settings.loanInterestRate) || 0 : 0;
+  const rate = data.REGISTER_INTEREST_RATE;
   const interest = (amount) => Math.round(amount * rate) / 100;
   await writeTemplate(XLSX, { cutoverDate: data.CUTOVER, currency: settings.currency || 'PKR', absenceFine: settings.absencePenaltyPerMeeting });
   const wb = new ExcelJS.Workbook();
@@ -300,7 +301,7 @@ async function seedInApp(D) {
 
   try {
     const S0 = live.settings;
-    log(`Settings: interest ${S0.loanInterestRate}%, late penalty ${money(S0.latePenaltyPerMonth)}/month, absence charge ${money(S0.absencePenaltyPerMeeting)}, reserve share ${S0.reservePercent}%, bank charge above ${money(S0.bankChargeThreshold)}`);
+    log(`Settings: late penalty ${money(S0.latePenaltyPerMonth)}/month, absence charge ${money(S0.absencePenaltyPerMeeting)}, reserve share ${S0.reservePercent}%, bank charge above ${money(S0.bankChargeThreshold)}`);
 
     // ── Cut-over and opening balances (Settings -> Moving from the paper registers), the week
     // before the first meeting kept in the app
@@ -434,7 +435,7 @@ async function seedInApp(D) {
         await act(`Repayment on ${p.key} (${p.date})`, (L) => L.loans.recordPayment({ loan_id: id, amount, payment_date: p.date }));
       }
       for (const l of D.appLoans.filter((x) => x.date === mt.date)) {
-        const loan = await act(`Loan ${l.key}`, (L) => L.loans.issueLoan({ member_id: memberId[l.member], amount: l.amount, loan_date: l.date, bank_charge: l.bankCharge || 0 }));
+        const loan = await act(`Loan ${l.key}`, (L) => L.loans.issueLoan({ member_id: memberId[l.member], amount: l.amount, loan_date: l.date, interest_rate: l.rate, term_months: l.months, bank_charge: l.bankCharge || 0 }));
         loanId[l.key] = loan.id;
       }
       for (const l of D.appLoans.filter((x) => x.bankChargeLater?.on === mt.date)) {

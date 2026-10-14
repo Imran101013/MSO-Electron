@@ -29,7 +29,7 @@
  *   That interest is income on the issue date, and the loan is carried at the balance the member
  *   owes. Repayments (of any amount, at any time) only reduce that balance; they are never split
  *   between the amount lent, interest and penalties.
- * - Loans run for one year (utils/loanPenalty.ts) with no instalment plan: the whole balance is
+ * - Loans run for the duration agreed for each (utils/loanPenalty.ts), with no instalment plan: the whole balance is
  *   due by the due date. A loan still owing after that is overdue and aged from its due date.
  *   Each monthly late penalty is added to the balance owed and taken to income when it is charged.
  * - A loan's interest and penalties count as received when the loan is repaid in full
@@ -157,7 +157,7 @@ export interface LoanRecord {
   /** remaining_amount as stored on the loan row (includes penalties charged). */
   systemOutstanding: number;
   receipts: LoanReceipt[];
-  /** Date the loan must be repaid by: one year after disbursement. */
+  /** Date the loan must be repaid by: its duration (termMonths) after disbursement. */
   maturityDate: string;
   penaltyPerMonth: number;
   /** Late penalties charged, oldest first. */
@@ -488,7 +488,7 @@ export function buildBooks(input: AccountingInput): Books {
       defaultedOn: loan.defaultedOn ? String(loan.defaultedOn).slice(0, 10) : null,
       systemOutstanding,
       receipts,
-      maturityDate: loanDueDate(date),
+      maturityDate: loanDueDate(date, termMonths),
       penaltyPerMonth: r2(Number(loan.penaltyPerMonth) || 0),
       penalties,
       penaltyTotal,
@@ -761,7 +761,7 @@ export function buildBooks(input: AccountingInput): Books {
     const interestReceived = paidInFull ? loan.interest : 0;
     const penaltyReceived = paidInFull ? penaltiesCharged : 0;
 
-    // There is no instalment plan: nothing is overdue until the loan's one-year due date has passed.
+    // There is no instalment plan: nothing is overdue until the loan's due date has passed.
     const pastDue = asAt > loan.maturityDate && outstanding > EPS;
     const daysPastDue = pastDue ? differenceInCalendarDays(parseDay(asAt), parseDay(loan.maturityDate)) : 0;
     const arrears = pastDue ? outstanding : 0;

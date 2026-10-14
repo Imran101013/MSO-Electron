@@ -3,7 +3,6 @@ import { format } from "date-fns";
 import { dbQuery } from "@/lib/db";
 import { useToast } from "@/hooks/use-toast";
 import { useSettings } from "@/contexts/SettingsContext";
-import { ORGANIZATION_CONFIG } from "@/config/organization";
 import { loanDueDate, penaltiesDue, type PenaltyInput } from "@/utils/loanPenalty";
 import { cutoverBlock } from "@/lib/books";
 
@@ -55,6 +54,10 @@ export interface LoanFormData {
   member_id: string;
   amount: number;
   loan_date: string;
+  /** Flat interest (%) on the amount lent, charged once when the loan is issued; agreed for this loan. */
+  interest_rate: number;
+  /** Months the member has to repay it: the loan is due that long after the loan date. */
+  term_months: number;
   /** The bank's charge on the cheque withdrawal (loans above the limit in Settings); the member repays it with the loan. */
   bank_charge?: number;
 }
@@ -80,6 +83,7 @@ const todayKey = () => format(new Date(), "yyyy-MM-dd");
 interface PenaltySnapshot {
   id: string;
   loan_date: string;
+  term_months: number;
   total_payable: number;
   bank_charge: number;
   remaining_amount: number;
@@ -91,7 +95,7 @@ interface PenaltySnapshot {
   payments: { date: string; amount: number }[];
 }
 
-const SNAPSHOT_SQL = `SELECT l.id, l.loan_date, l.total_payable, l.bank_charge, l.remaining_amount, l.penalty_per_month, l.opening_as_at, l.status, l.defaulted_on,
+const SNAPSHOT_SQL = `SELECT l.id, l.loan_date, l.term_months, l.total_payable, l.bank_charge, l.remaining_amount, l.penalty_per_month, l.opening_as_at, l.status, l.defaulted_on,
   COALESCE((SELECT json_agg(json_build_object('month', p.penalty_month, 'amount', p.amount)) FROM public.loan_penalties p WHERE p.loan_id = l.id), '[]') AS penalties,
   COALESCE((SELECT json_agg(json_build_object('date', i.payment_date, 'amount', i.amount)) FROM public.loan_installments i WHERE i.loan_id = l.id), '[]') AS payments
   FROM public.loans l`;
@@ -104,6 +108,7 @@ function penaltyInput(s: PenaltySnapshot): PenaltyInput {
   const paidEver = owedBase + charged - Number(s.remaining_amount);
   return {
     loanDate: s.loan_date,
+    termMonths: s.term_months,
     totalPayable: owedBase,
     penaltyPerMonth: Number(s.penalty_per_month),
     paidUndated: Math.max(0, r2(paidEver - itemised)),
@@ -226,10 +231,15 @@ export function useLoans() {
     try {
       const block = await cutoverBlock(formData.loan_date, settings.dateFormat);
       if (block) { toast({ title: "Date is before the cut-over", description: block, variant: "destructive" }); return null; }
-      // Every loan runs for the full loan period: the whole amount owed is due by its due date, and
-      // it may be repaid in any amounts at any time before then. There is no instalment plan.
-      const termMonths = ORGANIZATION_CONFIG.LOAN_PERIOD_MONTHS;
-      const rate = settings.applyLoanInterest ? settings.loanInterestRate : 0;
+      // The interest rate and duration are agreed for each loan. The whole amount owed is due by the
+      // end of the duration, and may be repaid in any amounts at any time before then. There is no
+      // instalment plan.
+      const rate = Number(formData.interest_rate);
+      const termMonths = Number(formData.term_months);
+      if (!Number.isFinite(rate) || rate < 0 || rate > 100 || !Number.isInteger(termMonths) || termMonths < 1) {
+        toast({ title: "Loan not issued", description: "Enter an interest rate from 0 to 100% and a duration of at least 1 month.", variant: "destructive" });
+        return null;
+      }
       const totalPayable = Math.round(formData.amount * (1 + rate / 100) * 100) / 100;
       const penaltyPerMonth = Math.max(0, Number(settings.latePenaltyPerMonth) || 0);
       // The bank's charge on the withdrawal is repaid with the loan, so it is in the balance owed;
@@ -352,10 +362,10 @@ export function useLoans() {
 
   const getActiveLoans = () => loans.filter(l => l.status === 'active');
 
-  // A loan is overdue only once its one-year period has ended with money still owed; before then
-  // it may be repaid in any amounts, at any time.
+  // A loan is overdue only once its duration has ended with money still owed; before then it may be
+  // repaid in any amounts, at any time.
   const isOverdue = (loan: DbLoan) =>
-    loan.status === 'active' && Number(loan.remaining_amount) > 0.005 && loanDueDate(loan.loan_date) < todayKey();
+    loan.status === 'active' && Number(loan.remaining_amount) > 0.005 && loanDueDate(loan.loan_date, loan.term_months) < todayKey();
 
   const getOverdueStats = () => {
     const overdue = loans.filter(isOverdue);

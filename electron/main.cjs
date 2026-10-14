@@ -130,6 +130,7 @@ ipcMain.handle('db-restore', async () => {
         await client.query(insertSql, columns.map((c) => row[c]));
       }
     }
+    await settleOldLoanTerms(client);
     await client.query('COMMIT');
     return { success: true };
   } catch (err) {
@@ -255,6 +256,19 @@ ipcMain.handle('show-shared-file', async (_, { file }) => {
   return {};
 });
 
+// Each loan has its own duration (term_months), entered when it is issued. Before that, every loan
+// ran for one year whatever term_months held (the column began with a default of 1 and was not
+// read). The first time a database is opened by this version, and when a backup made before it is
+// restored, those loans are set to 12 months. The app_config marker records that this is done, so
+// loans issued afterwards for other durations are left alone.
+const LOAN_TERMS_SETTLED = 'loan_terms_settled';
+async function settleOldLoanTerms(client) {
+  const { rowCount } = await client.query('SELECT 1 FROM public.app_config WHERE key = $1', [LOAN_TERMS_SETTLED]);
+  if (rowCount) return;
+  await client.query('UPDATE public.loans SET term_months = 12 WHERE term_months <> 12');
+  await client.query('INSERT INTO public.app_config (key, value) VALUES ($1, $2) ON CONFLICT (key) DO NOTHING', [LOAN_TERMS_SETTLED, 'true']);
+}
+
 // Idempotently create/alter tables this app owns on its local Postgres instance.
 // There is no separate migration runner wired to this database, so schema changes
 // for newer app versions are applied here on every startup.
@@ -263,6 +277,7 @@ async function ensureSchema() {
   try {
     await client.query(`
       ALTER TABLE public.loans ADD COLUMN IF NOT EXISTS term_months INTEGER NOT NULL DEFAULT 1;
+      ALTER TABLE public.loans ALTER COLUMN term_months SET DEFAULT 12;
       ALTER TABLE public.loans ADD COLUMN IF NOT EXISTS interest_rate DECIMAL(5,2) NOT NULL DEFAULT 0;
       ALTER TABLE public.loans ADD COLUMN IF NOT EXISTS total_payable DECIMAL(12,2);
       UPDATE public.loans SET total_payable = amount WHERE total_payable IS NULL;
@@ -273,7 +288,7 @@ async function ensureSchema() {
       -- sent, and the absence charge and attendance figures don't count it). present stays false.
       ALTER TABLE public.attendance ADD COLUMN IF NOT EXISTS on_leave BOOLEAN NOT NULL DEFAULT false;
 
-      -- Late penalties charged after a loan's one-year period ends; remaining_amount includes them.
+      -- Late penalties charged after a loan's due date; remaining_amount includes them.
       CREATE TABLE IF NOT EXISTS public.loan_penalties (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         loan_id UUID REFERENCES public.loans(id) ON DELETE CASCADE NOT NULL,
@@ -384,6 +399,17 @@ async function ensureSchema() {
         new_data JSONB
       );
     `);
+
+    // With triggers off (as a restore runs), so setting old loans' duration is not an Audit Log action.
+    await client.query('BEGIN');
+    try {
+      await client.query('SET LOCAL session_replication_role = replica');
+      await settleOldLoanTerms(client);
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    }
 
     await client.query(`
       CREATE OR REPLACE FUNCTION public.audit_trigger_fn()
