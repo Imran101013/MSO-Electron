@@ -11,7 +11,7 @@ import * as z from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { toast } from "sonner";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { format } from "date-fns";
+import { format, subDays } from "date-fns";
 import { useSettings } from "@/contexts/SettingsContext";
 import { useAuth } from "@/contexts/AuthContext";
 import ViewReportButton from "@/components/ViewReportButton";
@@ -34,7 +34,9 @@ import { addBankProfit, bankProfitProblem } from "@/hooks/useBankProfits";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const meetingSchema = z.object({ date: z.date(), venue: z.string().trim().min(1, "Venue is required"), agenda: z.string().min(1, "Agenda is required"), decisions: z.string().optional() });
-const upcomingMeetingSchema = z.object({ date: z.date(), time: z.string().min(1, "Time is required"), venue: z.string().min(1, "Venue is required") });
+// A scheduled meeting is an upcoming one: today or later (the Dashboard and the list here hide past dates).
+const todayKey = () => format(new Date(), "yyyy-MM-dd");
+const upcomingMeetingSchema = z.object({ date: z.date().refine((d) => format(d, "yyyy-MM-dd") >= todayKey(), "Choose today or a later date"), time: z.string().min(1, "Time is required"), venue: z.string().min(1, "Venue is required") });
 type MeetingFormValues = z.infer<typeof meetingSchema>;
 type UpcomingMeetingFormValues = z.infer<typeof upcomingMeetingSchema>;
 interface MemberContribution { memberId: string; memberName: string; amount: number; status: AttendanceStatus; }
@@ -316,6 +318,7 @@ export default function Meetings() {
                                 date={field.value}
                                 onDateChange={field.onChange}
                                 placeholder="Select date"
+                                disabledThrough={format(subDays(new Date(), 1), "yyyy-MM-dd")}
                               />
                             </FormControl>
                             <FormMessage className="text-xs" />
