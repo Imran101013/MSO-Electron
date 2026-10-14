@@ -35,6 +35,8 @@ export interface FigureRow {
   amount: number | string;
   /** "+", "-" or "=" in a column of its own before the label, for workings. */
   sign?: "+" | "-" | "=";
+  /** A short tag after the label (e.g. "(L)"), kept when a long label is shortened. */
+  tag?: string;
 }
 
 const hasPaise = (n: number) => Math.abs(n - Math.round(n)) > 0.005;
@@ -52,11 +54,15 @@ export function figureBlock(rows: Array<FigureRow | "rule">): string {
   const signs = figures.some((r) => r.sign);
   const amountWidth = Math.max(0, ...figures.map((r) => text(r.amount).length));
   const labelWidth = Math.max(1, BLOCK_WIDTH - (signs ? 2 : 0) - amountWidth - 2);
-  const fit = (s: string) => (s.length > labelWidth ? `${s.slice(0, labelWidth - 1)}…` : s.padEnd(labelWidth));
+  const fit = (label: string, tag?: string) => {
+    const end = tag ? ` ${tag}` : "";
+    const room = Math.max(1, labelWidth - end.length);
+    return `${label.length > room ? `${label.slice(0, room - 1)}…` : label}${end}`.padEnd(labelWidth);
+  };
   const lines = rows.map((r) =>
     r === "rule"
       ? "-".repeat(BLOCK_WIDTH)
-      : `${signs ? `${r.sign ?? " "} ` : ""}${fit(r.label)}  ${text(r.amount).padStart(amountWidth)}`,
+      : `${signs ? `${r.sign ?? " "} ` : ""}${fit(r.label, r.tag)}  ${text(r.amount).padStart(amountWidth)}`,
   );
   return "```" + lines.join("\n") + "```";
 }

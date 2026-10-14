@@ -227,9 +227,9 @@ const reserve = [
 
 /** Corrections made after the fact, so the Audit Log has updates and deletions, not only additions. */
 const corrections = {
-  // Zafar Iqbal sent his contribution and asked for leave on 14/06/2026, but was marked absent when
-  // the meeting was entered; it is put right afterwards (Meeting details -> Edit).
-  attendance: { meeting: '2026-06-14', member: 'zafar', recordedAs: 'absent' },
+  // Zafar Iqbal asked the committee for leave and sent his contribution on 14/06/2026, but was
+  // marked present when the meeting was entered; it is put right afterwards (Meeting details -> Edit).
+  attendance: { meeting: '2026-06-14', member: 'zafar', recordedAs: 'present' },
   // The July 2026 bank profit typed in again at the August meeting by mistake, then removed.
   duplicateBankProfit: { meeting: '2026-08-09', amount: 71200, creditedOn: '2026-06-30', profitYear: 2026 },
 };

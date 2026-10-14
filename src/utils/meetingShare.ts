@@ -18,7 +18,7 @@ export interface MeetingRecord {
   attendance: { memberId: string; name: string; present: boolean; onLeave: boolean }[];
   presentCount: number;
   absent: string[];
-  /** Not at the meeting but excused (their contribution was sent); not counted as absent. */
+  /** Not at the meeting but excused (asked the committee beforehand); not counted as absent. */
   onLeave: string[];
   /** Every member who had joined by the meeting, with 0 for those who paid nothing. */
   savings: AmountRow[];
@@ -142,9 +142,13 @@ export function formatMeetingMessage(record: MeetingRecord, settings: ShareSetti
   const longDate = (key: string) => `${format(parseLocalDate(key.slice(0, 10)), "EEEE")}, ${date(key)}`;
   const numbered = (names: string[]) => names.map((n, i) => `${i + 1}. ${n}`).join("\n");
   // Members' figures with a total; a member who paid nothing shows why, if their attendance says.
-  const table = (rows: AmountRow[], nothing?: (memberId: string) => string) =>
+  const table = (rows: AmountRow[], nothing?: (memberId: string) => string, tag?: (r: AmountRow) => string | undefined) =>
     figureBlock([
-      ...rows.map((r) => ({ label: r.name, amount: Number(r.amount) > 0 || !nothing ? Number(r.amount) : nothing(r.memberId) })),
+      ...rows.map((r) => ({
+        label: r.name,
+        amount: Number(r.amount) > 0 || !nothing ? Number(r.amount) : nothing(r.memberId),
+        tag: tag?.(r),
+      })),
       "rule",
       { label: "Total", amount: sum(rows) },
     ]);
@@ -152,6 +156,9 @@ export function formatMeetingMessage(record: MeetingRecord, settings: ShareSetti
     const a = attendance.find((x) => x.memberId === memberId);
     return a?.onLeave ? "on leave" : a && !a.present ? "absent" : "–";
   };
+  // On leave but sent their savings: marked, so they can see it arrived and why there's no absence charge.
+  const sentOnLeave = (r: AmountRow) =>
+    Number(r.amount) > 0 && attendance.find((x) => x.memberId === r.memberId)?.onLeave ? "(L)" : undefined;
 
   const out: string[] = [...letterhead(settings, "Monthly Meeting Record"), `📅 ${longDate(meeting.meeting_date)}`];
   if (record.venue) out.push(`📍 ${record.venue}`);
@@ -168,7 +175,7 @@ export function formatMeetingMessage(record: MeetingRecord, settings: ShareSetti
     // if (!absent.length && !onLeave.length) out.push("All members were present.");
   }
 
-  out.push("", heading("Savings"), savings.length ? table(savings, paidNothing) : "No members recorded.");
+  out.push("", heading("Savings"), savings.length ? table(savings, paidNothing, sentOnLeave) : "No members recorded.");
   out.push("", heading("Loans collected"), collected.length ? table(collected) : "No loan repayments were received.");
   if (newLoans.length) out.push("", heading("New loans issued"), table(newLoans));
 

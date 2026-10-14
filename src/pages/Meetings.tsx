@@ -81,6 +81,11 @@ export default function Meetings() {
   const editPaged = usePaged(attendanceEdit ?? NO_EDIT_ROWS, attendanceEdit ? viewMeetingId : null);
   const reservePaged = usePaged(viewRecord?.reserve ?? NO_RESERVE, viewRecord?.meeting.id ?? null);
   const bankProfitsPaged = usePaged(viewRecord?.bankProfits ?? NO_BANK_PROFITS, viewRecord?.meeting.id ?? null);
+  // A member who paid savings at the open meeting can't be changed to absent: no contribution is
+  // accepted from an absent member. (One already marked absent, from before this rule, is left be.)
+  const paidAtViewed = new Set((viewRecord?.savings ?? []).filter((s) => Number(s.amount) > 0).map((s) => s.memberId));
+  const absentAtViewed = new Set((viewRecord?.attendance ?? []).filter((a) => !a.present && !a.onLeave).map((a) => a.memberId));
+  const paidSoNotAbsent = (memberId: string) => paidAtViewed.has(memberId) && !absentAtViewed.has(memberId);
 
   const form = useForm<MeetingFormValues>({ resolver: zodResolver(meetingSchema), defaultValues: { date: undefined, venue: "", agenda: "", decisions: "" } });
   const scheduleForm = useForm<UpcomingMeetingFormValues>({ resolver: zodResolver(upcomingMeetingSchema), defaultValues: { date: undefined, time: "", venue: "" } });
@@ -133,8 +138,10 @@ export default function Meetings() {
     if (scheduled) fillVenue(scheduled.venue, scheduledNote(scheduled.meeting_date));
   };
 
+  // No contribution is accepted from a member marked absent: only one who asked the committee
+  // beforehand (on leave) may send it. Marking someone absent clears their amount.
   const updateContribution = (memberId: string, field: 'amount' | 'status', value: number | AttendanceStatus) =>
-    setMemberContributions(prev => prev.map(mc => mc.memberId === memberId ? { ...mc, [field]: value } : mc));
+    setMemberContributions(prev => prev.map(mc => mc.memberId !== memberId ? mc : value === "absent" ? { ...mc, status: "absent", amount: 0 } : { ...mc, [field]: value }));
 
   const onSubmit = async (data: MeetingFormValues) => {
     const dateString = format(data.date, "yyyy-MM-dd");
@@ -147,14 +154,15 @@ export default function Meetings() {
       if (problem) { toast.error("Bank profit not recorded", { description: problem }); return; }
     }
     setIsSubmitting(true);
+    const accepted = memberContributions.map(mc => ({ memberId: mc.memberId, amount: mc.status === "absent" ? 0 : mc.amount }));
     const newMeeting = await addMeeting({ meeting_date: dateString, venue: data.venue, agenda: data.agenda, decisions: data.decisions });
     if (newMeeting) {
       await bulkRecordAttendance(newMeeting.id, memberContributions.map(mc => ({ memberId: mc.memberId, status: mc.status })));
-      await bulkAddContributions(newMeeting.id, memberContributions.map(mc => ({ memberId: mc.memberId, amount: mc.amount })), dateString);
+      await bulkAddContributions(newMeeting.id, accepted, dateString);
       if (bankValue > 0 && !(await addBankProfit(newMeeting.id, bankInput).catch(() => false))) {
         toast.error("Bank profit not recorded", { description: `The ${bankInput.profitYear} profit has already been distributed.` });
       }
-      toast.success(`Meeting added! Total: ${settings.currency} ${memberContributions.reduce((s, c) => s + c.amount, 0).toLocaleString()}`);
+      toast.success(`Meeting added! Total: ${settings.currency} ${accepted.reduce((s, c) => s + c.amount, 0).toLocaleString()}`);
       emitMeetingSaved();
     }
     setIsSubmitting(false); setIsAddOpen(false); form.reset(); setMemberContributions([]);
@@ -195,6 +203,11 @@ export default function Meetings() {
 
   const saveAttendanceEdit = async (meeting: DbMeeting) => {
     if (!attendanceEdit) return;
+    const paidButAbsent = attendanceEdit.filter((r) => r.status === "absent" && paidSoNotAbsent(r.memberId)).map((r) => r.name);
+    if (paidButAbsent.length) {
+      toast.error("Attendance not saved", { description: `${paidButAbsent.join(", ")} paid savings at this meeting, so can't be marked absent. Mark them On leave if they asked the committee beforehand.` });
+      return;
+    }
     setIsSavingAttendance(true);
     try {
       const rows = attendanceEdit.flatMap((r) => (r.status ? [{ memberId: r.memberId, status: r.status }] : []));
@@ -591,7 +604,7 @@ export default function Meetings() {
                             )}
                             onMarkAll={(s) =>
                               setMemberContributions((prev) =>
-                                prev.map((mc) => ({ ...mc, status: s })),
+                                prev.map((mc) => ({ ...mc, status: s, amount: s === "absent" ? 0 : mc.amount })),
                               )
                             }
                           />
@@ -608,8 +621,10 @@ export default function Meetings() {
                           </span>
                         </div>
                         <p className="px-3 text-xs text-muted-foreground">
-                          On leave: not at the meeting but excused (e.g. sent
-                          their contribution). No absence charge.
+                          On leave: asked the committee beforehand, so their
+                          contribution is accepted and there is no absence
+                          charge. No contribution is accepted from a member
+                          marked No (absent).
                         </p>
                         <div className="space-y-1.5">
                           {addPaged.rows.map((mc) => (
@@ -642,7 +657,9 @@ export default function Meetings() {
                               <div className="col-span-4">
                                 <Input
                                   type="number"
-                                  placeholder="0"
+                                  placeholder={mc.status === "absent" ? "Not accepted" : "0"}
+                                  disabled={mc.status === "absent"}
+                                  title={mc.status === "absent" ? "Absent without asking the committee: no contribution is accepted." : undefined}
                                   value={mc.amount || ""}
                                   className="h-8 text-sm"
                                   onChange={(e) =>
@@ -909,7 +926,10 @@ export default function Meetings() {
                                             prev &&
                                             prev.map((r) => ({
                                               ...r,
-                                              status: s,
+                                              status:
+                                                s === "absent" && paidSoNotAbsent(r.memberId)
+                                                  ? r.status
+                                                  : s,
                                             })),
                                         )
                                       }
@@ -926,6 +946,7 @@ export default function Meetings() {
                                           <AttendanceToggle
                                             value={r.status}
                                             memberName={r.name}
+                                            paid={paidSoNotAbsent(r.memberId)}
                                             onChange={(s) =>
                                               setAttendanceEdit(
                                                 (prev) =>
@@ -953,6 +974,8 @@ export default function Meetings() {
                                       )}{" "}
                                       absence charges follow these marks; on
                                       leave is excused.
+                                      {attendanceEdit.some((r) => paidSoNotAbsent(r.memberId)) &&
+                                        " Members who paid savings at this meeting can't be marked No."}
                                       {attendanceEdit.some((r) => !r.status) &&
                                         " Members left unmarked stay unrecorded for this meeting."}
                                     </p>
@@ -1293,8 +1316,11 @@ function AttendanceTally({ statuses, onMarkAll }: { statuses: (AttendanceStatus 
   );
 }
 
-/** Yes / No / On leave for one member; null shows none selected (not marked). */
-function AttendanceToggle({ value, onChange, memberName }: { value: AttendanceStatus | null; onChange: (v: AttendanceStatus) => void; memberName: string }) {
+/**
+ * Yes / No / On leave for one member; null shows none selected (not marked). `paid`: they paid
+ * savings at this meeting, so No is unavailable (no contribution is accepted from an absent member).
+ */
+function AttendanceToggle({ value, onChange, memberName, paid = false }: { value: AttendanceStatus | null; onChange: (v: AttendanceStatus) => void; memberName: string; paid?: boolean }) {
   const options: Array<{ value: AttendanceStatus; label: string; on: string }> = [
     { value: "present", label: "Yes", on: "data-[state=on]:bg-secondary data-[state=on]:text-secondary-foreground" },
     { value: "absent", label: "No", on: "data-[state=on]:bg-destructive data-[state=on]:text-destructive-foreground" },
@@ -1312,6 +1338,8 @@ function AttendanceToggle({ value, onChange, memberName }: { value: AttendanceSt
         <ToggleGroupItem
           key={o.value}
           value={o.value}
+          disabled={paid && o.value === "absent"}
+          title={paid && o.value === "absent" ? "Paid savings at this meeting, so can't be marked absent" : undefined}
           className={cn("h-7 rounded-[3px] px-2.5 text-xs text-muted-foreground hover:bg-transparent hover:text-foreground data-[state=on]:font-semibold data-[state=on]:shadow-sm", o.on)}
         >
           {o.label}

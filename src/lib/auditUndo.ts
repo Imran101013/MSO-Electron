@@ -206,6 +206,13 @@ async function contributionRestore(c: Row, f: UndoFormat): Promise<Prepared> {
   const blocked = (await settledProblem(c.contribution_date, f)) ?? (await cutoverBlock(key(c.contribution_date), f.dateFormat));
   if (blocked) return { reason: blocked };
   const name = await memberName(c.member_id);
+  // No contribution is accepted from a member marked absent (only on leave, asked beforehand).
+  const [absent] = c.meeting_id
+    ? await dbQuery("SELECT 1 FROM public.attendance WHERE meeting_id = $1 AND member_id = $2 AND NOT present AND NOT on_leave", [c.meeting_id, c.member_id])
+    : [];
+  if (absent) {
+    return { reason: `${name} is marked Absent at that meeting, and no contribution is accepted from an absent member. If they asked the committee beforehand, mark them On leave there first (Meetings → meeting details → Edit).` };
+  }
   return {
     title: "Put this contribution back?",
     body: `Puts back the contribution of ${f.money(num(c.amount))} from ${name} dated ${f.day(key(c.contribution_date))}, and adds it to the member's savings.`,
@@ -587,6 +594,15 @@ async function attendanceRevert(id: string | null, before: Row, after: Row, f: U
     return { reason: `The ${locked} profit has been distributed with the absences counted, so attendance at ${locked} meetings can't change. Undo the ${locked} distribution first.` };
   }
   const name = await memberName(cur.member_id);
+  if (back === "absent") {
+    const [paid] = await dbQuery<{ amount: number }>(
+      "SELECT COALESCE(SUM(amount), 0) AS amount FROM public.monthly_contributions WHERE meeting_id = $1 AND member_id = $2 AND amount > 0",
+      [cur.meeting_id, cur.member_id],
+    );
+    if (num(paid?.amount) > 0) {
+      return { reason: `${name} paid ${f.money(num(paid.amount))} in savings at this meeting, and no contribution is accepted from an absent member, so they can't be marked Absent again.` };
+    }
+  }
   return {
     title: "Undo this attendance change?",
     body: `Changes the attendance of ${name} at the meeting on ${f.day(cur.meeting_date)} back from ${ATTENDANCE_LABEL[now]} to ${ATTENDANCE_LABEL[back]}.`,

@@ -1952,7 +1952,7 @@ function meetingsRegister(r: Report, books: Books, p: ReportPeriod) {
       empty: "No attendance was recorded in the selected period.",
     });
   }
-  r.note("P present, A absent, L on leave. A member on leave is excused: there is no absence charge and those meetings are left out of their attendance. \"–\" means a member was not marked at that meeting; a blank cell means they had not yet joined. n/r = attendance not recorded; such meetings are left out of the attendance grid. Collections are contributions linked to the meeting at which they were received.");
+  r.note("P present, A absent, L on leave. A member on leave asked the committee beforehand and is excused: there is no absence charge and those meetings are left out of their attendance. \"–\" means a member was not marked at that meeting; a blank cell means they had not yet joined. n/r = attendance not recorded; such meetings are left out of the attendance grid. Collections are contributions linked to the meeting at which they were received.");
 }
 
 type Mark = "P" | "A" | "L";
