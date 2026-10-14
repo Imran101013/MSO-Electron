@@ -22,9 +22,9 @@ export interface MeetingRecord {
   onLeave: string[];
   /** Every member who had joined by the meeting, with 0 for those who paid nothing. */
   savings: AmountRow[];
-  /** Loan repayments since the previous meeting, up to and including this one. */
+  /** Loan repayments since the previous meeting (or the cut-over), up to and including this one. */
   collected: AmountRow[];
-  /** Loans issued since the previous meeting, up to and including this one. */
+  /** Loans issued since the previous meeting (or the cut-over), up to and including this one. */
   newLoans: AmountRow[];
   reserve: ReserveEntry[];
   /** The bank's profit recorded with this meeting (hooks/useBankProfits.ts). */
@@ -53,9 +53,14 @@ export async function getMeetingRecord(meeting: DbMeeting): Promise<MeetingRecor
   const byMember = "ORDER BY m.join_date, m.name";
 
   // Loans and reserve entries aren't linked to a meeting, so a meeting covers everything
-  // dated after the previous meeting, up to and including its own date.
+  // dated after the previous meeting, up to and including its own date. The first meeting
+  // starts the day after the cut-over: what came from the paper registers (opening loans,
+  // still dated when they were issued, and the reserve brought forward) isn't its business.
   const prevRows = await dbQuery<{ prev: string | null }>(
-    "SELECT MAX(meeting_date)::text AS prev FROM public.meetings WHERE meeting_date < $1::date",
+    `SELECT GREATEST(
+       (SELECT MAX(meeting_date) FROM public.meetings WHERE meeting_date < $1::date),
+       (SELECT LEFT(value, 10)::date FROM public.app_config WHERE key = 'cutover_date')
+     )::text AS prev`,
     [day],
   );
   const prev = prevRows[0]?.prev ?? null;
