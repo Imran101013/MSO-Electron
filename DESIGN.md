@@ -82,7 +82,7 @@ Corners are only lightly rounded (a precise, rectangular register character, not
 - Every number renders in tabular monospace so columns line up like a printed register
 - Status is a bordered "ink stamp" badge, never a soft filled pill
 - A sunrise (`accent`) top-rule or bottom-rule marks the start of a section, page header, or emphasized card
-- Numbered navigation ("01, 02, 03…") evokes counter-window numbering
+- Navigation icons sit in square stamps, the page you are on stamped in the sun
 
 ## Colors
 
@@ -178,10 +178,11 @@ Corners use a single restrained radius scale (`0.625rem`/`0.469rem`/`0.3125rem`,
 - **Numeric columns:** always `.figure` (tabular mono), typically right-context but not forced right-aligned everywhere existing layouts didn't already do so.
 
 ### Navigation (sidebar)
-- **Style:** fixed deep seal-navy "counter," always dark regardless of app theme.
-- **Item:** icon + label, prefixed with a two-digit tabular-mono counter number (`01`, `02`, …) evoking numbered teller windows.
-- **Active state:** sun left-border (`border-l-2 border-sidebar-primary`) plus a subtle sun-tinted background, sun icon/number color.
-- **Default state:** muted foreground at 65% opacity, brightening on hover.
+- **Style:** fixed deep seal-navy "counter," always dark regardless of app theme, with the seal's sun rising faintly from its foot (`--gradient-counter`, the Login panel's sunrise kept low; a background on `[data-sidebar="sidebar"]`, so it stays put while the links scroll).
+- **Letterhead:** the seal (64px) centred, ringed by a hairline sun ring 3px out; "MSO" under it (22px bold, the wordmark's own size); "MOGH STUDENTS ORGANISATION" under that (tracked mono, 9.5px, foreground at 60%). A hairline "horizon" closes it, with a short sun bar at its centre.
+- **Item:** 40px row, the icon (15px) in a 28px square `rounded-sm` stamp (hairline `sidebar-border`, faint navy fill), then the label at 14px medium, foreground at 70%. Items keep their order; there are no section headings and no numbers.
+- **Hover:** the row lifts to `sidebar-accent` at 50%, the label brightens, the stamp's border brightens.
+- **Active state:** the row is lifted navy (`sidebar-accent`) edged with a sun hairline (inset, 28%), the label semibold; the stamp is filled in the sun with a navy icon; a 3px sun tab sits flush with the sidebar's left edge. Never a sun wash on the row: sun over navy mixes to grey.
 
 ### Statement Header (signature component)
 The top app bar and every page's own header both carry the "letterhead" pattern: a small navy tracked-mono eyebrow line, the heading below it, and a sunrise rule closing the block. This recurs identically across all 13+ pages and is the single most repeated signature move in the system — it is what makes every page feel like a page from the same printed ledger.

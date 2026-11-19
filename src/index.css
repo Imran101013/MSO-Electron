@@ -77,6 +77,8 @@
     --sidebar-accent-foreground: 214 35% 95%;
     --sidebar-border: 218 40% 24%;
     --sidebar-ring: 36 85% 57%;
+    /* The sun rising from the foot of the counter: the Login panel's sunrise, kept faint. */
+    --gradient-counter: radial-gradient(75% 50% at 50% 100%, hsl(40 95% 64% / 0.34), hsl(33 90% 52% / 0.12) 48%, transparent 80%);
   }
 
   .dark {
@@ -131,6 +133,7 @@
     --sidebar-accent-foreground: 214 32% 94%;
     --sidebar-border: 219 40% 17%;
     --sidebar-ring: 36 86% 58%;
+    --gradient-counter: radial-gradient(75% 50% at 50% 100%, hsl(40 95% 62% / 0.28), hsl(33 90% 50% / 0.10) 48%, transparent 80%);
   }
 }
 
@@ -170,6 +173,22 @@
   }
   ::-webkit-scrollbar-thumb:hover {
     background-color: hsl(var(--muted-foreground) / 0.55);
+  }
+
+  /* The sidebar (the counter, components/Layout.tsx): the seal's sun rising from its foot. A
+     background on the panel itself, so it stays put while the links scroll over it. */
+  [data-sidebar="sidebar"] {
+    background-image: var(--gradient-counter);
+    background-repeat: no-repeat;
+    background-position: bottom;
+    background-size: 100% 20rem;
+  }
+  /* In a short window the links scroll: a navy thumb on the counter, not the page's steel one. */
+  [data-sidebar="content"]::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--sidebar-border));
+  }
+  [data-sidebar="content"]::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--sidebar-foreground) / 0.3);
   }
 
   body {
@@ -220,12 +239,6 @@
   }
   .card-hover {
     @apply transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5;
-  }
-  .sidebar-nav-active {
-    @apply bg-sidebar-primary/15 text-sidebar-primary border-l-2 border-sidebar-primary;
-  }
-  .sidebar-nav-item {
-    @apply text-sidebar-foreground/65 hover:text-sidebar-foreground hover:bg-sidebar-accent/70 transition-all duration-150 border-l-2 border-transparent;
   }
   /* Reports: one report per row, laid out by its section card's width (a container query), so it
      holds whatever the window size. Narrow: stacked. Medium: name and description on the left,
