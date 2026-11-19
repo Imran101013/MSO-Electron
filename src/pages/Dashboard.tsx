@@ -18,6 +18,7 @@ import {
   Calendar,
   AlertTriangle,
   ArrowRight,
+  MapPin,
 } from "lucide-react";
 import { useSettings } from "@/contexts/SettingsContext";
 import { format, differenceInCalendarDays } from "date-fns";
@@ -44,7 +45,6 @@ import { getMeetingRecord, type MeetingRecord } from "@/utils/meetingShare";
 import { Link } from "react-router-dom";
 
 const LOAN_ROWS = 5;
-const MEETING_ROWS = 3;
 
 const compact = new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 });
 const localDate = (date: string) => parseLocalDate(String(date).slice(0, 10));
@@ -110,6 +110,8 @@ export default function Dashboard() {
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [meetings, upcomingMeetings, lastMeeting]);
+  // The Dashboard shows only the next one; the Meetings page lists them all.
+  const nextMeeting = allUpcomingMeetings[0] ?? null;
 
   // What happened at the last meeting: the same record the Meetings page shows and shares on
   // WhatsApp, so the figures always agree. record is null when it couldn't be loaded.
@@ -124,8 +126,6 @@ export default function Dashboard() {
   }, [lastMeeting]);
   const lastLoaded = lastMeeting !== null && lastRecord?.id === lastMeeting.id;
   const last = lastLoaded ? lastRecord.record : null;
-  // Members (of those who had joined by the meeting) with savings recorded at it.
-  const savedCount = last ? last.savings.filter(s => Number(s.amount) > 0).length : 0;
 
   // Calculate total members
   const totalMembers = useMemo(() => {
@@ -149,10 +149,18 @@ export default function Dashboard() {
 
   const loanStats = useMemo(() => getLoanStats(), [getLoanStats, loans]);
 
-  // Active loans for the register: overdue ones first, then by the date they fall due.
+  // Active loans for the register: overdue ones first, then by the date they fall due. What the
+  // member owes is the amount lent plus the interest fixed at issue plus the bank's charge on the
+  // withdrawal, as on the Loans page; Outstanding is what is left of that after repayments.
   const activeLoanRows = loans
     .filter(loan => loan.status === "active")
-    .map(loan => ({ ...loan, due: loanDueDate(loan.loan_date, loan.term_months), overdue: isOverdue(loan) }))
+    .map(loan => ({
+      ...loan,
+      due: loanDueDate(loan.loan_date, loan.term_months),
+      overdue: isOverdue(loan),
+      interest: Math.round((Number(loan.total_payable) - Number(loan.amount)) * 100) / 100,
+      bankCharge: Number(loan.bank_charge) || 0,
+    }))
     .sort((a, b) => (a.overdue === b.overdue ? a.due.localeCompare(b.due) : a.overdue ? -1 : 1));
 
   // Aggregate budget contributions by month-year
@@ -328,8 +336,20 @@ export default function Dashboard() {
                         <p className="font-medium text-foreground truncate">
                           {loan.member_name || "Unknown member"}
                         </p>
-                        <p className="figure text-xs text-muted-foreground">
-                          {amount(loan.amount)}
+                        {/* Lent + interest + bank charge; it wraps between the parts, never inside one. */}
+                        <p className="figure flex flex-wrap gap-x-1.5 text-xs text-muted-foreground">
+                          <span className="whitespace-nowrap">{amount(loan.amount)}</span>
+                          {loan.interest > 0.005 && (
+                            <span className="whitespace-nowrap">+ {amount(loan.interest)} interest</span>
+                          )}
+                          {loan.bankCharge > 0.005 && (
+                            <span
+                              className="whitespace-nowrap"
+                              title="The bank's charge on the cheque withdrawal, repaid with the loan"
+                            >
+                              + {amount(loan.bankCharge)} bank charge
+                            </span>
+                          )}
                         </p>
                       </TableCell>
                       <TableCell className="figure px-3 py-2 text-muted-foreground">
@@ -415,57 +435,52 @@ export default function Dashboard() {
           <CardContent className="p-0">
             {!meetingsLoading && (
               <p className="px-5 pt-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Upcoming
+                Upcoming meeting
               </p>
             )}
             {meetingsLoading ? (
               <p className="px-5 py-6 text-sm text-muted-foreground">
                 Loading meetings…
               </p>
-            ) : allUpcomingMeetings.length > 0 ? (
-              <ul className="divide-y divide-border">
-                {allUpcomingMeetings.slice(0, MEETING_ROWS).map((meeting) => {
-                  const d = localDate(meeting.date);
-                  const when = whenLabel(meeting.date);
-                  return (
-                    <li
-                      key={meeting.id}
-                      className="flex items-center gap-3 px-5 py-2.5"
-                    >
-                      <div className="w-10 h-10 rounded-sm border-2 border-primary/30 bg-primary/5 flex flex-col items-center justify-center flex-shrink-0">
-                        <span className="figure text-sm font-semibold leading-none text-foreground">
-                          {format(d, "dd")}
+            ) : nextMeeting ? (
+              (() => {
+                const d = localDate(nextMeeting.date);
+                const when = whenLabel(nextMeeting.date);
+                return (
+                  <div className="flex items-center gap-3 px-5 py-2.5">
+                    <div className="w-10 h-10 rounded-sm border-2 border-primary/30 bg-primary/5 flex flex-col items-center justify-center flex-shrink-0">
+                      <span className="figure text-sm font-semibold leading-none text-foreground">
+                        {format(d, "dd")}
+                      </span>
+                      <span className="tracked-label mt-0.5 text-[9px] font-semibold uppercase leading-none text-primary">
+                        {format(d, "MMM")}
+                      </span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-sm text-foreground truncate">
+                        {nextMeeting.venue || "TBD"}
+                      </p>
+                      <p className="figure flex flex-wrap gap-x-2 text-xs text-muted-foreground mt-0.5">
+                        <span className="whitespace-nowrap">
+                          {format(d, "EEE")} {format(d, settings.dateFormat)}
                         </span>
-                        <span className="tracked-label mt-0.5 text-[9px] font-semibold uppercase leading-none text-primary">
-                          {format(d, "MMM")}
-                        </span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-sm text-foreground truncate">
-                          {meeting.venue || "TBD"}
-                        </p>
-                        <p className="figure flex flex-wrap gap-x-2 text-xs text-muted-foreground mt-0.5">
+                        {nextMeeting.time && (
                           <span className="whitespace-nowrap">
-                            {format(d, "EEE")} {format(d, settings.dateFormat)}
+                            {formatTime(nextMeeting.time, settings.timeFormat)}
                           </span>
-                          {meeting.time && (
-                            <span className="whitespace-nowrap">
-                              {formatTime(meeting.time, settings.timeFormat)}
-                            </span>
-                          )}
-                        </p>
-                      </div>
-                      {when === "Today" ? (
-                        <Badge className="flex-shrink-0">Today</Badge>
-                      ) : (
-                        <span className="flex-shrink-0 text-xs text-muted-foreground">
-                          {when}
-                        </span>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
+                        )}
+                      </p>
+                    </div>
+                    {when === "Today" ? (
+                      <Badge className="flex-shrink-0">Today</Badge>
+                    ) : (
+                      <span className="flex-shrink-0 text-xs text-muted-foreground">
+                        {when}
+                      </span>
+                    )}
+                  </div>
+                );
+              })()
             ) : (
               <div className="flex items-center gap-3 px-5 py-5">
                 <div className="w-9 h-9 rounded-sm border-2 border-border bg-muted flex items-center justify-center flex-shrink-0">
@@ -473,7 +488,7 @@ export default function Dashboard() {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-foreground">
-                    No upcoming meetings
+                    No upcoming meeting
                   </p>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     <Link
@@ -491,15 +506,27 @@ export default function Dashboard() {
             lastMeeting &&
             (() => {
               const d = localDate(lastMeeting.meeting_date);
+              // The record's venue also covers a meeting saved before venues were kept (the
+              // venue it was scheduled with); until the record loads, the meeting's own.
+              const venue = (last?.venue ?? lastMeeting.venue)?.trim();
               return (
                 <div className="border-t border-border">
-                  <div className="flex items-baseline justify-between gap-3 px-5 pt-2.5 pb-2">
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      Last meeting
-                    </p>
-                    <p className="figure text-xs text-foreground whitespace-nowrap">
-                      {format(d, "EEE")} {format(d, settings.dateFormat)}
-                    </p>
+                  <div className="px-5 pt-2.5 pb-2">
+                    <div className="flex items-baseline justify-between gap-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        Last meeting
+                      </p>
+                      <p className="figure text-xs text-foreground whitespace-nowrap">
+                        {format(d, "EEE")} {format(d, settings.dateFormat)}
+                      </p>
+                    </div>
+                    {venue && (
+                      <p className="mt-1 flex items-center gap-1.5 text-xs text-foreground" title={venue}>
+                        <MapPin className="w-3.5 h-3.5 flex-shrink-0 text-muted-foreground" aria-hidden />
+                        <span className="sr-only">Venue: </span>
+                        <span className="truncate">{venue}</span>
+                      </p>
+                    )}
                   </div>
 
                   {!lastLoaded ? (
@@ -556,18 +583,7 @@ export default function Dashboard() {
 
                       <dl className="space-y-1 px-5 py-2.5 text-xs">
                         <div className="flex items-baseline justify-between gap-3">
-                          <dt className="text-muted-foreground">
-                            {last.savings.length > 0 ? (
-                              <>
-                                Savings from{" "}
-                                <span className="figure whitespace-nowrap">
-                                  {savedCount} of {last.savings.length}
-                                </span>
-                              </>
-                            ) : (
-                              "Savings collected"
-                            )}
-                          </dt>
+                          <dt className="text-muted-foreground">Savings</dt>
                           <dd className="figure font-semibold text-foreground whitespace-nowrap">
                             {amount(last.totals.savings)}
                           </dd>

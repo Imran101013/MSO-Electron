@@ -1123,21 +1123,27 @@ function memberStatement(r: Report, books: Books, p: ReportPeriod, memberId: str
 
   r.heading("Loan account");
   const memberLoans = books.loans.filter((l) => l.memberId === m.dbId);
+  // On one day: the loan, its interest and the bank's charge on the withdrawal (both owed with it),
+  // then any penalty, then repayments, so the balance never dips below what is owed.
   type LoanLine = { date: string; order: number; voucher: string; text: string; dr: number; cr: number };
   const loanLines: LoanLine[] = [];
   for (const l of memberLoans) {
     if (l.date >= (p.from ?? "0000-00-00") && l.date <= p.to) {
       loanLines.push({ date: l.date, order: 0, voucher: l.disbursementVoucher, text: `Loan ${l.loanNo} disbursed`, dr: l.principal, cr: 0 });
       if (l.interest > EPS) loanLines.push({ date: l.date, order: 1, voucher: l.loanNo, text: `Interest charged @ ${l.interestRate}% flat on ${l.loanNo}`, dr: l.interest, cr: 0 });
+      if (l.bankCharge > EPS) {
+        const chargeVoucher = books.entries.find((e) => e.kind === "bank_charge" && e.loanId === l.dbId)?.voucher ?? "";
+        loanLines.push({ date: l.date, order: 2, voucher: chargeVoucher, text: `Bank charge on the cheque withdrawal for ${l.loanNo}, owed with the loan`, dr: l.bankCharge, cr: 0 });
+      }
     }
     for (const pen of l.penalties) {
       if (pen.date >= (p.from ?? "0000-00-00") && pen.date <= p.to) {
-        loanLines.push({ date: pen.date, order: 1, voucher: l.loanNo, text: `Late payment penalty - month ${pen.month} past due on ${l.loanNo}`, dr: pen.amount, cr: 0 });
+        loanLines.push({ date: pen.date, order: 3, voucher: l.loanNo, text: `Late payment penalty - month ${pen.month} past due on ${l.loanNo}`, dr: pen.amount, cr: 0 });
       }
     }
     for (const rc of l.receipts) {
       if (rc.date >= (p.from ?? "0000-00-00") && rc.date <= p.to) {
-        loanLines.push({ date: rc.date, order: 2, voucher: rc.voucher, text: rc.itemised ? `Repayment - ${l.loanNo}` : `Repayment b/f (not itemised) - ${l.loanNo}`, dr: 0, cr: rc.amount });
+        loanLines.push({ date: rc.date, order: 4, voucher: rc.voucher, text: rc.itemised ? `Repayment - ${l.loanNo}` : `Repayment b/f (not itemised) - ${l.loanNo}`, dr: 0, cr: rc.amount });
       }
     }
   }
@@ -1159,17 +1165,23 @@ function memberStatement(r: Report, books: Books, p: ReportPeriod, memberId: str
   const positions = memberLoans.map((l) => books.loanPositionAt(l, p.to)).filter((x): x is LoanPosition => !!x);
   if (positions.length) {
     r.subheading("Loans summary");
+    // A loan brought forward from before the period shows only as an opening balance in the loan
+    // account, so the bank's charge on its withdrawal gets its own column here whenever a loan has
+    // one. The other columns give up the space, so the due date keeps its width.
+    const charged = positions.some((x) => x.loan.bankCharge > EPS);
     r.table({
-      head: ["Loan no.", "Disbursed", "Principal", "Rate", "Total payable", "Repaid", "Outstanding", "Due date", "Status"],
-      align: ["l", "l", "r", "r", "r", "r", "r", "l", "l"],
-      widths: [18, 19, 22, 12, 24, 22, 24, "auto", 17],
+      head: ["Loan no.", "Disbursed", "Principal", "Rate", ...(charged ? ["Bank charge"] : []), "Total payable", "Repaid", "Outstanding", "Due date", "Status"],
+      align: ["l", "l", "r", "r", ...(charged ? ["r" as const] : []), "r", "r", "r", "l", "l"],
+      widths: charged ? [16, 18, 20, 9, 17, 21, 21, 21, "auto", 15] : [18, 19, 22, 12, 24, 22, 24, "auto", 17],
       fontSize: 7.4,
       body: positions.map((x) => [
         x.loan.loanNo,
         r.d(x.loan.date),
         money(x.loan.principal),
         `${x.loan.interestRate}%`,
-        money(x.loan.totalPayable),
+        ...(charged ? [money(x.loan.bankCharge)] : []),
+        // Principal + interest + any bank charge on the withdrawal, as in the loan portfolio.
+        money(r2(x.loan.totalPayable + x.loan.bankCharge)),
         money(x.repaid),
         money(x.outstanding),
         x.state === "active" && x.daysPastDue === 0 ? `${r.d(x.loan.maturityDate)} (${dueIn(x.loan.maturityDate, p.to).text})` : r.d(x.loan.maturityDate),
@@ -1190,7 +1202,7 @@ function memberStatement(r: Report, books: Books, p: ReportPeriod, memberId: str
   }
   r.gap(2);
   r.note(
-    "Please examine this statement. Any discrepancy should be reported in writing to the Treasurer within 15 days of issue; otherwise the balances shown will be taken as confirmed. Loan balances include flat interest charged at disbursement and any late payment penalties charged after a loan's due date.",
+    "Please examine this statement. Any discrepancy should be reported in writing to the Treasurer within 15 days of issue; otherwise the balances shown will be taken as confirmed. Loan balances include flat interest charged at disbursement, the bank's charge on a loan's cheque withdrawal where there was one, and any late payment penalties charged after a loan's due date.",
   );
 }
 
