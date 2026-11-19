@@ -2,7 +2,7 @@ const { app, BrowserWindow, ipcMain, dialog, shell, clipboard } = require('elect
 const path = require('path');
 const fs = require('fs');
 const { execFile } = require('child_process');
-const { Pool, types } = require('pg');
+const { Pool, Client, types } = require('pg');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
@@ -25,13 +25,17 @@ types.setTypeParser(1184, (val) => val); // timestamp with time zone
 // float precision (PKR figures at 2 decimal places), so parsing eagerly is safe.
 types.setTypeParser(1700, (val) => parseFloat(val)); // numeric/decimal
 
-const pool = new Pool({
+// The local PostgreSQL server. MSO_DB_NAME only exists so a test can point the app at a
+// throwaway database; installs always use mso-db.
+const DB_CONFIG = {
   host: 'localhost',
   port: 5432,
-  database: 'mso-db',
   user: 'postgres',       // change to your pgAdmin username
   password: 'postgres',   // change to your pgAdmin password
-});
+};
+const DB_NAME = process.env.MSO_DB_NAME || 'mso-db';
+
+const pool = new Pool({ ...DB_CONFIG, database: DB_NAME });
 
 pool.on('error', (err) => console.error('Idle pool client error:', err));
 
@@ -267,6 +271,59 @@ async function settleOldLoanTerms(client) {
   if (rowCount) return;
   await client.query('UPDATE public.loans SET term_months = 12 WHERE term_months <> 12');
   await client.query('INSERT INTO public.app_config (key, value) VALUES ($1, $2) ON CONFLICT (key) DO NOTHING', [LOAN_TERMS_SETTLED, 'true']);
+}
+
+// First start on a new computer: PostgreSQL is installed, but MSO's database, tables and login
+// are not there yet. Creates whichever of them is missing and leaves anything that exists alone,
+// so it does nothing on a computer that already has them.
+const FIRST_LOGIN = { username: 'admin', password: 'admin123', fullName: 'MSO' };
+
+async function ensureDatabase() {
+  // The database itself (3D000: it does not exist). Created from the server's own "postgres" database.
+  try {
+    const probe = await pool.connect();
+    probe.release();
+  } catch (err) {
+    if (err.code !== '3D000') throw err;
+    const admin = new Client({ ...DB_CONFIG, database: 'postgres' });
+    await admin.connect();
+    try {
+      await admin.query(`CREATE DATABASE "${DB_NAME.replace(/"/g, '""')}"`);
+    } catch (createErr) {
+      if (createErr.code !== '42P04') throw createErr; // created meanwhile
+    } finally {
+      await admin.end();
+    }
+  }
+
+  // The tables, from electron/schema.sql, on a client of its own (the file is plain SQL, run whole,
+  // in one transaction: either every table is made or none is).
+  const check = await pool.query("SELECT to_regclass('public.users') IS NOT NULL AS ready");
+  if (!check.rows[0].ready) {
+    const sql = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
+    const setup = new Client({ ...DB_CONFIG, database: DB_NAME });
+    await setup.connect();
+    try {
+      await setup.query('BEGIN');
+      await setup.query(sql);
+      await setup.query('COMMIT');
+    } catch (setupErr) {
+      await setup.query('ROLLBACK').catch(() => {});
+      throw setupErr;
+    } finally {
+      await setup.end();
+    }
+  }
+
+  // A login to open the app with, only when there is none at all; it is changed on the
+  // Login details page after the first sign-in.
+  const users = await pool.query('SELECT count(*)::int AS n FROM public.users');
+  if (users.rows[0].n === 0) {
+    await pool.query(
+      'INSERT INTO public.users (email, password_hash, full_name) VALUES ($1, $2, $3)',
+      [FIRST_LOGIN.username, await bcrypt.hash(FIRST_LOGIN.password, 10), FIRST_LOGIN.fullName]
+    );
+  }
 }
 
 // Idempotently create/alter tables this app owns on its local Postgres instance.
@@ -609,7 +666,28 @@ function createWindow() {
   if (!app.isPackaged) win.webContents.openDevTools();
 }
 
+// Says, in words, why MSO could not reach or set up its database.
+function databaseProblem(err) {
+  if (err.code === 'ECONNREFUSED') {
+    return 'PostgreSQL is not running on this computer, or is not installed.\n\n' +
+      'Install PostgreSQL (port 5432, password "postgres" for the postgres user), or start its ' +
+      'Windows service, then open MSO again.';
+  }
+  if (err.code === '28P01' || err.code === '28000') {
+    return 'PostgreSQL refused the sign-in for the "postgres" user.\n\n' +
+      'MSO signs in to PostgreSQL as "postgres" with the password "postgres". Set that password ' +
+      'in pgAdmin (or reinstall PostgreSQL with it), then open MSO again.';
+  }
+  return `MSO could not set up its database.\n\n${err.message}`;
+}
+
 app.whenReady().then(async () => {
+  try {
+    await ensureDatabase();
+  } catch (err) {
+    console.error('Failed to set up the database:', err);
+    dialog.showErrorBox('MSO: database not available', databaseProblem(err));
+  }
   try {
     await ensureSchema();
   } catch (err) {
