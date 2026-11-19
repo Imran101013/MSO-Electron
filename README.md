@@ -1,73 +1,28 @@
-# Welcome to your Lovable project
+# MSO
 
-## Project info
+Desktop record-keeping for Mogh Students Organisation: members, monthly savings, loans, the reserve fund, meetings and attendance, the yearly profit distribution, and PDF reports. It runs offline on one Windows computer and keeps its data in a local PostgreSQL database.
 
-**URL**: https://lovable.dev/projects/065ee0e7-d646-491a-8657-c6b59231d4b0
+Built with Electron, React, TypeScript, Vite, Tailwind and shadcn/ui.
 
-## How can I edit this code?
+## Development
 
-There are several ways of editing your application.
-
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/065ee0e7-d646-491a-8657-c6b59231d4b0) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
+Needs Node.js and PostgreSQL (localhost:5432, user `postgres`, password `postgres`).
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+npm install
+npm run electron:dev     # the app, with the Vite dev server on http://localhost:8080
+npm run lint
+npm run seed:sample      # dummy records for an empty database
 ```
 
-**Edit a file directly in GitHub**
+On first start the app creates the `mso-db` database, its tables (`electron/schema.sql`) and a starting login, `admin` / `admin123`, if they are missing.
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## Installer
 
-**Use GitHub Codespaces**
+```sh
+npm run electron:build   # release/MSO Setup <version>.exe
+```
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+On the client's computer: install PostgreSQL (port 5432, password `postgres` for the `postgres` user), run the installer, sign in with `admin` / `admin123`, then change the login with the key button at the top right.
 
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/065ee0e7-d646-491a-8657-c6b59231d4b0) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+More detail for developers is in `CLAUDE.md`; the visual design is described in `DESIGN.md`.

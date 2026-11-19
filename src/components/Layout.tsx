@@ -1,16 +1,16 @@
-import { ReactNode } from "react";
+import { Fragment, ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSettings } from "@/contexts/SettingsContext";
 import {
-  LayoutDashboard, Users, Wallet, HandCoins, PiggyBank,
+  LayoutDashboard, Users, Wallet, HandCoins, PiggyBank, type LucideIcon,
   FileText, Settings, LogOut, KeyRound, Sun, Moon, DollarSign, CalendarDays, History,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup,
   SidebarGroupContent, SidebarHeader, SidebarInset, SidebarMenu,
-  SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger,
+  SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarSeparator, SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -19,32 +19,48 @@ import MsoMark from "@/components/MsoMark";
 
 interface LayoutProps { children: ReactNode; }
 
-const adminNavigation = [
-  { name: "Dashboard", href: "/", icon: LayoutDashboard },
-  { name: "Members", href: "/members", icon: Users },
-  { name: "Budget", href: "/budget", icon: Wallet },
-  { name: "Loans", href: "/loans", icon: HandCoins },
-  { name: "Reserve Fund", href: "/reserve", icon: PiggyBank },
-  { name: "Meetings", href: "/meetings", icon: CalendarDays },
-  { name: "Reports", href: "/reports", icon: FileText },
-  { name: "Profit Distribution", href: "/profit-distribution", icon: DollarSign },
-  { name: "Audit Log", href: "/audit-log", icon: History },
-  { name: "Settings", href: "/settings", icon: Settings },
-];
+type NavItem = { name: string; href: string; icon: LucideIcon };
 
-const memberNavigation = [
-  { name: "Dashboard", href: "/", icon: LayoutDashboard },
-  { name: "Members", href: "/members", icon: Users },
-  { name: "Meetings", href: "/meetings", icon: CalendarDays },
-  { name: "Reports", href: "/reports", icon: FileText },
+// The sidebar in three blocks, split by hairlines: home; the pages where records are entered,
+// most used first, which stand out (`entry`); then the pages for viewing and occasional work.
+// The labels are for screen readers only.
+const navSections: { label: string; entry?: boolean; items: NavItem[] }[] = [
+  {
+    label: "Home",
+    items: [{ name: "Dashboard", href: "/", icon: LayoutDashboard }],
+  },
+  {
+    label: "Record entries",
+    entry: true,
+    items: [
+      { name: "Meetings", href: "/meetings", icon: CalendarDays },
+      { name: "Loans", href: "/loans", icon: HandCoins },
+      { name: "Members", href: "/members", icon: Users },
+      { name: "Reserve Fund", href: "/reserve", icon: PiggyBank },
+    ],
+  },
+  {
+    label: "Reports and settings",
+    items: [
+      {
+        name: "Profit Distribution",
+        href: "/profit-distribution",
+        icon: DollarSign,
+      },
+
+      { name: "Budget", href: "/budget", icon: Wallet },
+      { name: "Reports", href: "/reports", icon: FileText },
+      { name: "Audit Log", href: "/audit-log", icon: History },
+      { name: "Settings", href: "/settings", icon: Settings },
+    ],
+  },
 ];
 
 export default function Layout({ children }: LayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, logout, isAdmin } = useAuth();
+  const { user, logout } = useAuth();
   const { settings, updateSettings } = useSettings();
-  const navigation = isAdmin ? adminNavigation : memberNavigation;
 
   const handleLogout = () => { logout(); navigate("/login"); };
 
@@ -78,53 +94,59 @@ export default function Layout({ children }: LayoutProps) {
           <span className="absolute left-1/2 top-1/2 h-0.5 w-10 -translate-x-1/2 -translate-y-1/2 rounded-full bg-sidebar-primary" />
         </div>
 
-        {/* Nav: each icon in a square stamp; the page you are on is a sun-washed slip with its
-            stamp filled in the sun and a sun tab at the sidebar's edge. */}
+        {/* Nav: each icon in a square stamp. The entry pages have sun-outlined stamps and bright
+            names, the rest dimmer names; the page you are on is a lifted navy slip with its stamp
+            filled in the sun and a sun tab at the sidebar's edge. */}
         <SidebarContent className="px-3 py-4">
-          <SidebarGroup className="p-0">
-            <SidebarGroupContent>
-              <SidebarMenu className="gap-1">
-                {navigation.map((item, index) => {
-                  const isActive = location.pathname === item.href;
-                  return (
-                    <SidebarMenuItem key={item.name}>
-                      <SidebarMenuButton
-                        asChild
-                        isActive={isActive}
-                        className={cn(
-                          "group/nav relative h-10 gap-3 overflow-visible rounded-sm py-0 pl-1.5 pr-3 font-medium",
-                          "text-sidebar-foreground/70 transition-colors duration-150",
-                          "hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground",
-                          // A sun wash over navy turns grey, so the slip is lifted navy edged in the sun.
-                          "data-[active=true]:bg-sidebar-accent data-[active=true]:font-semibold data-[active=true]:text-sidebar-accent-foreground",
-                          "data-[active=true]:shadow-[inset_0_0_0_1px_hsl(var(--sidebar-primary)/0.28)] data-[active=true]:hover:bg-sidebar-accent",
-                          // The sun tab, flush with the sidebar's left edge.
-                          "before:absolute before:-left-3 before:top-2 before:bottom-2 before:w-[3px] before:rounded-r-full before:bg-sidebar-primary before:opacity-0 data-[active=true]:before:opacity-100",
-                        )}
-                      >
-                        <Link to={item.href}>
-                          {/* <span className={cn("figure text-[10px] w-4 flex-shrink-0", isActive ? "text-sidebar-primary" : "text-sidebar-foreground/35")}>
-                            {String(index + 1).padStart(2, "0")}
-                          </span> */}
-                          <span
+          {navSections.map((section, index) => (
+            <Fragment key={section.label}>
+              {index > 0 && <SidebarSeparator className="mx-1 my-1" />}
+              <SidebarGroup className="p-0" role="group" aria-label={section.label}>
+                <SidebarGroupContent>
+                  <SidebarMenu className="gap-1">
+                    {section.items.map((item) => {
+                      const isActive = location.pathname === item.href;
+                      return (
+                        <SidebarMenuItem key={item.name}>
+                          <SidebarMenuButton
+                            asChild
+                            isActive={isActive}
                             className={cn(
-                              "grid size-7 shrink-0 place-items-center rounded-sm border transition-colors duration-150",
-                              "border-sidebar-border bg-sidebar-accent/40 text-sidebar-foreground/70",
-                              "group-hover/nav:border-sidebar-foreground/25 group-hover/nav:text-sidebar-accent-foreground",
-                              "group-data-[active=true]/nav:border-sidebar-primary group-data-[active=true]/nav:bg-sidebar-primary group-data-[active=true]/nav:text-sidebar-primary-foreground",
+                              "group/nav relative h-10 gap-3 overflow-visible rounded-sm py-0 pl-1.5 pr-3 font-medium",
+                              "text-sidebar-foreground/60 transition-colors duration-150",
+                              section.entry && "font-semibold text-sidebar-accent-foreground",
+                              "hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground",
+                              // A sun wash over navy turns grey, so the slip is lifted navy edged in the sun.
+                              "data-[active=true]:bg-sidebar-accent data-[active=true]:font-semibold data-[active=true]:text-sidebar-accent-foreground",
+                              "data-[active=true]:shadow-[inset_0_0_0_1px_hsl(var(--sidebar-primary)/0.28)] data-[active=true]:hover:bg-sidebar-accent",
+                              // The sun tab, flush with the sidebar's left edge.
+                              "before:absolute before:-left-3 before:top-2 before:bottom-2 before:w-[3px] before:rounded-r-full before:bg-sidebar-primary before:opacity-0 data-[active=true]:before:opacity-100",
                             )}
                           >
-                            <item.icon className="size-[15px]" />
-                          </span>
-                          <span>{item.name}</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  );
-                })}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
+                            <Link to={item.href}>
+                              <span
+                                className={cn(
+                                  "grid size-7 shrink-0 place-items-center rounded-sm border transition-colors duration-150",
+                                  isActive
+                                    ? "border-sidebar-primary bg-sidebar-primary text-sidebar-primary-foreground"
+                                    : section.entry
+                                      ? "border-sidebar-primary/60 bg-sidebar-accent/40 text-sidebar-primary group-hover/nav:border-sidebar-primary"
+                                      : "border-sidebar-border bg-sidebar-accent/40 text-sidebar-foreground/60 group-hover/nav:border-sidebar-foreground/25 group-hover/nav:text-sidebar-accent-foreground",
+                                )}
+                              >
+                                <item.icon className="size-[15px]" />
+                              </span>
+                              <span>{item.name}</span>
+                            </Link>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      );
+                    })}
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </SidebarGroup>
+            </Fragment>
+          ))}
         </SidebarContent>
       </Sidebar>
 

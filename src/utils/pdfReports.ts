@@ -302,7 +302,6 @@ class Report {
     this.font(8.8, "normal", C.ink);
     this.text(sub, cx, this.y + 5.8, { align: "center" });
     this.font(7.2, "italic", C.muted);
-    // this.text(this.ctx.currency === "PKR" ? "(Amounts in Pakistani Rupees)" : `(Amounts in ${this.ctx.currency})`, cx, this.y + 10.4, { align: "center" });
     this.y += 16.5;
   }
 
@@ -526,7 +525,6 @@ class Report {
     this.text(this.ctx.orgName.toUpperCase(), x, 12.45, { charSpace: 0.35 });
     this.font(7.9, "normal", C.muted);
     this.text("MSO  |  Member Savings, Loans & Reserve Fund Records", x, 19.85);
-    // this.text(this.ctx.currency === "PKR" ? "All amounts in Pakistani Rupees (PKR)" : `All amounts in ${this.ctx.currency}`, x, 21.6);
 
     this.font(6, "bold", C.muted);
     this.text("DOCUMENT REF.", W - M, 10.2, { align: "right", charSpace: 0.25 });
@@ -645,7 +643,7 @@ function portfolio(books: Books, asAt: string) {
   return { positions, open, balance, overdue, arrears: sumOf(open, (p) => p.arrears), buckets };
 }
 
-function agingTable(r: Report, pf: ReturnType<typeof portfolio>, cur: string) {
+function agingTable(r: Report, pf: ReturnType<typeof portfolio>) {
   r.table({
     head: ["Classification", "Loans", "Balance outstanding", "% of portfolio", `Arrears`, `Allowance`],
     align: ["l", "r", "r", "r", "r", "r"],
@@ -663,7 +661,7 @@ const INTEREST_RULE_NOTE =
  * repaid in full) and what is still to collect. "Still to collect" is already inside the loan's
  * outstanding balance, so it is never labelled "outstanding" here.
  */
-function interestPenaltyTable(r: Report, positions: LoanPosition[], cur: string, o: { borrower: boolean }) {
+function interestPenaltyTable(r: Report, positions: LoanPosition[], o: { borrower: boolean }) {
   const rows = positions.filter((x) => x.loan.interest > EPS || x.penaltiesCharged > EPS);
   const collectedOn = (x: LoanPosition) => (x.loan.paidInFullOn && x.loan.paidInFullOn <= x.asAt ? r.d(x.loan.paidInFullOn) : "-");
   const collected = (x: LoanPosition) => r2(x.interestReceived + x.penaltyReceived);
@@ -863,7 +861,7 @@ function financialStatements(r: Report, books: Books, p: ReportPeriod) {
   );
   r.ensure(62);
   r.paragraph(`Ageing of the loan portfolio as at ${r.d(p.to)}:`, { size: 7.8, color: C.muted, after: 1.2 });
-  agingTable(r, pfTo, cur);
+  agingTable(r, pfTo);
 
   r.subheading("5. Interest and late penalties on loans");
   const owedAt = (pf: ReturnType<typeof portfolio> | null, pick: (x: LoanPosition) => number) => (pf ? sumOf(pf.open, pick) : 0);
@@ -1180,7 +1178,7 @@ function memberStatement(r: Report, books: Books, p: ReportPeriod, memberId: str
     });
     if (positions.some((x) => x.loan.interest > EPS || x.penaltiesCharged > EPS)) {
       r.subheading("Interest and late penalties");
-      interestPenaltyTable(r, positions, cur, { borrower: false });
+      interestPenaltyTable(r, positions, { borrower: false });
       r.note("After its due date, a late penalty is added to a loan's balance for each full month until it is paid in full, penalties included, or marked defaulted. Interest and penalties are part of the outstanding balance, not an amount owed on top of it, and are collected when the loan is repaid in full; repayments are not split between the amount lent, interest and penalties.");
     }
   }
@@ -1222,7 +1220,6 @@ function memberRegister(r: Report, books: Books, p: ReportPeriod) {
 function loanPortfolio(r: Report, books: Books, p: ReportPeriod) {
   const cur = r.ctx.currency;
   const pf = portfolio(books, p.to);
-  const incomeOwed = sumOf(pf.open, (x) => x.interestOutstanding + x.penaltyOutstanding);
   const overdueOwed = sumOf(pf.overdue, (x) => x.outstanding);
   r.kpis([
     { label: "Loans outstanding", value: String(pf.open.length), sub: `${pf.positions.length} loans issued to date` },
@@ -1258,7 +1255,7 @@ function loanPortfolio(r: Report, books: Books, p: ReportPeriod) {
   );
 
   r.heading("Interest and late penalties", 60);
-  interestPenaltyTable(r, pf.positions, cur, { borrower: true });
+  interestPenaltyTable(r, pf.positions, { borrower: true });
   r.note(INTEREST_RULE_NOTE);
 }
 
@@ -2060,11 +2057,4 @@ export async function buildReport(books: Books, req: ReportRequest, settings: Re
       break;
   }
   return { doc: r.finalize(), filename: `MSO_${meta.stem}_${tag}.pdf`, subtitle };
-}
-
-/** Generates the report and triggers the download/save dialog. Returns the file name. */
-export async function generateReport(books: Books, req: ReportRequest, settings: ReportSettings): Promise<string> {
-  const { doc, filename } = await buildReport(books, req, settings);
-  doc.save(filename);
-  return filename;
 }

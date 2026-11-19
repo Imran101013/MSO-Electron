@@ -255,7 +255,7 @@ export default function Dashboard() {
           value={
             isLoading || budgetLoading ? "—" : totalBudget.toLocaleString()
           }
-          note="In the bank account"
+          note="(In the bank account)"
           icon={Wallet}
           iconColor="border-secondary/40 bg-secondary/10 text-secondary"
         />

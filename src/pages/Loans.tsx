@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, TrendingDown, CheckCircle2, Loader2, HandCoins, AlertTriangle, BookOpen, Ban, Percent, ArrowRight, Landmark } from "lucide-react";
+import { Plus, TrendingDown, CheckCircle2, Loader2, HandCoins, AlertTriangle, BookOpen, Ban, ArrowRight, Landmark } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import StatCard from "@/components/StatCard";
@@ -528,12 +528,7 @@ export default function Loans() {
                           {Number(loan.bank_charge) > 0 && <span className="block text-xs text-muted-foreground" title="Bank charge on the withdrawal, repaid with the loan">+{Number(loan.bank_charge).toLocaleString()} charge</span>}
                         </TableCell>
                         <TableCell className="text-sm figure text-right whitespace-nowrap">
-                          {interest > 0.005 ? (
-                            <>
-                              {interest.toLocaleString()}
-                              {/* <span className="block text-xs text-muted-foreground">{Number(loan.interest_rate)}% flat</span> */}
-                            </>
-                          ) : "—"}
+                          {interest > 0.005 ? interest.toLocaleString() : "—"}
                         </TableCell>
                         <TableCell className="text-sm figure text-right whitespace-nowrap">{penaltyTotal > 0 ? penaltyTotal.toLocaleString() : "—"}</TableCell>
                         <TableCell className="text-sm figure text-right text-secondary font-medium whitespace-nowrap">{(Math.round((loan.total_payable + (Number(loan.bank_charge) || 0) + penaltyTotal - loan.remaining_amount) * 100) / 100).toLocaleString()}</TableCell>

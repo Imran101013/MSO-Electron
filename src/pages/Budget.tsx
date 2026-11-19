@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { DollarSign, Building2, HandCoins, BarChart3 } from "lucide-react";
+import { DollarSign, Building2, HandCoins } from "lucide-react";
 import { TablePager, usePaged } from "@/components/TablePager";
 import { useMemo, useEffect } from "react";
 import StatCard from "@/components/StatCard";
@@ -122,7 +122,7 @@ export default function Budget() {
               ? "—"
               : totalBudget.toLocaleString()
           }
-          note="In the bank account"
+          note="(In the bank account)"
           icon={Building2}
           iconColor="border-primary/40 bg-primary/10 text-primary"
         />

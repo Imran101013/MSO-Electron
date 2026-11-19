@@ -179,9 +179,12 @@ Corners use a single restrained radius scale (`0.625rem`/`0.469rem`/`0.3125rem`,
 
 ### Navigation (sidebar)
 - **Style:** fixed deep seal-navy "counter," always dark regardless of app theme, with the seal's sun rising faintly from its foot (`--gradient-counter`, the Login panel's sunrise kept low; a background on `[data-sidebar="sidebar"]`, so it stays put while the links scroll).
-- **Letterhead:** the seal (64px) centred, ringed by a hairline sun ring 3px out; "MSO" under it (22px bold, the wordmark's own size); "MOGH STUDENTS ORGANISATION" under that (tracked mono, 9.5px, foreground at 60%). A hairline "horizon" closes it, with a short sun bar at its centre.
-- **Item:** 40px row, the icon (15px) in a 28px square `rounded-sm` stamp (hairline `sidebar-border`, faint navy fill), then the label at 14px medium, foreground at 70%. Items keep their order; there are no section headings and no numbers.
-- **Hover:** the row lifts to `sidebar-accent` at 50%, the label brightens, the stamp's border brightens.
+- **Letterhead:** the seal (64px) on the left; beside it "MOGH STUDENTS ORGANIZATION" (tracked mono, 10px, foreground at 60%) over "MSO" (30px bold). A hairline "horizon" closes it, with a short sun bar at its centre.
+- **Blocks:** three, split by `sidebar-border` hairlines, no headings: the Dashboard; the **entry pages**, where records are typed in, most used first (Meetings, Loans, Members, Reserve Fund); then the pages for viewing and occasional work (Budget, Reports, Profit Distribution, Audit Log, Settings). Each block is a `role="group"` with an `aria-label` for screen readers. No numbers.
+- **Item:** 40px row, the icon (15px) in a 28px square `rounded-sm` stamp, then the label at 14px.
+  - **Entry page:** stamp outlined in the sun (`sidebar-primary` at 60%) with a sun icon on the faint navy fill; label semibold at full brightness (`sidebar-accent-foreground`). "Sun outline = where you enter records; sun fill = where you are."
+  - **Other page:** stamp hairline `sidebar-border` with the icon at 60%; label medium, foreground at 60% (5.4:1 on the counter).
+- **Hover:** the row lifts to `sidebar-accent` at 50% and the label brightens; an entry stamp's outline goes to the full sun, another stamp's border brightens and its icon whitens.
 - **Active state:** the row is lifted navy (`sidebar-accent`) edged with a sun hairline (inset, 28%), the label semibold; the stamp is filled in the sun with a navy icon; a 3px sun tab sits flush with the sidebar's left edge. Never a sun wash on the row: sun over navy mixes to grey.
 
 ### Statement Header (signature component)

@@ -151,17 +151,13 @@ const AppRoutes = () => {
               }
             />
             <Route path="/login" element={<Navigate to="/" replace />} />
-            <Route path="/signup" element={<Navigate to="/" replace />} />
-            <Route path="/forgot-password" element={<Navigate to="/" replace />} />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            {/* Routes go above the catch-all "*" route. */}
             <Route path="*" element={<NotFound />} />
           </Routes>
         </Layout>
       ) : (
         <Routes>
           <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<Navigate to="/login" replace />} />
-          <Route path="/forgot-password" element={<Navigate to="/login" replace />} />
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       )}

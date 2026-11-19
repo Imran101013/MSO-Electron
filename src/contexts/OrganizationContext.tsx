@@ -1,10 +1,10 @@
 import { createContext, useContext, useState, ReactNode, useEffect, useMemo, useRef } from "react";
-import { ORGANIZATION_CONFIG, LoanStatus } from "@/config/organization";
+import { LoanStatus } from "@/config/organization";
 import { useMembers, DbMember } from "@/hooks/useMembers";
 import { useLoans, DbLoan, DbLoanInstallment } from "@/hooks/useLoans";
 import { useContributions, DbContribution } from "@/hooks/useContributions";
 import { useAttendance, DbAttendance } from "@/hooks/useAttendance";
-import { useMeetings, DbMeeting, DbUpcomingMeeting } from "@/hooks/useMeetings";
+import { useMeetings, DbMeeting } from "@/hooks/useMeetings";
 import { useReserveTransactions } from "@/hooks/useReserveTransactions";
 import { useProfitDistributions } from "@/hooks/useProfitDistributions";
 import { useBankProfits } from "@/hooks/useBankProfits";
@@ -159,13 +159,6 @@ export interface Meeting {
   reserveFundDonations: MeetingReserveFund[];
 }
 
-export interface UpcomingMeeting {
-  id: number;
-  date: string;
-  time: string;
-  venue: string;
-}
-
 export interface Member {
   id: number;
   dbId: string;
@@ -186,34 +179,13 @@ export interface Member {
 
 interface OrganizationContextType {
   members: Member[];
-  setMembers: (members: Member[]) => void;
   meetings: Meeting[];
-  setMeetings: (meetings: Meeting[]) => void;
-  upcomingMeetings: UpcomingMeeting[];
-  setUpcomingMeetings: (meetings: UpcomingMeeting[]) => void;
-  totalBudget: number;
-  totalMembers: number;
-  activeLoans: number;
   reserveFund: number;
   reserveTransactions: ReserveTransaction[];
   /** `bankCharge`: for an expense above the limit in Settings, the bank's charge on the cheque (paid by the reserve). */
   addReserveTransaction: (t: Omit<ReserveTransaction, "id"> & { bankCharge?: number }) => Promise<boolean>;
-  addLoanCollection: (
-    memberId: number,
-    loanId: number,
-    amount: number,
-    date: string
-  ) => void;
   totalDonations: number;
   totalExpenses: number;
-  totalLoanCollected: number;
-  totalLoanOutstanding: number;
-  totalLoanRecovered: number;
-  totalLoanInstallmentCollected: number; // new property for installments sum
-  budgetTrend: { amount: number; percentage: number } | null;
-
-  loansTrend: { amount: number; percentage: number } | null;
-  reserveTrend: { amount: number; percentage: number } | null;
   profitDistributions: ProfitDistribution[];
   bankProfits: BankProfit[];
   /** The year's profit not yet shared at the cut-over, from the paper registers (null if none). */
@@ -229,14 +201,10 @@ const OrganizationContext = createContext<OrganizationContextType | undefined>(
 
 const initialMembers: Member[] = [];
 const initialMeetings: Meeting[] = [];
-const initialUpcomingMeetings: UpcomingMeeting[] = [];
 
 export function OrganizationProvider({ children }: { children: ReactNode }) {
   const [members, setMembers] = useState<Member[]>(initialMembers);
   const [meetings, setMeetings] = useState<Meeting[]>(initialMeetings);
-  const [upcomingMeetings, setUpcomingMeetings] = useState<UpcomingMeeting[]>(
-    initialUpcomingMeetings
-  );
   const [reserveTransactions, setReserveTransactions] = useState<
     ReserveTransaction[]
   >([]);
@@ -249,7 +217,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   const { loans: dbLoans, installments: dbInstallments, penalties: dbPenalties, fetchLoans, fetchInstallments } = useLoans();
   const { contributions: dbContributions, fetchContributions: refetchContributions } = useContributions();
   const { attendance: dbAttendance, fetchAttendance } = useAttendance();
-  const { meetings: dbMeetings, upcomingMeetings: dbUpcomingMeetings, fetchMeetings } = useMeetings();
+  const { meetings: dbMeetings, fetchMeetings } = useMeetings();
   const { transactions: dbReserveTransactions, addTransaction: dbAddReserveTransaction, fetchTransactions } = useReserveTransactions();
   const { distributions: dbDistributions, allocations: dbAllocations, recordYearEnd, fetchDistributions } = useProfitDistributions();
   const { bankProfits: dbBankProfits, fetchBankProfits } = useBankProfits();
@@ -403,20 +371,6 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     }
   }, [dbMeetings]);
 
-  // Transform upcoming meetings data
-  useEffect(() => {
-    if (dbUpcomingMeetings.length > 0) {
-      const transformedUpcomingMeetings: UpcomingMeeting[] = dbUpcomingMeetings.map((dbMeeting: DbUpcomingMeeting) => ({
-        id: parseInt(dbMeeting.id),
-        date: dbMeeting.meeting_date,
-        time: dbMeeting.meeting_time || '',
-        venue: dbMeeting.venue || '',
-      }));
-
-      setUpcomingMeetings(transformedUpcomingMeetings);
-    }
-  }, [dbUpcomingMeetings]);
-
   // Transform reserve transactions data
   useEffect(() => {
     const transformedTransactions: ReserveTransaction[] = dbReserveTransactions.map((transaction) => ({
@@ -466,40 +420,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     setProfitDistributions(transformed);
   }, [dbDistributions, dbAllocations, dbMembers]);
 
-  // Calculate total members
-  const totalMembers = members.length;
-
-  // Calculate total loan collected from meetings
-  const totalLoanCollected = meetings.reduce((sum, meeting) => {
-    const meetingLoans = meeting.loanCollections.reduce(
-      (mSum, l) => mSum + l.amount,
-      0
-    );
-    return sum + meetingLoans;
-  }, 0);
-
-  // Calculate total loan collected from meetings (payments recorded in meetings)
-  // this remains a record of payments logged via meeting entries
-
-  // Total loan outstanding: members' loan remainingAmount (the total payable fixed at issue, less repayments)
-  const totalLoanOutstanding = members.reduce((sum, member) => {
-    const memberRemaining = member.loans.reduce(
-      (loanSum, loan) => loanSum + loan.remainingAmount,
-      0
-    );
-    return sum + memberRemaining;
-  }, 0);
-
-  // Calculate total recovered loans (amounts fully paid): each paid loan's total payable as fixed
-  // when it was issued — never re-derived from today's interest setting.
-  const totalLoanRecovered = members.reduce((sum, member) => {
-    const paidWithInterest = member.loans
-      .filter((loan) => loan.status === ORGANIZATION_CONFIG.LOAN_STATUS.PAID)
-      .reduce((loanSum, loan) => loanSum + loan.totalPayable, 0);
-    return sum + paidWithInterest;
-  }, 0);
-
-  // Reserve transactions (donations/expenses) - computed before totals so budget includes them.
+  // Reserve transactions (donations/expenses).
   // "profit_allocation" rows (the reserve's cut from a profit distribution) and the "opening"
   // balance brought forward from the paper registers count as money coming into the reserve,
   // same as a donation.
@@ -511,230 +432,8 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     .filter((t) => t.type === "expense")
     .reduce((s, t) => s + t.amount, 0);
 
-  // Calculate total loan amounts issued
-  const totalLoanIssued = members.reduce((sum, member) => {
-    return (
-      sum + member.loans.reduce((loanSum, loan) => loanSum + loan.amount, 0)
-    );
-  }, 0);
-
-  // Calculate total loan payments made
-  const totalLoanPayments = members.reduce((sum, member) => {
-    return (
-      sum +
-      member.loans.reduce((loanSum, loan) => {
-        return (
-          loanSum +
-          loan.installments.reduce((instSum, inst) => instSum + inst.amount, 0)
-        );
-      }, 0)
-    );
-  }, 0);
-
-  // Add new property totalLoanInstallmentCollected for the sum of installments paid
-  const totalLoanInstallmentCollected = totalLoanPayments;
-
-  // Calculate total contributions
-  const contributions = members.reduce(
-    (sum, member) => sum + member.totalBudget,
-    0
-  );
-
-  // Calculate total budget as contributions minus loan issued plus loan payments plus reserve fund (donations minus expenses)
-  const totalBudget =
-    contributions -
-    totalLoanIssued +
-    totalLoanPayments +
-    (transactionDonations - transactionExpenses);
-
-  // Calculate active loans total
-  const activeLoans = members.reduce((sum, member) => {
-    const activeLoanAmount = member.loans
-      .filter((loan) => loan.status === ORGANIZATION_CONFIG.LOAN_STATUS.ACTIVE)
-      .reduce((loanSum, loan) => loanSum + loan.remainingAmount, 0);
-    return sum + activeLoanAmount;
-  }, 0);
-
   // Reserve fund is the net of reserve transactions only (independent of meetings)
   const reserveFund = transactionDonations - transactionExpenses;
-
-  // Calculate month-over-month trends
-  const now = new Date();
-  const currentMonth = now.getMonth();
-  const currentYear = now.getFullYear();
-  const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
-  const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
-
-  const currentMonthMeetings = meetings.filter((m) => {
-    const meetingDate = new Date(m.date);
-    return (
-      meetingDate.getMonth() === currentMonth &&
-      meetingDate.getFullYear() === currentYear
-    );
-  });
-
-  const lastMonthMeetings = meetings.filter((m) => {
-    const meetingDate = new Date(m.date);
-    return (
-      meetingDate.getMonth() === lastMonth &&
-      meetingDate.getFullYear() === lastMonthYear
-    );
-  });
-
-  // Budget trend
-  const currentMonthBudget = currentMonthMeetings.reduce((sum, meeting) => {
-    return sum + meeting.contributions.reduce((cSum, c) => cSum + c.amount, 0);
-  }, 0);
-
-  const lastMonthBudget = lastMonthMeetings.reduce((sum, meeting) => {
-    return sum + meeting.contributions.reduce((cSum, c) => cSum + c.amount, 0);
-  }, 0);
-
-  const budgetTrend =
-    lastMonthBudget > 0
-      ? {
-          amount: currentMonthBudget - lastMonthBudget,
-          percentage:
-            ((currentMonthBudget - lastMonthBudget) / lastMonthBudget) * 100,
-        }
-      : currentMonthBudget > 0
-      ? { amount: currentMonthBudget, percentage: 100 }
-      : null;
-
-  // Members trend (new members added this month vs last month)
-  const currentMonthNewMembers = members.filter((m) => {
-    const d = new Date(m.joinDate);
-    return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
-  }).length;
-
-  const lastMonthNewMembers = members.filter((m) => {
-    const d = new Date(m.joinDate);
-    return d.getMonth() === lastMonth && d.getFullYear() === lastMonthYear;
-  }).length;
-
-  const membersTrend =
-    lastMonthNewMembers > 0
-      ? {
-          amount: currentMonthNewMembers - lastMonthNewMembers,
-          percentage:
-            ((currentMonthNewMembers - lastMonthNewMembers) /
-              lastMonthNewMembers) *
-            100,
-        }
-      : currentMonthNewMembers > 0
-      ? { amount: currentMonthNewMembers, percentage: 100 }
-      : null;
-
-  // Loans trend (outstanding loans change)
-  const currentMonthLoanIssued = currentMonthMeetings.reduce((sum, meeting) => {
-    return sum + meeting.loanIssues.reduce((lSum, l) => lSum + l.amount, 0);
-  }, 0);
-
-  const currentMonthLoanCollected = currentMonthMeetings.reduce(
-    (sum, meeting) => {
-      return (
-        sum + meeting.loanCollections.reduce((lSum, l) => lSum + l.amount, 0)
-      );
-    },
-    0
-  );
-
-  const lastMonthLoanIssued = lastMonthMeetings.reduce((sum, meeting) => {
-    return sum + meeting.loanIssues.reduce((lSum, l) => lSum + l.amount, 0);
-  }, 0);
-
-  const lastMonthLoanCollected = lastMonthMeetings.reduce((sum, meeting) => {
-    return (
-      sum + meeting.loanCollections.reduce((lSum, l) => lSum + l.amount, 0)
-    );
-  }, 0);
-
-  const currentMonthNetLoan =
-    currentMonthLoanIssued - currentMonthLoanCollected;
-  const lastMonthNetLoan = lastMonthLoanIssued - lastMonthLoanCollected;
-
-  const loansTrend =
-    lastMonthNetLoan !== 0
-      ? {
-          amount: currentMonthNetLoan - lastMonthNetLoan,
-          percentage:
-            ((currentMonthNetLoan - lastMonthNetLoan) /
-              Math.abs(lastMonthNetLoan)) *
-            100,
-        }
-      : currentMonthNetLoan !== 0
-      ? { amount: currentMonthNetLoan, percentage: 100 }
-      : null;
-
-  // Reserve fund trend - compute last month's net reserve transactions (donations - expenses)
-  const lastMonthReserveNet = reserveTransactions.reduce((sum, tx) => {
-    const d = new Date(tx.date);
-    if (d.getMonth() === lastMonth && d.getFullYear() === lastMonthYear) {
-      return sum + (tx.type === "expense" ? -tx.amount : tx.amount);
-    }
-    return sum;
-  }, 0);
-
-  const reserveTrend =
-    lastMonthReserveNet !== 0
-      ? {
-          amount: reserveFund - lastMonthReserveNet,
-          percentage:
-            ((reserveFund - lastMonthReserveNet) /
-              Math.abs(lastMonthReserveNet)) *
-            100,
-        }
-      : reserveFund !== 0
-      ? { amount: reserveFund, percentage: 100 }
-      : null;
-
-  // Function to add a loan collection (payment/installment)
-  const addLoanCollection = (
-    memberId: number,
-    loanId: number,
-    amount: number,
-    date: string
-  ) => {
-    const member = members.find((m) => m.id === memberId);
-    if (!member) return;
-
-    const loan = member.loans.find(
-      (l) =>
-        l.id === loanId && l.status === ORGANIZATION_CONFIG.LOAN_STATUS.ACTIVE
-    );
-    if (!loan) return;
-
-    const newRemaining = Math.max(0, loan.remainingAmount - amount);
-    const isFullyPaid = newRemaining === 0;
-
-    const newInstallment: LoanInstallment = {
-      date,
-      amount,
-    };
-
-    const updatedMembers = members.map((m) =>
-      m.id === memberId
-        ? {
-            ...m,
-            loans: m.loans.map((l) =>
-              l.id === loanId &&
-              l.status === ORGANIZATION_CONFIG.LOAN_STATUS.ACTIVE
-                ? {
-                    ...l,
-                    remainingAmount: newRemaining,
-                    installments: [...l.installments, newInstallment],
-                    status: isFullyPaid
-                      ? ORGANIZATION_CONFIG.LOAN_STATUS.PAID
-                      : ORGANIZATION_CONFIG.LOAN_STATUS.ACTIVE,
-                  }
-                : l
-            ),
-          }
-        : m
-    );
-
-    setMembers(updatedMembers);
-  };
 
   // Function to add a reserve transaction — persists to Postgres via useReserveTransactions;
   // the dbReserveTransactions -> reserveTransactions transform effect above picks up the result.
@@ -764,27 +463,12 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     <OrganizationContext.Provider
       value={{
         members,
-        setMembers,
         meetings,
-        setMeetings,
-        upcomingMeetings,
-        setUpcomingMeetings,
-        totalBudget,
-        totalMembers,
-        activeLoans,
         reserveFund,
         reserveTransactions,
         addReserveTransaction,
-        addLoanCollection,
         totalDonations: transactionDonations,
         totalExpenses: transactionExpenses,
-        totalLoanCollected,
-        totalLoanOutstanding,
-        totalLoanRecovered,
-        budgetTrend,
-        loansTrend,
-        reserveTrend,
-        totalLoanInstallmentCollected,
         profitDistributions,
         bankProfits,
         openingProfit,

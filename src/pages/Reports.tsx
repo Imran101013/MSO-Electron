@@ -17,8 +17,6 @@ import { type ReportKind, type ReportRequest } from "@/utils/pdfReports";
 import { useReportViewer } from "@/contexts/ReportViewerContext";
 import { toast } from "sonner";
 import {
-  FileText,
-  Users,
   BookOpen,
   HandCoins,
   PiggyBank,

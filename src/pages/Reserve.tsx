@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Plus, TrendingUp, TrendingDown, PiggyBank, Wallet, ArrowDownCircle } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
+  Dialog, DialogContent, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";

@@ -137,10 +137,8 @@ export async function getMeetingRecord(meeting: DbMeeting): Promise<MeetingRecor
  */
 export function formatMeetingMessage(record: MeetingRecord, settings: ShareSettings): string {
   const { meeting, savings, collected, newLoans, reserve, attendance, presentCount, absent, onLeave, next, totals } = record;
-  const cur = settings.currency || "PKR";
   const date = (key: string) => formatDay(key, settings);
   const longDate = (key: string) => `${format(parseLocalDate(key.slice(0, 10)), "EEEE")}, ${date(key)}`;
-  const numbered = (names: string[]) => names.map((n, i) => `${i + 1}. ${n}`).join("\n");
   // Members' figures with a total; a member who paid nothing shows why, if their attendance says.
   const table = (rows: AmountRow[], nothing?: (memberId: string) => string, tag?: (r: AmountRow) => string | undefined) =>
     figureBlock([
@@ -162,17 +160,12 @@ export function formatMeetingMessage(record: MeetingRecord, settings: ShareSetti
 
   const out: string[] = [...letterhead(settings, "Monthly Meeting Record"), `📅 ${longDate(meeting.meeting_date)}`];
   if (record.venue) out.push(`📍 ${record.venue}`);
-  // The currency is named once here, not with every amount.
-
 
   out.push("", heading("Agenda"), meeting.agenda?.trim() || "-");
   if (meeting.decisions?.trim()) out.push("", heading("Decisions"), meeting.decisions.trim());
 
   if (attendance.length) {
     out.push("", heading("Attendance"), `Present ${presentCount} · Absent ${absent.length} · On leave ${onLeave.length}`);
-    // if (absent.length) out.push("Absent:", numbered(absent));
-    // if (onLeave.length) out.push("On leave:", numbered(onLeave));
-    // if (!absent.length && !onLeave.length) out.push("All members were present.");
   }
 
   out.push("", heading("Savings"), savings.length ? table(savings, paidNothing, sentOnLeave) : "No members recorded.");

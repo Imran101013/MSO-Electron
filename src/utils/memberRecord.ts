@@ -201,7 +201,6 @@ export const ageFrom = (dob: string | null) => (dob ? differenceInYears(new Date
 
 /** WhatsApp summary sent to the member's own number (layout in utils/whatsappFormat.ts). */
 export function formatMemberSummary(record: MemberRecord, settings: Pick<Settings, "organizationName" | "dateFormat" | "currency">): string {
-  const cur = settings.currency || "PKR";
   const num = (v: number) => Number(v).toLocaleString("en-US", { maximumFractionDigits: 2 });
   const date = (key: string) => format(parseLocalDate(key.slice(0, 10)), settings.dateFormat || "dd/MM/yyyy");
   const today = format(new Date(), settings.dateFormat || "dd/MM/yyyy");

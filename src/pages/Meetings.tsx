@@ -1,8 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, Calendar, Eye, FileText, Clock, Loader2, Trash2, CalendarDays, Share2, MapPin, Pencil } from "lucide-react";
+import { Plus, Calendar, Eye, Clock, Loader2, Trash2, CalendarDays, Share2, MapPin, Pencil } from "lucide-react";
 import { useState, type ReactNode } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useForm } from "react-hook-form";

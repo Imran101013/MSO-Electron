@@ -25,7 +25,7 @@ Purpose-built, offline-only microfinance/savings-circle ledger for one small org
 - Data scale is small: tens of members, a handful of active loans/meetings at a time — lists do not need heavy virtualization, but should stay comfortable if an org grows into the low hundreds.
 - Currency is PKR; dates default to `dd/MM/yyyy`; phone numbers follow Pakistani formats (`+92...` / `0...`).
 - Core entities/workflows: Members, Budget (contributions), Loans (issue/repay/interest), Reserve Fund (transactions), Meetings (schedule + attendance), Profit Distribution, PDF report generation, Audit Log, Settings.
-- One remaining live third-party dependency: Supabase Storage, used only for member profile-picture uploads on the Members page — not for any data reads/writes.
+- No third-party services: member photos are stored in the database, and the fonts are bundled with the app.
 
 ## Capabilities and Constraints
 
@@ -37,7 +37,7 @@ Purpose-built, offline-only microfinance/savings-circle ledger for one small org
 ## Brand Commitments
 
 - Keep the product name **"MSO"** and the organization name **"Mogh Students Organisation"** as-is — confirmed, not open for renaming.
-- A logo mark is referenced in code (`Layout.tsx` → `./MSO-Logo.png`) but the actual image file does not exist anywhere in the repo (`public/` only has `favicon.ico`, `placeholder.svg`, `robots.txt`) — this is currently a broken image reference, not a real asset to preserve pixel-for-pixel. Treat the mark as available for a fresh typographic/icon treatment rather than as a fixed image to keep.
+- The MSO seal (`src/assets/mso-logo.png`, shown through `src/components/MsoMark.tsx`) is the one logo: sidebar, login, PDF letterheads and the app icon. Don't propose replacement marks.
 
 ## Evidence on Hand
 

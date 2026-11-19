@@ -71,8 +71,6 @@ export function ReportViewerProvider({ children }: { children: ReactNode }) {
         const books = buildBooks({ members, meetings, reserveTransactions, profitDistributions, bankProfits, openingProfit });
         const { doc, filename, subtitle } = await buildReport(books, request, settings);
         if (requestId.current !== id) return;
-        // A member's or a loan's statement is shared straight to that member's chat.
-        const memberId = request.kind === "member-statement" ? request.memberId : request.kind === "loan-statement" && request.loanId ? books.loanById.get(request.loanId)?.memberId : undefined;
         setViewing({ request, stage: "ready", doc, filename, subtitle, url: URL.createObjectURL(doc.output("blob")) });
       } catch (err: unknown) {
         if (requestId.current !== id) return;

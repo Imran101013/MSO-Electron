@@ -1,7 +1,6 @@
 const { app, BrowserWindow, ipcMain, dialog, shell, clipboard } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const { execFile } = require('child_process');
 const { Pool, Client, types } = require('pg');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
@@ -190,74 +189,6 @@ async function openWhatsApp(text, phone) {
 ipcMain.handle('share-whatsapp', async (_, { text, phone }) => {
   if (typeof text !== 'string' || !text.trim()) return { error: 'There is nothing to share.' };
   return openWhatsApp(text, phone);
-});
-
-// Share a report on WhatsApp, as the PDF or as one picture per page. WhatsApp can't be handed
-// files through a link, so they are saved to a temporary folder and put on the clipboard as files
-// (as Explorer's Copy does), then WhatsApp opens with a caption typed in; the user picks the chat
-// and pastes them (Ctrl+V). Several pictures paste as one album.
-const sharedReportsDir = () => path.join(app.getPath('temp'), 'MSO Reports');
-const MAX_SHARED_FILES = 100; // WhatsApp sends at most 100 media in one go
-
-function copyFilesToClipboard(files) {
-  if (process.platform !== 'win32') return Promise.resolve(false);
-  return new Promise((resolve) => {
-    // The paths go in through the environment, never into the command text. "|" can't be in a path.
-    execFile(
-      'powershell.exe',
-      ['-NoProfile', '-NonInteractive', '-Command', "Set-Clipboard -LiteralPath ($env:MSO_SHARE_FILES -split '\\|')"],
-      { env: { ...process.env, MSO_SHARE_FILES: files.join('|') }, windowsHide: true, timeout: 20000 },
-      (err) => resolve(!err),
-    );
-  });
-}
-
-const toBuffer = (data) =>
-  data instanceof ArrayBuffer ? Buffer.from(data) : ArrayBuffer.isView(data) ? Buffer.from(data.buffer, data.byteOffset, data.byteLength) : null;
-
-// Shared files are only needed until they are pasted: anything older than a day is cleared out.
-async function pruneSharedFiles() {
-  const dir = sharedReportsDir();
-  const cutoff = Date.now() - 24 * 60 * 60 * 1000;
-  for (const name of await fs.promises.readdir(dir).catch(() => [])) {
-    const file = path.join(dir, name);
-    const stat = await fs.promises.stat(file).catch(() => null);
-    if (stat?.isFile() && stat.mtimeMs < cutoff) await fs.promises.unlink(file).catch(() => {});
-  }
-}
-
-async function shareFiles(items, text, phone) {
-  if (!Array.isArray(items) || items.length === 0 || items.length > MAX_SHARED_FILES) return { error: 'The report could not be prepared for sharing.' };
-  const files = [];
-  try {
-    await fs.promises.mkdir(sharedReportsDir(), { recursive: true });
-    await pruneSharedFiles();
-    for (const item of items) {
-      const name = path.basename(String(item?.name || ''));
-      if (!/^[\w.-]+\.(pdf|png)$/i.test(name)) return { error: 'The report has no valid file name.' };
-      const bytes = toBuffer(item.data);
-      if (!bytes || bytes.length === 0 || bytes.length > 50 * 1024 * 1024) return { error: 'The report could not be prepared for sharing.' };
-      const file = path.join(sharedReportsDir(), name);
-      await fs.promises.writeFile(file, bytes);
-      files.push(file);
-    }
-  } catch (err) {
-    return { error: `The report could not be saved for sharing: ${err.message}` };
-  }
-  const copied = await copyFilesToClipboard(files);
-  const res = await openWhatsApp(typeof text === 'string' ? text : '', phone);
-  return { ...res, copied, file: files[0], count: files.length };
-}
-
-ipcMain.handle('share-file-whatsapp', (_, { filename, data, text, phone }) => shareFiles([{ name: filename, data }], text, phone));
-ipcMain.handle('share-files-whatsapp', (_, { files, text, phone }) => shareFiles(files, text, phone));
-
-// Shows a shared report in Explorer (only files this app saved for sharing).
-ipcMain.handle('show-shared-file', async (_, { file }) => {
-  const resolved = path.resolve(String(file || ''));
-  if (path.dirname(resolved) !== path.resolve(sharedReportsDir()) || !fs.existsSync(resolved)) return { error: 'The file is no longer there.' };
-  shell.showItemInFolder(resolved);
-  return {};
 });
 
 // Each loan has its own duration (term_months), entered when it is issued. Before that, every loan
@@ -611,7 +542,6 @@ ipcMain.handle('auth-update-account', async (_, { userId, currentPassword, usern
   }
 });
 
-
 // Auth: Verify token
 ipcMain.handle('auth-verify', async (_, { token }) => {
   try {
@@ -619,27 +549,6 @@ ipcMain.handle('auth-verify', async (_, { token }) => {
     return { user: decoded };
   } catch {
     return { error: 'Invalid or expired session' };
-  }
-});
-
-// Auth: Change password
-ipcMain.handle('auth-change-password', async (_, { userId, currentPassword, newPassword }) => {
-  const client = await pool.connect();
-  try {
-    const result = await client.query('SELECT password_hash FROM public.users WHERE id = $1', [userId]);
-    const user = result.rows[0];
-    if (!user) return { error: 'User not found' };
-
-    const valid = await bcrypt.compare(currentPassword, user.password_hash);
-    if (!valid) return { error: 'Current password is incorrect' };
-
-    const newHash = await bcrypt.hash(newPassword, 10);
-    await client.query('UPDATE public.users SET password_hash = $1 WHERE id = $2', [newHash, userId]);
-    return { success: true };
-  } catch (err) {
-    return { error: err.message };
-  } finally {
-    client.release();
   }
 });
 

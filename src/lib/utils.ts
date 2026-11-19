@@ -6,13 +6,6 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function formatDate(
-  date: Date | string,
-  dateFormat = "dd/MM/yyyy"
-): string {
-  return format(new Date(date), dateFormat);
-}
-
 /** date-fns pattern for a clock time under the 12/24-hour setting. */
 export const timePattern = (timeFormat?: string) => (timeFormat === "24" ? "HH:mm" : "hh:mm a");
 
@@ -26,18 +19,4 @@ export function formatTime(time24: string | null | undefined, timeFormat?: strin
   const parsedTime = parse(time24.slice(0, 5), "HH:mm", new Date());
   if (!isValid(parsedTime)) return "";
   return format(parsedTime, timePattern(timeFormat));
-}
-
-/** A stored 24-hour time as 12-hour with AM/PM ("hh:mm a"). */
-export const formatTimeTo12Hour = (time24: string) => formatTime(time24, "12");
-
-/**
- * Converts a 12-hour time format string with AM/PM ("hh:mm a") to 24-hour time string ("HH:mm").
- * Returns empty string if input is invalid.
- */
-export function parseTimeFrom12Hour(time12: string): string {
-  if (!time12) return "";
-  const parsedTime = parse(time12, "hh:mm a", new Date());
-  if (!isValid(parsedTime)) return "";
-  return format(parsedTime, "HH:mm");
 }

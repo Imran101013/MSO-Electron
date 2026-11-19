@@ -17,7 +17,6 @@ import AmountsNote from "@/components/AmountsNote";
 const DEFAULT_MEMBER_ADDRESS = "Village Mogh, Tehsil & District Lower Chitral";
 import { useSettings } from "@/contexts/SettingsContext";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
 import { DatePicker } from "@/components/ui/date-picker";
