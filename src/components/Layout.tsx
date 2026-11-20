@@ -10,7 +10,7 @@ import {
 import {
   Sidebar, SidebarContent, SidebarGroup,
   SidebarGroupContent, SidebarHeader, SidebarInset, SidebarMenu,
-  SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarSeparator, SidebarTrigger,
+  SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -21,7 +21,7 @@ interface LayoutProps { children: ReactNode; }
 
 type NavItem = { name: string; href: string; icon: LucideIcon };
 
-// The sidebar in three blocks, split by hairlines: home; the pages where records are entered,
+// The sidebar in three blocks, split by thread lines: home; the pages where records are entered,
 // most used first, which stand out (`entry`); then the pages for viewing and occasional work.
 // The labels are for screen readers only.
 const navSections: { label: string; entry?: boolean; items: NavItem[] }[] = [
@@ -68,42 +68,33 @@ export default function Layout({ children }: LayoutProps) {
 
   return (
     <SidebarProvider>
-      {/* The counter: the seal's deep navy in both themes, with its sun rising from the foot
+      {/* The binding: maroon cloth in both themes, with a cream thread line down its inner edge
           (index.css, [data-sidebar="sidebar"]). */}
       <Sidebar className="border-r border-sidebar-border">
-        {/* Letterhead: the seal, ringed in the sun, over the name */}
-        <SidebarHeader className="px-2 py-4">
-          <div className="flex items-center gap-3">
-            <MsoMark className="w-16 h-16 flex-shrink-0" />
+        {/* The cover label: the seal and the name, pasted on the binding */}
+        <SidebarHeader className="px-3 pb-3 pt-4">
+          <div className="flex items-center gap-3 rounded-sm border border-sidebar-primary/45 bg-sidebar-accent/45 px-2.5 py-2.5 shadow-[inset_0_0_0_3px_hsl(var(--sidebar-background)/0.35)]">
+            <MsoMark className="h-14 w-14 flex-shrink-0" />
             <div className="min-w-0">
-              <p className="tracked-label text-[10px] font-semibold text-sidebar-foreground/60 leading-tight uppercase">
-                Mogh Students Organization
-              </p>
-              <p className="text-[30px] font-bold leading-tight text-sidebar-foreground tracking-tight">
+              <p className="font-display text-[30px] font-bold leading-none tracking-tight text-sidebar-accent-foreground">
                 MSO
+              </p>
+              <p className="mt-1 text-[11px] font-medium leading-tight text-sidebar-foreground/75">
+                Mogh Students Organization
               </p>
             </div>
           </div>
         </SidebarHeader>
 
-        {/* The horizon: a hairline with the sun on it, closing the letterhead */}
-        <div
-          aria-hidden
-          className="relative mx-4 h-px shrink-0 bg-sidebar-border"
-        >
-          <span className="absolute left-1/2 top-1/2 h-0.5 w-10 -translate-x-1/2 -translate-y-1/2 rounded-full bg-sidebar-primary" />
-        </div>
-
-        {/* Nav: each icon in a square stamp. The entry pages have sun-outlined stamps and bright
-            names, the rest dimmer names; the page you are on is a lifted navy slip with its stamp
-            filled in the sun and a sun tab at the sidebar's edge. */}
-        <SidebarContent className="px-3 py-4">
+        {/* Nav, in three blocks split by a thread line. The entry pages have bright names and
+            brass icons, the rest dimmer names; the page you are on wears the brass label. */}
+        <SidebarContent className="px-3 py-3">
           {navSections.map((section, index) => (
             <Fragment key={section.label}>
-              {index > 0 && <SidebarSeparator className="mx-1 my-1" />}
+              {index > 0 && <div aria-hidden className="mx-2 my-2 border-t border-sidebar-thread/25" />}
               <SidebarGroup className="p-0" role="group" aria-label={section.label}>
                 <SidebarGroupContent>
-                  <SidebarMenu className="gap-1">
+                  <SidebarMenu className="gap-0.5">
                     {section.items.map((item) => {
                       const isActive = location.pathname === item.href;
                       return (
@@ -112,30 +103,25 @@ export default function Layout({ children }: LayoutProps) {
                             asChild
                             isActive={isActive}
                             className={cn(
-                              "group/nav relative h-10 gap-3 overflow-visible rounded-sm py-0 pl-1.5 pr-3 font-medium",
-                              "text-sidebar-foreground/60 transition-colors duration-150",
+                              "group/nav relative h-10 gap-3 rounded-sm px-3 py-0 text-[14px] font-medium",
+                              "text-sidebar-foreground/70 transition-colors duration-150",
                               section.entry && "font-semibold text-sidebar-accent-foreground",
-                              "hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground",
-                              // A sun wash over navy turns grey, so the slip is lifted navy edged in the sun.
-                              "data-[active=true]:bg-sidebar-accent data-[active=true]:font-semibold data-[active=true]:text-sidebar-accent-foreground",
-                              "data-[active=true]:shadow-[inset_0_0_0_1px_hsl(var(--sidebar-primary)/0.28)] data-[active=true]:hover:bg-sidebar-accent",
-                              // The sun tab, flush with the sidebar's left edge.
-                              "before:absolute before:-left-3 before:top-2 before:bottom-2 before:w-[3px] before:rounded-r-full before:bg-sidebar-primary before:opacity-0 data-[active=true]:before:opacity-100",
+                              "hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground",
+                              "data-[active=true]:bg-sidebar-primary data-[active=true]:font-semibold data-[active=true]:text-sidebar-primary-foreground",
+                              "data-[active=true]:shadow-[0_1px_0_hsl(var(--sidebar-primary-foreground)/0.35),inset_0_0_0_1px_hsl(var(--sidebar-primary-foreground)/0.12)] data-[active=true]:hover:bg-sidebar-primary",
                             )}
                           >
                             <Link to={item.href}>
-                              <span
+                              <item.icon
                                 className={cn(
-                                  "grid size-7 shrink-0 place-items-center rounded-sm border transition-colors duration-150",
+                                  "size-4 shrink-0 transition-colors duration-150",
                                   isActive
-                                    ? "border-sidebar-primary bg-sidebar-primary text-sidebar-primary-foreground"
+                                    ? "text-sidebar-primary-foreground"
                                     : section.entry
-                                      ? "border-sidebar-primary/60 bg-sidebar-accent/40 text-sidebar-primary group-hover/nav:border-sidebar-primary"
-                                      : "border-sidebar-border bg-sidebar-accent/40 text-sidebar-foreground/60 group-hover/nav:border-sidebar-foreground/25 group-hover/nav:text-sidebar-accent-foreground",
+                                      ? "text-sidebar-primary"
+                                      : "text-sidebar-foreground/55 group-hover/nav:text-sidebar-accent-foreground",
                                 )}
-                              >
-                                <item.icon className="size-[15px]" />
-                              </span>
+                              />
                               <span>{item.name}</span>
                             </Link>
                           </SidebarMenuButton>
@@ -152,11 +138,10 @@ export default function Layout({ children }: LayoutProps) {
 
       {/* min-w-0: wide content (a table with many columns) scrolls inside its own box instead of
           stretching the whole page wider than the window. */}
-      <SidebarInset className="min-w-0">
-        {/* Top header — statement letterhead */}
-        <header className="flex h-16 border-b-2 border-accent/70 shrink-0 items-center gap-3 px-5 bg-card/95 backdrop-blur-md sticky top-0 z-10 shadow-sm">
-          <SidebarTrigger className="-ml-1 text-muted-foreground hover:text-foreground rounded-sm" />
-          <Separator orientation="vertical" className="h-5 opacity-40" />
+      <SidebarInset className="min-w-0 bg-background">
+        <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-3 border-b border-border bg-card/95 px-5 shadow-sm backdrop-blur-md">
+          <SidebarTrigger className="-ml-1 rounded-sm text-muted-foreground hover:text-foreground" />
+          <Separator orientation="vertical" className="h-5 opacity-60" />
           {/* The Members page has its own search over its list, so this one is left out there. */}
           <div className="flex-1">
             {location.pathname !== "/members" && <MemberSearch />}
@@ -165,7 +150,7 @@ export default function Layout({ children }: LayoutProps) {
             <Button
               variant="ghost"
               size="icon"
-              className="w-9 h-9 rounded-sm"
+              className="h-9 w-9 rounded-sm"
               onClick={() =>
                 updateSettings({
                   theme: settings.theme === "dark" ? "light" : "dark",
@@ -174,51 +159,53 @@ export default function Layout({ children }: LayoutProps) {
               title={`Switch to ${settings.theme === "dark" ? "light" : "dark"} mode`}
             >
               {settings.theme === "dark" ? (
-                <Sun className="w-4 h-4" />
+                <Sun className="h-4 w-4" />
               ) : (
-                <Moon className="w-4 h-4" />
+                <Moon className="h-4 w-4" />
               )}
             </Button>
-            <div className="flex items-center gap-2 pl-2 border-l border-border">
-              <MsoMark className="w-9 h-9 flex-shrink-0" />
+            <div className="flex items-center gap-2 border-l border-border pl-3">
+              <MsoMark className="h-8 w-8 flex-shrink-0" />
               <div className="hidden sm:block">
-                <p className="text-xs font-semibold text-foreground leading-tight">
+                <p className="text-xs font-semibold leading-tight text-foreground">
                   {displayName}
                 </p>
                 {user?.fullName && (
-                  <p className="tracked-label text-[9px] text-muted-foreground">
+                  <p className="text-[11px] leading-tight text-muted-foreground">
                     {user.email}
                   </p>
                 )}
               </div>
             </div>
-            <div className="flex items-center gap-1 pl-2 border-l border-border">
+            <div className="flex items-center gap-1 border-l border-border pl-2">
               <Button
                 variant="ghost"
                 size="icon"
-                className="w-9 h-9 rounded-sm"
+                className="h-9 w-9 rounded-sm"
                 onClick={() => navigate("/change-password")}
                 title="Login details"
                 aria-label="Login details"
               >
-                <KeyRound className="w-4 h-4" />
+                <KeyRound className="h-4 w-4" />
               </Button>
               <Button
                 variant="ghost"
                 size="icon"
-                className="w-9 h-9 rounded-sm text-destructive hover:text-destructive"
+                className="h-9 w-9 rounded-sm text-destructive hover:text-destructive"
                 onClick={handleLogout}
                 title="Logout"
               >
-                <LogOut className="w-4 h-4" />
+                <LogOut className="h-4 w-4" />
               </Button>
             </div>
           </div>
         </header>
 
-        {/* Page content */}
-        <main className="flex flex-1 flex-col gap-4 p-6 bg-background">
-          {children}
+        {/* Page content. Keyed by the page, so each page settles in when it opens (turning the page). */}
+        <main className="flex flex-1 flex-col bg-background p-6">
+          <div key={location.pathname} className="page-turn flex flex-1 flex-col gap-4">
+            {children}
+          </div>
         </main>
       </SidebarInset>
     </SidebarProvider>

@@ -123,11 +123,8 @@ export default function AuditLog() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b-2 border-accent/70 pb-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 ledger-head pb-4">
         <div className="flex items-center gap-4">
-          <div className="w-11 h-11 rounded-sm border-2 border-primary/40 bg-primary/10 flex items-center justify-center">
-            <History className="w-5 h-5 text-primary" />
-          </div>
           <div>
             <h2 className="text-2xl font-bold text-foreground mt-1">Audit Log</h2>
             <p className="text-sm text-muted-foreground mt-0.5">Every financial record change, automatically tracked</p>
@@ -154,7 +151,7 @@ export default function AuditLog() {
         </div>
       </div>
 
-      <Card className="shadow-sm rounded-sm border-t-2 border-t-accent">
+      <Card className="shadow-sm rounded-sm ledger-sheet">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
             <div className="w-7 h-7 rounded-sm border-2 border-primary/40 bg-primary/10 flex items-center justify-center">
@@ -177,11 +174,11 @@ export default function AuditLog() {
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
-                  <TableRow className="bg-muted/50 hover:bg-muted/50">
-                    <TableHead className="text-xs font-semibold uppercase tracking-wider whitespace-nowrap">When</TableHead>
-                    <TableHead className="text-xs font-semibold uppercase tracking-wider">What happened</TableHead>
-                    <TableHead className="text-xs font-semibold uppercase tracking-wider">Changed By</TableHead>
-                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-right">Actions</TableHead>
+                  <TableRow>
+                    <TableHead className="whitespace-nowrap">When</TableHead>
+                    <TableHead>What happened</TableHead>
+                    <TableHead>Changed By</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -189,7 +186,7 @@ export default function AuditLog() {
                     const undo = undoKind(entry);
                     const d = describeEntry(entry, undoFormat);
                     return (
-                    <TableRow key={entry.id} className="hover:bg-muted/30">
+                    <TableRow key={entry.id}>
                       <TableCell className="figure text-sm text-muted-foreground whitespace-nowrap align-top">
                         {when(entry)}
                       </TableCell>
@@ -278,8 +275,8 @@ export default function AuditLog() {
                 <div className="rounded-sm border border-border/60 overflow-hidden">
                   <Table>
                     <TableHeader>
-                      <TableRow className="bg-muted/50 hover:bg-muted/50">
-                        <TableHead className="text-xs font-semibold uppercase tracking-wider h-9">Detail</TableHead>
+                      <TableRow>
+                        <TableHead className="h-9">Detail</TableHead>
                         {columns.map((c) => <TableHead key={c} className="text-xs font-semibold uppercase tracking-wider h-9">{c}</TableHead>)}
                       </TableRow>
                     </TableHeader>

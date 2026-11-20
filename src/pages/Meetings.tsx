@@ -18,6 +18,7 @@ import ViewReportButton from "@/components/ViewReportButton";
 import AmountsNote from "@/components/AmountsNote";
 import { thisYearToDate } from "@/utils/accounting";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DatePicker } from "@/components/ui/date-picker";
 import { useMeetings, DbMeeting, DbUpcomingMeeting } from "@/hooks/useMeetings";
 import { dbQuery } from "@/lib/db";
@@ -258,7 +259,7 @@ export default function Meetings() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b-2 border-accent/70 pb-4">
+      <div className="flex flex-wrap items-center justify-between gap-4 ledger-head pb-4">
         <div className="flex shrink-0 items-center gap-4">
           <div>
             <h2 className="text-2xl font-bold text-foreground mt-1">
@@ -278,7 +279,7 @@ export default function Meetings() {
               size="default"
             />
             <Button
-              variant="secondary"
+              variant="outline"
               className="gap-2"
               onClick={shareLatestMeeting}
               disabled={isSharing}
@@ -609,70 +610,69 @@ export default function Meetings() {
                             }
                           />
                         )}
-                        <div className="grid grid-cols-12 px-3 py-2 bg-muted/50 rounded-sm">
-                          <span className="col-span-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                            Member
-                          </span>
-                          <span className="col-span-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                            Present
-                          </span>
-                          <span className="col-span-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                            Amount
-                          </span>
-                        </div>
-                        <p className="px-3 text-xs text-muted-foreground">
+                        <p className="text-xs text-muted-foreground">
                           On leave: asked the committee beforehand, so their
                           contribution is accepted and there is no absence
                           charge. No contribution is accepted from a member
                           marked No (absent).
                         </p>
-                        <div className="space-y-1.5">
-                          {addPaged.rows.map((mc) => (
-                            <div
-                              key={mc.memberId}
-                              className="grid grid-cols-12 items-center px-3 py-2 rounded-sm border border-border/60 hover:bg-muted/20 transition-colors"
-                            >
-                              <div className="col-span-4 flex items-center gap-2 min-w-0">
-                                <Avatar className="h-7 w-7">
-                                  <AvatarFallback className="bg-gradient-primary text-white text-xs">
-                                    {mc.memberName
-                                      .split(" ")
-                                      .map((n) => n[0])
-                                      .join("")}
-                                  </AvatarFallback>
-                                </Avatar>
-                                <span className="text-sm font-medium truncate">
-                                  {mc.memberName}
-                                </span>
-                              </div>
-                              <div className="col-span-4">
-                                <AttendanceToggle
-                                  value={mc.status}
-                                  memberName={mc.memberName}
-                                  onChange={(s) =>
-                                    updateContribution(mc.memberId, "status", s)
-                                  }
-                                />
-                              </div>
-                              <div className="col-span-4">
-                                <Input
-                                  type="number"
-                                  placeholder={mc.status === "absent" ? "Not accepted" : "0"}
-                                  disabled={mc.status === "absent"}
-                                  title={mc.status === "absent" ? "Absent without asking the committee: no contribution is accepted." : undefined}
-                                  value={mc.amount || ""}
-                                  className="h-8 text-sm"
-                                  onChange={(e) =>
-                                    updateContribution(
-                                      mc.memberId,
-                                      "amount",
-                                      Number(e.target.value) || 0,
-                                    )
-                                  }
-                                />
-                              </div>
-                            </div>
-                          ))}
+                        <div className="overflow-hidden rounded-sm border border-border">
+                          <Table className="table-fixed">
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead className="px-3">Member</TableHead>
+                                <TableHead className="w-[13.5rem] px-3">Present</TableHead>
+                                <TableHead className="num w-40 px-3">Amount</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {addPaged.rows.map((mc) => (
+                                <TableRow key={mc.memberId}>
+                                  <TableCell className="px-3 py-2">
+                                    <div className="flex min-w-0 items-center gap-2">
+                                      <Avatar className="h-7 w-7 rounded-sm">
+                                        <AvatarFallback className="rounded-sm border border-primary/20 bg-ledger-wash text-[11px] font-semibold text-primary">
+                                          {mc.memberName
+                                            .split(" ")
+                                            .map((n) => n[0])
+                                            .join("")}
+                                        </AvatarFallback>
+                                      </Avatar>
+                                      <span className="truncate text-sm font-medium">
+                                        {mc.memberName}
+                                      </span>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="px-3 py-2">
+                                    <AttendanceToggle
+                                      value={mc.status}
+                                      memberName={mc.memberName}
+                                      onChange={(s) =>
+                                        updateContribution(mc.memberId, "status", s)
+                                      }
+                                    />
+                                  </TableCell>
+                                  <TableCell className="num px-3 py-2">
+                                    <Input
+                                      type="number"
+                                      placeholder={mc.status === "absent" ? "Not accepted" : "0"}
+                                      disabled={mc.status === "absent"}
+                                      title={mc.status === "absent" ? "Absent without asking the committee: no contribution is accepted." : undefined}
+                                      value={mc.amount || ""}
+                                      className="figure h-8 bg-card text-right text-sm"
+                                      onChange={(e) =>
+                                        updateContribution(
+                                          mc.memberId,
+                                          "amount",
+                                          Number(e.target.value) || 0,
+                                        )
+                                      }
+                                    />
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
                         </div>
                         <TablePager
                           paged={addPaged}
@@ -711,7 +711,7 @@ export default function Meetings() {
 
       {/* Upcoming Meetings */}
       {upcomingMeetings.length > 0 && (
-        <Card className="shadow-sm rounded-sm border-t-2 border-t-accent">
+        <Card className="shadow-sm rounded-sm ledger-sheet">
           <CardHeader className="pb-3 border-b border-border">
             <CardTitle className="flex items-center gap-2 text-base">
               <div className="w-7 h-7 rounded-sm border-2 border-primary/40 bg-primary/10 flex items-center justify-center">
@@ -779,7 +779,7 @@ export default function Meetings() {
             </div>
             {meetings.length > 0 && (
               <span className="figure text-xs text-muted-foreground bg-muted px-2.5 py-1 rounded-sm font-normal">
-                {meetings.length} records
+                {meetings.length} record{meetings.length === 1 ? "" : "s"}
               </span>
             )}
           </CardTitle>
@@ -934,11 +934,11 @@ export default function Meetings() {
                                         )
                                       }
                                     />
-                                    <div className="rounded-sm border border-border/60 divide-y divide-border/60">
+                                    <div className="rounded-sm border border-border divide-y divide-ledger-rule">
                                       {editPaged.rows.map((r) => (
                                         <div
                                           key={r.memberId}
-                                          className="flex items-center justify-between gap-3 px-4 py-1.5"
+                                          className="flex items-center justify-between gap-3 px-4 py-1.5 even:bg-ledger-zebra"
                                         >
                                           <span className="text-sm font-medium truncate">
                                             {r.name}
@@ -1030,7 +1030,7 @@ export default function Meetings() {
                                           {viewRecord.absent.length}
                                         </p>
                                       </div>
-                                      <div className="p-4 rounded-sm border-2 border-accent/50 bg-accent/10 text-center">
+                                      <div className="p-4 rounded-sm border-2 border-primary/35 bg-primary/[0.06] text-center">
                                         <p className="text-xs font-semibold text-primary mb-1">
                                           On leave
                                         </p>
@@ -1381,25 +1381,31 @@ function AmountTable({ rows, totalLabel, empty }: {
   // The total is for every row, not just the page shown.
   const total = rows.reduce((s, r) => s + Number(r.amount), 0);
   return (
-    <div className="divide-y divide-border/60 rounded-sm border border-border/60 overflow-hidden">
-      <div className="grid grid-cols-12 px-4 py-2 bg-muted/50">
-        <span className="col-span-8 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Member</span>
-        <span className="col-span-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground text-right">Amount</span>
-      </div>
-      {paged.rows.map((r, i) => {
-        return (
-          <div key={`${r.memberId}-${i}`} className="grid grid-cols-12 items-center px-4 py-2.5 hover:bg-muted/30 transition-colors">
-            <span className="col-span-8 text-sm font-medium">{r.name}</span>
-            <span className={cn("figure text-sm text-right col-span-4", Number(r.amount) > 0 ? "font-bold text-foreground" : "text-muted-foreground")}>
-              {formatAmount(r.amount)}
-            </span>
-          </div>
-        );
-      })}
-      <div className="grid grid-cols-12 px-4 py-2.5 bg-muted/40">
-        <span className="col-span-8 text-xs font-semibold text-muted-foreground">{totalLabel}</span>
-        <span className="figure col-span-4 text-sm font-bold text-foreground text-right">{formatAmount(total)}</span>
-      </div>
+    <div className="overflow-hidden rounded-sm border border-border">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Member</TableHead>
+            <TableHead className="num w-40">Amount</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {paged.rows.map((r, i) => (
+            <TableRow key={`${r.memberId}-${i}`}>
+              <TableCell className="font-medium">{r.name}</TableCell>
+              <TableCell className={cn("num figure", Number(r.amount) > 0 ? "font-semibold text-foreground" : "text-muted-foreground")}>
+                {formatAmount(r.amount)}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+        <TableFooter>
+          <TableRow>
+            <TableCell>{totalLabel}</TableCell>
+            <TableCell className="num figure font-bold text-foreground">{formatAmount(total)}</TableCell>
+          </TableRow>
+        </TableFooter>
+      </Table>
       <TablePager paged={paged} noun="members" />
     </div>
   );

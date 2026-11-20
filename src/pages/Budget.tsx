@@ -1,4 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DollarSign, Building2, HandCoins } from "lucide-react";
 import { TablePager, usePaged } from "@/components/TablePager";
 import { useMemo, useEffect } from "react";
@@ -20,7 +21,7 @@ import { useTotalBudget } from "@/hooks/useTotalBudget";
 import { useLocation } from "react-router-dom";
 
 const compact = new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 });
-const axisTick = { fontSize: 11, fontFamily: "IBM Plex Mono", fill: "hsl(var(--muted-foreground))" };
+const axisTick = { fontSize: 11, fontFamily: "Public Sans", fill: "hsl(var(--muted-foreground))" };
 
 export default function Budget() {
   const { members, isLoading: membersLoading } = useMembers();
@@ -96,7 +97,7 @@ export default function Budget() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between border-b-2 border-accent/70 pb-4">
+      <div className="flex items-center justify-between ledger-head pb-4">
         <div>
           <h2 className="text-2xl font-bold text-foreground mt-1">
             Monthly Budget
@@ -186,31 +187,36 @@ export default function Budget() {
                 No contributions recorded for this meeting
               </p>
             ) : (
-              <div className="divide-y divide-border/50">
-                <div className="grid grid-cols-12 px-4 py-1.5 bg-muted/50">
-                  <span className="col-span-8 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Member
-                  </span>
-                  <span className="col-span-4 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground text-right">
-                    Amount
-                  </span>
-                </div>
-                {contributionsPaged.rows.map((c) => {
-                  const member = members.find((m) => m.id === c.member_id);
-                  return (
-                    <div
-                      key={c.id}
-                      className="grid grid-cols-12 px-4 py-1.5 items-center hover:bg-muted/30 transition-colors"
-                    >
-                      <span className="col-span-8 truncate pr-2 text-xs font-medium text-foreground">
-                        {member?.name || "Unknown"}
-                      </span>
-                      <span className="figure col-span-4 text-xs font-bold text-foreground text-right whitespace-nowrap">
-                        {c.amount.toLocaleString()}
-                      </span>
-                    </div>
-                  );
-                })}
+              <div>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="px-5">Member</TableHead>
+                      <TableHead className="num px-5">Amount</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {contributionsPaged.rows.map((c) => {
+                      const member = members.find((m) => m.id === c.member_id);
+                      return (
+                        <TableRow key={c.id}>
+                          <TableCell className="max-w-0 truncate px-5 py-2 font-medium text-foreground">
+                            {member?.name || "Unknown"}
+                          </TableCell>
+                          <TableCell className="num figure w-32 px-5 py-2 font-semibold text-foreground">
+                            {c.amount.toLocaleString()}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                  <TableFooter>
+                    <TableRow>
+                      <TableCell className="px-5 py-2">Total</TableCell>
+                      <TableCell className="num figure px-5 py-2 text-foreground">{latestMeetingTotal.toLocaleString()}</TableCell>
+                    </TableRow>
+                  </TableFooter>
+                </Table>
                 <TablePager paged={contributionsPaged} noun="contributions" />
               </div>
             )}

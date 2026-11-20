@@ -256,7 +256,7 @@ export default function Loans() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between border-b-2 border-accent/70 pb-4">
+      <div className="flex items-center justify-between ledger-head pb-4">
         <div className="flex items-center gap-4">
          
           <div>
@@ -482,7 +482,7 @@ export default function Loans() {
       </div>
 
       {/* Active Loans Table */}
-      <Card className="shadow-sm rounded-sm border-t-2 border-t-accent">
+      <Card className="shadow-sm rounded-sm ledger-sheet">
         <CardHeader className="pb-3 border-b border-border">
           <CardTitle className="flex items-center justify-between text-base">
             <div className="flex items-center gap-2">
@@ -503,15 +503,15 @@ export default function Loans() {
               <Table className="[&_td]:px-2.5 [&_th]:px-2.5 [&_td:first-child]:pl-5 [&_th:first-child]:pl-5 [&_td:last-child]:pr-5 [&_th:last-child]:pr-5">
                 <TableHeader>
                   {/* The money columns read left to right as the balance: lent + interest + penalties − repaid. */}
-                  <TableRow className="bg-muted/50 hover:bg-muted/50">
-                    <TableHead className="text-xs font-semibold uppercase tracking-wider">Member</TableHead>
-                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-center">Lent</TableHead>
-                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-right"><span className="text-muted-foreground/60 mr-1">+</span>Interest</TableHead>
-                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-right"><span className="text-muted-foreground/60 mr-1">+</span>Penalties</TableHead>
-                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-right"><span className="text-muted-foreground/60 mr-1">−</span>Repaid</TableHead>
-                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-right text-destructive"><span className="text-muted-foreground/60 mr-1">=</span>Outstanding</TableHead>
-                    <TableHead className="text-xs font-semibold uppercase tracking-wider">Due By</TableHead>
-                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-right">Account</TableHead>
+                  <TableRow>
+                    <TableHead>Member</TableHead>
+                    <TableHead className="num">Lent</TableHead>
+                    <TableHead className="num"><span className="text-muted-foreground/60 mr-1">+</span>Interest</TableHead>
+                    <TableHead className="num"><span className="text-muted-foreground/60 mr-1">+</span>Penalties</TableHead>
+                    <TableHead className="num"><span className="text-muted-foreground/60 mr-1">−</span>Repaid</TableHead>
+                    <TableHead className="num text-destructive"><span className="text-muted-foreground/60 mr-1">=</span>Outstanding</TableHead>
+                    <TableHead>Due By</TableHead>
+                    <TableHead className="text-right">Account</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -521,18 +521,18 @@ export default function Loans() {
                     const penaltyTotal = Number(loan.penalty_total) || 0;
                     const interest = Math.round((Number(loan.total_payable) - Number(loan.amount)) * 100) / 100;
                     return (
-                      <TableRow key={loan.id} className="hover:bg-muted/30">
+                      <TableRow key={loan.id}>
                         <TableCell className="font-semibold text-sm whitespace-nowrap">{loan.member_name || "Unknown"}</TableCell>
-                        <TableCell className="text-sm figure text-right whitespace-nowrap">
+                        <TableCell className="text-sm figure num whitespace-nowrap">
                           {loan.amount.toLocaleString()}
                           {Number(loan.bank_charge) > 0 && <span className="block text-xs text-muted-foreground" title="Bank charge on the withdrawal, repaid with the loan">+{Number(loan.bank_charge).toLocaleString()} charge</span>}
                         </TableCell>
-                        <TableCell className="text-sm figure text-right whitespace-nowrap">
+                        <TableCell className="text-sm figure num whitespace-nowrap">
                           {interest > 0.005 ? interest.toLocaleString() : "—"}
                         </TableCell>
-                        <TableCell className="text-sm figure text-right whitespace-nowrap">{penaltyTotal > 0 ? penaltyTotal.toLocaleString() : "—"}</TableCell>
-                        <TableCell className="text-sm figure text-right text-secondary font-medium whitespace-nowrap">{(Math.round((loan.total_payable + (Number(loan.bank_charge) || 0) + penaltyTotal - loan.remaining_amount) * 100) / 100).toLocaleString()}</TableCell>
-                        <TableCell className="text-sm figure text-right text-destructive font-bold whitespace-nowrap">
+                        <TableCell className="text-sm figure num whitespace-nowrap">{penaltyTotal > 0 ? penaltyTotal.toLocaleString() : "—"}</TableCell>
+                        <TableCell className="text-sm figure num text-secondary font-medium whitespace-nowrap">{(Math.round((loan.total_payable + (Number(loan.bank_charge) || 0) + penaltyTotal - loan.remaining_amount) * 100) / 100).toLocaleString()}</TableCell>
+                        <TableCell className="text-sm figure num text-destructive font-bold whitespace-nowrap">
                           {loan.remaining_amount.toLocaleString()}
                         </TableCell>
                         <TableCell className="text-sm">
@@ -566,7 +566,7 @@ export default function Loans() {
       {/* Defaulted Loans: marked defaulted by the committee, so no longer in the active list above.
           Penalties stop on the day a loan was marked; the balance is still owed. */}
       {defaultedLoans.length > 0 && (
-        <Card className="shadow-sm rounded-sm border-t-2 border-destructive/60">
+        <Card className="shadow-sm rounded-sm border border-destructive/45">
           <CardHeader className="pb-3 border-b border-border">
             <CardTitle className="flex items-center justify-between text-base">
               <div className="flex items-center gap-2">
@@ -584,16 +584,16 @@ export default function Loans() {
             <div className="overflow-x-auto">
               <Table className="[&_td]:px-2.5 [&_th]:px-2.5 [&_td:first-child]:pl-5 [&_th:first-child]:pl-5 [&_td:last-child]:pr-5 [&_th:last-child]:pr-5">
                 <TableHeader>
-                  <TableRow className="bg-muted/50 hover:bg-muted/50">
-                    <TableHead className="text-xs font-semibold uppercase tracking-wider">Member</TableHead>
-                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-right">Lent</TableHead>
-                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-right"><span className="text-muted-foreground/60 mr-1">+</span>Interest</TableHead>
-                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-right"><span className="text-muted-foreground/60 mr-1">+</span>Penalties</TableHead>
-                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-right"><span className="text-muted-foreground/60 mr-1">−</span>Repaid</TableHead>
-                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-right text-destructive"><span className="text-muted-foreground/60 mr-1">=</span>Still owed</TableHead>
-                    <TableHead className="text-xs font-semibold uppercase tracking-wider">Due By</TableHead>
-                    <TableHead className="text-xs font-semibold uppercase tracking-wider">Defaulted On</TableHead>
-                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-right">Account</TableHead>
+                  <TableRow>
+                    <TableHead>Member</TableHead>
+                    <TableHead className="num">Lent</TableHead>
+                    <TableHead className="num"><span className="text-muted-foreground/60 mr-1">+</span>Interest</TableHead>
+                    <TableHead className="num"><span className="text-muted-foreground/60 mr-1">+</span>Penalties</TableHead>
+                    <TableHead className="num"><span className="text-muted-foreground/60 mr-1">−</span>Repaid</TableHead>
+                    <TableHead className="num text-destructive"><span className="text-muted-foreground/60 mr-1">=</span>Still owed</TableHead>
+                    <TableHead>Due By</TableHead>
+                    <TableHead>Defaulted On</TableHead>
+                    <TableHead className="text-right">Account</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -601,13 +601,13 @@ export default function Loans() {
                     const penaltyTotal = Number(loan.penalty_total) || 0;
                     const interest = Math.round((Number(loan.total_payable) - Number(loan.amount)) * 100) / 100;
                     return (
-                      <TableRow key={loan.id} className="hover:bg-muted/30">
+                      <TableRow key={loan.id}>
                         <TableCell className="font-semibold text-sm whitespace-nowrap">{loan.member_name || "Unknown"}</TableCell>
-                        <TableCell className="text-sm figure text-right whitespace-nowrap">
+                        <TableCell className="text-sm figure num whitespace-nowrap">
                           {loan.amount.toLocaleString()}
                           {Number(loan.bank_charge) > 0 && <span className="block text-xs text-muted-foreground" title="Bank charge on the withdrawal, repaid with the loan">+{Number(loan.bank_charge).toLocaleString()} charge</span>}
                         </TableCell>
-                        <TableCell className="text-sm figure text-right whitespace-nowrap">
+                        <TableCell className="text-sm figure num whitespace-nowrap">
                           {interest > 0.005 ? (
                             <>
                               {interest.toLocaleString()}
@@ -615,9 +615,9 @@ export default function Loans() {
                             </>
                           ) : "—"}
                         </TableCell>
-                        <TableCell className="text-sm figure text-right whitespace-nowrap">{penaltyTotal > 0 ? penaltyTotal.toLocaleString() : "—"}</TableCell>
-                        <TableCell className="text-sm figure text-right text-secondary font-medium whitespace-nowrap">{(Math.round((loan.total_payable + (Number(loan.bank_charge) || 0) + penaltyTotal - loan.remaining_amount) * 100) / 100).toLocaleString()}</TableCell>
-                        <TableCell className="text-sm figure text-right text-destructive font-bold whitespace-nowrap">
+                        <TableCell className="text-sm figure num whitespace-nowrap">{penaltyTotal > 0 ? penaltyTotal.toLocaleString() : "—"}</TableCell>
+                        <TableCell className="text-sm figure num text-secondary font-medium whitespace-nowrap">{(Math.round((loan.total_payable + (Number(loan.bank_charge) || 0) + penaltyTotal - loan.remaining_amount) * 100) / 100).toLocaleString()}</TableCell>
+                        <TableCell className="text-sm figure num text-destructive font-bold whitespace-nowrap">
                           {loan.remaining_amount.toLocaleString()}
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground figure whitespace-nowrap">
@@ -650,7 +650,7 @@ export default function Loans() {
       {/* Interest & Penalties. A loan's interest and penalties are part of its balance (the
           Outstanding column above), not an extra amount owed; they are collected together when the
           loan is repaid in full. Each year's loans are listed on the Profit Distribution page. */}
-      <Card className="shadow-sm rounded-sm border-t-2 border-secondary/70">
+      <Card className="shadow-sm rounded-sm border border-secondary/45">
         <CardHeader className="pb-3 border-b border-border">
           <CardTitle className="flex items-center justify-between text-base">
             <div className="flex items-center gap-2">
@@ -659,7 +659,7 @@ export default function Loans() {
             <div className="flex items-center gap-4">
               <Link
                 to="/profit-distribution"
-                className="flex items-center gap-1 rounded-sm text-xs font-medium text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex items-center gap-1 rounded-sm font-sans text-xs font-medium text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 Each year's loans on Profit Distribution <ArrowRight className="w-3.5 h-3.5" />
               </Link>
@@ -750,17 +750,17 @@ export default function Loans() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="text-xs">Date</TableHead>
-                    <TableHead className="text-xs text-right">Amount</TableHead>
-                    <TableHead className="text-xs text-right">Balance after</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead className="num">Amount</TableHead>
+                    <TableHead className="num">Balance after</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {repaymentsPaged.rows.map((row) => (
                     <TableRow key={row.key}>
                       <TableCell className="text-sm figure">{row.date ? format(parseLocalDate(row.date), settings.dateFormat) : "Before the cut-over"}</TableCell>
-                      <TableCell className="text-sm figure text-right text-secondary font-medium">{row.amount.toLocaleString()}</TableCell>
-                      <TableCell className="text-sm figure text-right">{Math.max(0, row.balance).toLocaleString()}</TableCell>
+                      <TableCell className="text-sm figure num text-secondary font-medium">{row.amount.toLocaleString()}</TableCell>
+                      <TableCell className="text-sm figure num">{Math.max(0, row.balance).toLocaleString()}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -781,9 +781,9 @@ export default function Loans() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="text-xs">Month Late</TableHead>
-                      <TableHead className="text-xs">Charged On</TableHead>
-                      <TableHead className="text-xs text-right">Amount</TableHead>
+                      <TableHead>Month Late</TableHead>
+                      <TableHead>Charged On</TableHead>
+                      <TableHead className="num">Amount</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -791,12 +791,12 @@ export default function Loans() {
                       <TableRow key={p.id}>
                         <TableCell className="text-sm figure">{p.penalty_month === 0 ? "From registers" : p.penalty_month}</TableCell>
                         <TableCell className="text-sm figure">{format(parseLocalDate(p.charge_date), settings.dateFormat)}</TableCell>
-                        <TableCell className="text-sm figure text-right">{Number(p.amount).toLocaleString()}</TableCell>
+                        <TableCell className="text-sm figure num">{Number(p.amount).toLocaleString()}</TableCell>
                       </TableRow>
                     ))}
-                    <TableRow className="hover:bg-transparent">
+                    <TableRow className="ledger-total">
                       <TableCell colSpan={2} className="text-sm font-semibold">Total penalties</TableCell>
-                      <TableCell className="text-sm figure font-semibold text-right">{(Number(viewLoan?.penalty_total) || 0).toLocaleString()}</TableCell>
+                      <TableCell className="text-sm figure font-semibold num">{(Number(viewLoan?.penalty_total) || 0).toLocaleString()}</TableCell>
                     </TableRow>
                   </TableBody>
                 </Table>

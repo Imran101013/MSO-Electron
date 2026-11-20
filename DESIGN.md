@@ -1,244 +1,350 @@
 ---
 name: MSO
-description: An offline savings & loan ledger for Mogh Students Organisation, styled as a bank teller's statement register.
+description: The offline savings and loan register of Mogh Students Organization, kept as the organisation's bahi-khata, a red cloth-bound account book.
 colors:
-  seal-navy:
-    light: "hsl(217, 52%, 29%)"
-    dark: "hsl(214, 62%, 72%)"
-  sunrise:
-    light: "hsl(36, 80%, 54%)"
-    dark: "hsl(36, 86%, 58%)"
-  teller-green:
-    light: "hsl(152, 45%, 26%)"
-    dark: "hsl(152, 44%, 48%)"
-  brick-red:
-    light: "hsl(5, 60%, 41%)"
-    dark: "hsl(4, 76%, 64%)"
-  ground:
-    light: "hsl(216, 33%, 97%)"
-    dark: "hsl(221, 47%, 7%)"
-  statement-card:
-    light: "hsl(0, 0%, 100%)"
-    dark: "hsl(220, 42%, 11%)"
-  ink:
-    light: "hsl(220, 45%, 13%)"
-    dark: "hsl(214, 32%, 92%)"
-  counter-ring:
-    light: "hsl(219, 54%, 15%)"
-    dark: "hsl(221, 54%, 9%)"
+  ink-blue: "hsl(216, 58%, 30%)"
+  ink-blue-dark: "hsl(214, 75%, 74%)"
+  teller-green: "hsl(150, 48%, 27%)"
+  teller-green-dark: "hsl(150, 42%, 54%)"
+  red-ink: "hsl(3, 66%, 42%)"
+  red-ink-dark: "hsl(3, 78%, 66%)"
+  brass: "hsl(38, 78%, 52%)"
+  brass-dark: "hsl(40, 82%, 58%)"
+  binding-maroon: "hsl(358, 56%, 27%)"
+  binding-maroon-dark: "hsl(358, 44%, 18%)"
+  binding-hover: "hsl(358, 46%, 33%)"
+  binding-cream: "hsl(30, 40%, 91%)"
+  binding-brass-label: "hsl(40, 85%, 60%)"
+  binding-thread: "hsl(36, 55%, 88%)"
+  ledger-margin-red: "hsl(2, 68%, 54%)"
+  ledger-rule-blue: "hsl(212, 45%, 87%)"
+  ledger-wash: "hsl(212, 70%, 96%)"
+  ledger-zebra: "hsl(212, 62%, 97%)"
+  desk-ground: "hsl(213, 28%, 94%)"
+  desk-ground-dark: "hsl(220, 24%, 8%)"
+  sheet-white: "hsl(0, 0%, 100%)"
+  sheet-dark: "hsl(220, 22%, 11.5%)"
+  ink: "hsl(218, 40%, 14%)"
+  ink-dark: "hsl(213, 30%, 90%)"
+  muted-ink: "hsl(216, 16%, 38%)"
+  border: "hsl(213, 26%, 85%)"
+  input-border: "hsl(213, 24%, 80%)"
+  chart-issued: "hsl(216, 55%, 42%)"
+  chart-recovered: "hsl(150, 45%, 32%)"
 typography:
-  chrome:
-    fontFamily: "IBM Plex Sans, system-ui, -apple-system, sans-serif"
-    fontWeight: 400
-  heading:
-    fontFamily: "IBM Plex Sans, system-ui, sans-serif"
+  display:
+    fontFamily: "Zilla Slab, Georgia, serif"
+    fontSize: "2.25rem"
     fontWeight: 700
-    letterSpacing: "-0.015em"
-  figure:
-    fontFamily: "IBM Plex Mono, ui-monospace, monospace"
-    letterSpacing: "-0.01em"
-  eyebrow:
-    fontFamily: "IBM Plex Mono, ui-monospace, monospace"
-    fontSize: "10px"
+    lineHeight: 1.25
+    letterSpacing: "-0.005em"
+  headline:
+    fontFamily: "Zilla Slab, Georgia, serif"
+    fontSize: "1.5rem"
+    fontWeight: 700
+    lineHeight: 1.33
+    letterSpacing: "-0.005em"
+  title:
+    fontFamily: "Zilla Slab, Georgia, serif"
+    fontSize: "1rem"
+    fontWeight: 700
+    lineHeight: 1.5
+  balance:
+    fontFamily: "Public Sans, system-ui, -apple-system, sans-serif"
+    fontSize: "34px"
     fontWeight: 600
-    letterSpacing: "0.08em"
+    lineHeight: 1
+    letterSpacing: "-0.025em"
+    fontFeature: "\"tnum\" 1, \"lnum\" 1"
+  figure:
+    fontFamily: "Public Sans, system-ui, -apple-system, sans-serif"
+    fontSize: "1.5rem"
+    fontWeight: 600
+    lineHeight: 1.25
+    letterSpacing: "0"
+    fontFeature: "\"tnum\" 1, \"lnum\" 1"
+  body:
+    fontFamily: "Public Sans, system-ui, -apple-system, sans-serif"
+    fontSize: "0.875rem"
+    fontWeight: 400
+    lineHeight: 1.43
+  slip-label:
+    fontFamily: "Public Sans, system-ui, -apple-system, sans-serif"
+    fontSize: "13px"
+    fontWeight: 500
+    lineHeight: 1.25
+  column-head:
+    fontFamily: "Public Sans, system-ui, -apple-system, sans-serif"
+    fontSize: "11px"
+    fontWeight: 600
+    letterSpacing: "0.07em"
+  tag:
+    fontFamily: "Public Sans, system-ui, -apple-system, sans-serif"
+    fontSize: "10.5px"
+    fontWeight: 600
+    letterSpacing: "0.06em"
 rounded:
-  sm: "0.625rem"
-  md: "0.469rem"
-  lg: "0.3125rem"
+  sm: "3px"
+  md: "4.5px"
+  lg: "6px"
 spacing:
-  card-padding: "1rem"
-  section-gap: "1.5rem"
+  page: "24px"
+  section-gap: "16px"
+  sheet-inset: "20px"
+  cell-x: "16px"
+  cell-y: "10px"
+  header-height: "56px"
 components:
-  card-primary:
-    backgroundColor: "{colors.statement-card}"
-    rounded: "{rounded.sm}"
-  badge-positive:
-    backgroundColor: "{colors.teller-green}"
-    textColor: "{colors.teller-green}"
-    rounded: "{rounded.lg}"
-  badge-negative:
-    backgroundColor: "{colors.brick-red}"
-    textColor: "{colors.brick-red}"
-    rounded: "{rounded.lg}"
   button-primary:
-    backgroundColor: "{colors.seal-navy}"
-    textColor: "{colors.statement-card}"
+    backgroundColor: "{colors.ink-blue}"
+    textColor: "{colors.sheet-white}"
     rounded: "{rounded.sm}"
+    padding: "8px 16px"
+    height: "36px"
+  button-outline:
+    backgroundColor: "{colors.sheet-white}"
+    textColor: "{colors.ink}"
+    rounded: "{rounded.sm}"
+    padding: "8px 16px"
+    height: "36px"
+  button-outline-hover:
+    backgroundColor: "{colors.ledger-wash}"
+  button-destructive:
+    backgroundColor: "{colors.red-ink}"
+    textColor: "{colors.sheet-white}"
+    rounded: "{rounded.sm}"
+  table-head:
+    backgroundColor: "{colors.ledger-wash}"
+    textColor: "{colors.ink-blue}"
+    typography: "{typography.column-head}"
+    height: "40px"
+  table-total:
+    backgroundColor: "{colors.ledger-wash}"
+    textColor: "{colors.ink}"
+  balance-slip:
+    backgroundColor: "{colors.sheet-white}"
+    textColor: "{colors.ink}"
+    rounded: "{rounded.sm}"
+    padding: "16px"
+  amounts-note:
+    backgroundColor: "{colors.ledger-wash}"
+    textColor: "{colors.ink-blue}"
+    typography: "{typography.column-head}"
+    rounded: "{rounded.sm}"
+    padding: "2px 8px"
+  nav-item:
+    textColor: "{colors.binding-cream}"
+    rounded: "{rounded.sm}"
+    height: "40px"
+    padding: "0 12px"
+  nav-item-active:
+    backgroundColor: "{colors.binding-brass-label}"
+    textColor: "{colors.binding-maroon}"
+  input:
+    backgroundColor: "{colors.desk-ground}"
+    rounded: "{rounded.sm}"
+    height: "32px"
+    padding: "4px 12px"
 ---
 
 # Design System: MSO
 
 ## Overview
 
-**Creative North Star: "The Bank Teller Counter & Statement Register"**
+**Creative North Star: "The Bahi-Khata"**
 
-MSO reads as a trusted institutional counter, not another blue SaaS card grid. The product digitizes a small student organization's savings/loan committee ledger, so every screen is built to behave like a statement being printed at the window in front of the admin: precise columns, tabular figures, sunrise-orange rules dividing sections like a printed slip, and status shown as an ink stamp rather than a soft rounded pill. The world was chosen over a skeuomorphic "leather ledger" challenger specifically because it keeps dense financial tables scannable — the product's users are a single admin doing short, focused sessions with real money figures, and clarity of numbers wins over decorative texture every time.
+MSO is the organisation's account book: the red cloth-bound ledger a South Asian treasurer keeps and brings to the monthly meeting. The binding is flat maroon cloth. It forms the sidebar and the login panel, and one solid cream thread line runs down its inner edge. The pages are cool white sheets lying on a grey-blue desk. They are ruled like an account book: blue row lines, a double red rule closing every page title and every table head, and a thin red rule before each money column. Writing and actions are in ink blue. Brass, the sun on the seal, marks the open page and anything that needs attention. Green and red keep their banking meanings.
 
-Corners are only lightly rounded (a precise, rectangular register character, not a bubbly consumer-app one), and the signature sunrise top-rule border is used deliberately and repeatedly as the system's one recurring accent motif — it is a chosen invariant, not an accident.
+The story the screens tell is the treasurer's: open the khata, see the balance and what needs attention, post the entries, close it. The Dashboard leads with one large figure in its page head, the money in the bank (Total Budget), and summary slips sit in a row beneath it. Below them are ruled tables with tinted alternate rows and a ruled total line. Density is a working register's: compact rows, tabular figures, almost no decoration beyond the rules themselves.
+
+The system turns down two things. It is not a blue SaaS card grid with gradient hero numbers, and it is not a cream "old ledger" costume with parchment textures and handwriting fonts. The pages are clean, modern sheets. The book shows in the ruling, the binding and the slab headings.
 
 **Key Characteristics:**
-- The seal's deep-navy "counter" chrome (sidebar, login scene) framing white (or deep-navy, in dark mode) "statement" content panels
-- Every number renders in tabular monospace so columns line up like a printed register
-- Status is a bordered "ink stamp" badge, never a soft filled pill
-- A sunrise (`accent`) top-rule or bottom-rule marks the start of a section, page header, or emphasized card
-- Navigation icons sit in square stamps, the page you are on stamped in the sun
+- Maroon cloth binding with one cream thread line, and a brass label on the open page.
+- Cool white sheets on a grey-blue desk, each sheet bound at its top edge by a 3px maroon line.
+- A double red rule under every page title and every table head.
+- Money columns are right-aligned tabular figures, each with a thin red rule on its left.
+- Totals are ruled the way an account book rules them: a single line above, a double line below.
+- Zilla Slab for headings, Public Sans with tabular lining figures for everything else.
+- Turning the page: each page settles in as it opens, and its title rule draws across.
 
 ## Colors
 
-The palette is the MSO seal's own (`src/assets/mso-logo.png`): its navy ring and wordmark, the sun rising over the book, the book's steel-blue pages on white. It is a Restrained-to-Committed strategy: a cool white ground carries most of the surface, seal navy carries action and ink, the sun is the one recurring warm accent, and teller-green/brick-red stay reserved strictly for positive/negative financial meaning. The PDF reports use the same navy and sun (`C.navy`, `C.gold` in `src/utils/pdfReports.ts`), so screen and paper match.
+The palette is restrained and works by role. Ink blue does the writing, maroon is the binding, brass marks the place, and green and red carry money meaning. Every colour is a CSS custom property in `src/index.css` with its own light and dark value. The binding stays maroon in both themes.
 
 ### Primary
-- **Seal Navy** (`hsl(217 52% 29%)`, the seal's `#244271`, light / `hsl(214 62% 72%)` dark, lifted to the steel blue of the book's pages so it reads on a dark ground): primary buttons, links, focus rings, eyebrow labels, icon stamps, table header rules, the default badge. White text on it (dark-navy text in dark mode).
-
-### Accent
-- **Sunrise** (`hsl(36 80% 54%)`, the seal's sun `#E79C2A`, light / `hsl(36 86% 58%)` dark): the signature rule (page headers, emphasized cards, dropdown tops, the sticky save bar when there are unsaved changes), the active nav marker, the attention stamp, and fills that carry navy text (the "On leave" toggle). Never small text on white: at 2.3:1 it is a rule and a wash, not a text colour.
+- **Ink Blue** (ink-blue): buttons, links, focus rings, the caret, table column heads, the "Amounts in" note and small tags. In dark mode it becomes a light periwinkle (ink-blue-dark) so it still reads as ink.
 
 ### Secondary
-- **Teller Green** (`hsl(152 45% 26%)` light / `hsl(152 44% 48%)` dark): positive/inflow meaning only — recovered loans, deposits, "Paid"/"Approved"/"Present" status, savings totals.
+- **Teller Green** (teller-green): money coming in, paid, present. Used for dividends credited, repaid status, recovered amounts and the "All settings saved" tick. Never decorative.
+
+### Tertiary
+- **Brass** (brass): the seal's sun. It is used as a wash or a fill: the active nav label (binding-brass-label, with maroon text on it), the backup reminder strip at 10% with a 50% border, the Settings save bar's top border when there are unsaved changes, and text selection at 35%. Text on brass is always ink or maroon.
+- **Red Ink** (red-ink): overdue, loss, absence charges, negative figures, destructive buttons and the logout icon.
 
 ### Neutral
-- **Ground** (`hsl(216 33% 97%)` light, the seal's white with a steel-blue tint / `hsl(221 47% 7%)` dark): page background.
-- **Statement Card** (white light / `hsl(220 42% 11%)` dark): card/panel surface.
-- **Ink** (`hsl(220 45% 13%)` deep navy light / `hsl(214 32% 92%)` dark): body text. Muted text is a slate navy (`hsl(217 18% 37%)` / `hsl(215 20% 68%)`); borders and muted washes are steel blue (`hsl(216 24% 86%)`, `hsl(216 28% 93%)`).
-- **Counter Ring** (`hsl(219 54% 15%)` light / `hsl(221 54% 9%)` dark): the sidebar and the Login page's left panel are the seal's deep navy ring in both themes — the "counter" is always the counter. The Login panel adds the sun rising from below (a radial sunrise over the navy, `--gradient-hero`).
-- **Brick Red** (`hsl(5 60% 41%)` light / `hsl(4 76% 64%)` dark, with dark text): negative/outflow meaning only — overdue, defaulted, rejected, absent, destructive actions.
-- **Charts:** loans issued in a mid navy blue (`--chart-issued`) against recovered in teller green (`--chart-recovered`), apart in hue and lightness so the series survive colour-blind vision; contributions in seal navy.
-- **Browser surfaces:** text selection is a sun wash with ink text, the caret is navy, scrollbars are steel-blue thumbs on a clear track.
-
-Every text pair above meets WCAG AA (4.5:1) in both themes; checked numerically when the palette was set.
+- **Desk Ground** (desk-ground): the grey-blue surface the sheets lie on. It is also the field colour inside inputs.
+- **Sheet White** (sheet-white): cards, dialogs, popovers and the header bar (at 95% with a backdrop blur).
+- **Ink** (ink): body text and figures. **Muted Ink** (muted-ink): slip labels, descriptions, notes and dates.
+- **Border** (border) and **Input Border** (input-border): card edges, dividers and field strokes.
+- **Ledger Rule Blue** (ledger-rule-blue): the horizontal row lines in tables and the rule under a slip's figure.
+- **Ledger Margin Red** (ledger-margin-red): the double rule under page titles (85%) and table heads (90%), and the money-column rule (28%).
+- **Ledger Wash** (ledger-wash): the pale blue under table heads, total rows, the Amounts note, and outline and ghost button hovers.
+- **Ledger Zebra** (ledger-zebra): the tint on every other table row.
+- **Binding Maroon** (binding-maroon), **Binding Hover** (binding-hover), **Binding Cream** (binding-cream), **Binding Thread** (binding-thread): the cloth, the hovered nav row, the text on the cloth, and the thread line (at 35% down the inner edge, 25% between nav groups).
+- **Chart Issued / Chart Recovered**: the two Dashboard loan series, ink blue against green, set apart in both hue and lightness so they stay distinct under colour-blind vision.
 
 ### Named Rules
-**The Meaning-Not-Decoration Rule.** Teller-green and brick-red are reserved exclusively for genuine positive/negative financial or status meaning. They never appear as arbitrary decoration or to differentiate unrelated UI chrome.
+**The Money Meaning Rule.** Green means money in, paid or present. Red ink means loss, overdue or destructive. Neither is ever used for decoration, section colour or emphasis.
 
-**The Fixed Counter Rule.** The sidebar and the Login screen's left panel are the seal's deep navy in both light and dark app themes — they represent the physical counter, which doesn't change with the visitor's theme preference. Text on them uses the sidebar tokens (sun for the active item and the login tagline), never `primary`, which is navy-on-navy in light mode.
+**The Brass Is a Place Rule.** Brass marks the open page and things that need attention, and it appears only as a fill, wash or border. Brass is never used for small text on a white sheet.
 
-**The Attention Stamp Rule.** When something needs the admin's attention but nothing has gone wrong (a backup that is due, no backup yet), it is stamped in the sun: a sun-tinted border (`accent` at 50-60%) over a sun wash (`accent` at 10-15%), with the words in navy (`text-primary`), not in orange, so the text keeps its contrast. An icon on a sun wash is navy in light mode and sun in dark mode (`text-accent-foreground dark:text-accent`). Brick-red stays reserved for genuine loss or destruction; a reminder is never red.
+**The Ink Writes Rule.** Every action and every column heading is ink blue. A second accent colour for buttons does not exist.
 
 ## Typography
 
-**Chrome/Body Font:** IBM Plex Sans (with system-ui, -apple-system fallback)
-**Figure/Mono Font:** IBM Plex Mono (with ui-monospace fallback)
+**Display Font:** Zilla Slab (with Georgia, serif), bundled at 500, 600 and 700.
+**Body Font:** Public Sans (with system-ui, -apple-system, sans-serif), bundled at 400, 500, 600 and 700.
 
-**Character:** IBM Plex Sans is a clean, workhorse humanist sans built for institutional/technical registers — it never reads as decorative. IBM Plex Mono, used for every number, evokes a dot-matrix statement printer: it is what makes columns of PKR amounts feel like a printed register rather than a web page.
+**Character:** The slab is the printed heading of an account book: sturdy, a little old-fashioned, never ornamental. Public Sans is the clerk's hand, plain and legible, and its tabular lining figures keep every column of money aligned.
+
+Both faces are bundled from `@fontsource` so the app looks the same offline. Every `h1`, `h2` and `h3` is set in the slab at 700 with -0.005em tracking, so card titles (which are `h3`) are slab as well. Headings from `h4` down use Public Sans at 600.
 
 ### Hierarchy
-- **Heading** (700 weight, `-0.015em` tracking): page titles (h2) and card titles.
-- **Eyebrow/Label** (IBM Plex Mono, 600 weight, 10px, `0.08em` tracking, uppercase): the small "statement letterhead" label above every page/section title (e.g. "DAILY STATEMENT", "LENDING LEDGER").
-- **Body** (400 weight): default copy, descriptions, form labels.
-- **Figure** (IBM Plex Mono, tabular-nums, `-0.01em` tracking): every money amount, date-as-number, count, ID, or timestamp anywhere in the app.
+- **Display** (Zilla Slab 700, 36px): the cover title on the Login binding panel only.
+- **Headline** (Zilla Slab 700, 24px): the page title in every page head, sitting on the double red rule. The Login form's heading uses 30px.
+- **Title** (Zilla Slab 700, 16px): card and section titles ("Active Loans", "Money rules", "Members' dividends for 2026").
+- **Balance** (Public Sans 600, 34px, line-height 1, tabular): the one large balance figure in the Dashboard page head. There is one per screen at most.
+- **Figure** (Public Sans 600, 24px, tabular): the amount on a balance slip.
+- **Body** (Public Sans 400, 14px): table cells, form text and descriptions. Help text and notes use 12px in muted ink.
+- **Slip label** (Public Sans 500, 13px, sentence case, muted ink): the caption above a slip's figure and above the Dashboard balance.
+- **Column head** (Public Sans 600, 11px, uppercase, 0.07em tracking, ink blue): table heads and the "Amounts in PKR" note.
+- **Tag** (Public Sans 600, 10.5px, uppercase, 0.06em tracking): badges.
+- **Form group label** (Public Sans 600, 12px, uppercase, wider tracking, muted ink): the heading of a group of fields inside a dialog or detail panel ("Personal Information", "Repayments"). It names the group itself; it is not a line placed above another heading.
 
 ### Named Rules
-**The Tabular Money Rule.** Any value that is a number a user might scan down a column to compare — PKR amounts, dates, counts, percentages, IDs — always renders through the `.figure` utility (IBM Plex Mono + tabular-nums). Plain body text never carries a raw monetary figure.
+**The Tabular Figures Rule.** Every money amount, count and numeric date has tabular lining figures (the `.figure` utility, or the `num` cell class in tables). Proportional figures in a column of money are a defect.
+
+**The Slab Is for Headings Rule.** Zilla Slab sets headings only. Figures, labels and body text are always Public Sans.
 
 ## Layout
 
-Content pages follow a consistent letterhead pattern: a navy mono eyebrow label, then an h2 title, then a `border-b-2 border-accent/70` sunrise rule closing off the header block before the page body starts. Stat/summary cards sit in a responsive grid above supporting cards and tables. The app shell is a fixed left sidebar (counter grille, always dark) plus a sticky top header (statement letterhead bar with a `border-b-2 border-primary/50`) and a scrollable main content area. Density is comfortable, not enterprise-dense — the product's real data volumes are small (tens of members, a handful of active loans), so generous card padding and spacing are appropriate.
+The app shell is a fixed binding sidebar on the left and a page area on the right. The page area has a sticky 56px header bar (sheet white at 95% with a backdrop blur, a bottom border and a small shadow) holding the sidebar toggle, the member search, the theme switch, the seal with the signed-in name, and the login-details and logout buttons. Page content is padded 24px and stacks its blocks with a 16px gap.
 
-**Settings pages group by consequence.** A settings surface is split into sections by what a change touches (members' money, how the screen reads, the data itself), not into a grid of equal cards per topic. Each section is a full-width card with a bold title and plain consequence copy (capped at `90ch`, so it stays to one or two lines); section cards sit 16px apart, and the letterhead closes 12px above the first. The section whose changes move money is the one emphasized card and carries the sunrise top-rule; the others sit plain. Inside a section, settings are a single column of rows with hairline dividers, split into two row-columns when the section is long and its card is at least `54rem` wide (Money rules and Display & lists both do). The split follows the card's own width (a container query on the card), not the window's, so it holds in the default 1280px window, whose page area is narrower than the window. The page is kept short: no explanatory side panels beside the rows.
+Every page opens with a page head: the slab title, a one-line muted description where it helps, and the Amounts note, closed by the double red rule with 12 to 16px of padding above it. Actions sit at the right of the head. On the Dashboard the right side of the head carries the bank balance instead: a 13px label, the 34px figure, and today's date.
 
-**The No-Reflow Hint Rule.** Where editing a field reveals a secondary line ("In force now: 10%", or a validation error), that line lives in a fixed one-line slot (16px tall, no wrap) that is reserved whether or not it has content, so typing never shifts the rows below.
+Summary slips run in a grid: one column on narrow windows, two from 768px, four from 1024px. Detail areas pair a wide sheet with a narrow one (2fr to 1fr) from 1024px. Inside sheets, horizontal padding is 20px. Table cells are 16px by 10px, and the Dashboard loan sheet tightens them to 12px by 8px. Wide tables scroll inside their own sheet rather than widening the page.
+
+The Settings and Reports sheets lay out by their own width (container queries), not by the window. Setting rows go to two columns from 54rem of sheet width. Report rows stack when narrow, put actions on the right from 36rem, and read across in four columns from 54rem.
 
 ## Elevation & Depth
 
-Depth is conveyed structurally, not through heavy shadow stacking: a light `shadow-sm` on cards for lift, plus the signature sunrise top-rule (`border-t-2 border-t-accent`; always `border-t-accent`, so a card's other sides keep their hairline) to mark a card as primary/emphasized within a group — the rule does double duty as both hierarchy and brand signature. Shadows use a soft seal-navy tint (`hsl(220 40% 20%)`-family) at low opacity, so they read as a statement lifted off the counter rather than a generic grey drop shadow.
+Depth is mostly flat and comes from layering: grey-blue desk, white sheet, pale-blue wash. Shadows are small and tinted with ink, never black.
+
+### Shadow Vocabulary
+- **Resting** (`box-shadow: 0 1px 2px hsl(218 40% 20% / 0.07)`): every sheet, slip, button and the header bar.
+- **Raised** (`box-shadow: 0 6px 18px hsl(218 40% 20% / 0.10), 0 2px 6px hsl(218 40% 16% / 0.06)`): a balance slip on hover, and the Login submit button.
+- **Floating** (`box-shadow: 0 16px 36px hsl(218 40% 20% / 0.14), 0 4px 10px hsl(218 40% 16% / 0.08)`): the member search dropdown, the Login form sheet and dialogs.
+
+In dark mode the same three steps use near-black shadows at 45%, 50% and 60%.
 
 ### Named Rules
-**The Rule-Over-Shadow Rule.** When a card needs to stand out from its siblings (the first/primary card in a section, a hero stat), reach for the sunrise top-rule before reaching for a heavier shadow.
+**The Sheet Lies Flat Rule.** A sheet rests at the smallest shadow. Only hover, a popover or a dialog lifts it further.
 
 ## Shapes
 
-Corners use a single restrained radius scale (`0.625rem`/`0.469rem`/`0.3125rem`, i.e. Tailwind's `rounded-sm`/`rounded-md`/`rounded-lg` as remapped by `--radius`), deliberately less rounded than a typical consumer SaaS app — precise and rectangular, like a printed form. Status badges and small icon badges are `rounded-sm` bordered squares, never circles or fully-rounded pills. Avatars are `rounded-sm` (square), matching the badge/icon language, not circular. Genuinely circular controls (switch thumbs, radio buttons, loading spinners) are left round since that shape is a functional/expected affordance, not a decorative choice.
+Corners are tight, like trimmed paper: 3px is the working radius (`rounded-sm`) on sheets, slips, buttons, inputs, badges, nav rows and dialogs. The base radius token is 6px, and the shadcn default of 6px is left on the few primitives that keep it.
+
+The recurring forms are rules rather than shapes:
+- **The bound top edge:** a 3px maroon line across the top of a sheet that stands for a page of the book: settings sheets, form sheets, the member and meeting dialogs, the member search dropdown and the Login form.
+- **The double red rule:** two 1px lines 4px apart in margin red, under page titles; and a 3px double border under table heads.
+- **The total rule:** a 1px line above and a 3px double line below, in ink at 45%.
+- **The money-column rule:** a 1px margin-red line at 28% on the left of each money column.
+- **The thread line:** one solid 1px cream line, 7px in from the binding's inner edge, plus short thread lines between nav groups.
+
+Icon wells (the next-meeting date tile, report row icons, the backup reminder icon) are small 3px-radius squares with a 2px tinted border and a matching 5 to 15% fill.
 
 ## Components
 
 ### Buttons
-- **Shape:** `rounded-sm`, precise corners.
-- **Primary:** seal-navy background, white text — the counter's "stamp of approval" action.
-- **Hover/Focus:** slight opacity shift on hover (`/90`), `active:scale-[0.98]` press feedback, navy focus ring.
-- **Secondary/Outline/Ghost:** token-driven per shadcn conventions, unchanged in structure from the base primitive, only recolored via tokens.
+Plain and ink-coloured, like a stamped instruction.
+- **Shape:** 3px corners on page buttons (the shadcn default is 6px, and pages set 3px).
+- **Primary:** ink blue fill with white text, 36px tall, 16px side padding, 14px medium weight, resting shadow. Hover goes to 90% ink. Press scales to 98%.
+- **Outline:** sheet white with an input-border stroke and ink text. Hover tints the border ink blue at 40% and fills with the ledger wash. Reports uses outline "View" buttons in every row.
+- **Ghost:** no fill. Hover fills with the ledger wash and turns the text ink blue. Used for header icon buttons, "Discard" and "Reminder settings".
+- **Destructive:** red ink fill with white text. A destructive action inside a page uses an outline button with a red-ink border at 50% and red text.
+- **Focus:** a 2px ink-blue ring with a 2px offset.
+- **Sizes:** small is 32px with 12px text; large is 44px with 16px text (the Login submit).
 
-### Badges ("ink stamps")
-- **Style:** `rounded-sm`, `border-2`, uppercase, tracked, tinted background (10% opacity fill of its tone color) rather than a solid fill — reads as a stamped impression, not a filled pill.
-- **State:** `default` = navy/neutral-positive, `secondary` = teller-green/positive, `destructive` = brick-red/negative, `outline` = purely informational.
+### Badges and the Amounts note
+- **Badge:** 3px corners, a 1px tinted border, a 7 to 8% fill of the same colour, 10.5px uppercase semibold text. Variants: ink blue (default), teller green, red ink, and a dashed outline in ink at 30% for provisional states ("Preview, not saved").
+- **Amounts note:** "Amounts in PKR" in ink blue column-head type on the ledger wash with a light ink border. It sits under the page title or in a section head, so the figures below can be shown without the currency.
 
-### Cards / Containers
-- **Corner Style:** `rounded-sm`.
-- **Background:** statement-card token (white in light mode, deep navy panel in dark mode).
-- **Shadow Strategy:** `shadow-sm` at rest; primary/emphasized cards add the sunrise top-rule (see Elevation & Depth).
-- **Border:** none by default besides the optional top-rule; `CardHeader` on multi-section cards gets a `border-b border-border` divider.
+### Sheets (cards)
+- **Corner style:** 3px.
+- **Background:** sheet white (sheet-dark in dark mode) with a 1px border.
+- **Shadow:** resting.
+- **Bound top edge:** the 3px maroon line on sheets that stand for a page of the book.
+- **Header:** a slab title at 16px with an optional muted count or description, 20px by 12px, divided from the body by a border. "View all" links sit on the right.
+
+### Balance slip
+The Dashboard's summary slip. A 3px sheet with 16px padding: a 13px sentence-case label in muted ink with a 14px icon in its meaning colour (ink for counts, red for loans out and overdue, brass for the reserve), then the figure in 24px semibold tabular type. A note or trend, when there is one, is ruled off below by a blue ledger rule. On hover it lifts to the raised shadow. The Member dialog uses the same slip labels.
+
+### Ledger table
+The signature component, and the one every list in the app uses.
+- **Head:** the ledger wash, 40px tall, 11px uppercase ink-blue column heads, closed by a 3px double margin-red border.
+- **Rows:** a 1px blue ledger rule between rows. Every other row is tinted ledger zebra (the user asked for these stripes). Hover tints a row with ink blue at 5%. A row's own highlight always wins over the stripe.
+- **Money columns:** right-aligned tabular figures that do not wrap, each with the thin red rule on its left. Applies to the head cell as well as the body cells.
+- **Totals:** a footer row (or a total row inside the body) on the ledger wash in semibold, with a single rule above and a double rule below. It is used for Total outstanding, the dividends footer, Budget and Reserve totals and balances, and the meeting dialog's Total savings.
+- **Figures in meaning colours:** dividends in green, charges and overdue dates in red, everything else in ink.
 
 ### Inputs / Fields
-- **Style:** `rounded-sm`, hairline border using the steel-blue `border` token.
-- **Focus:** navy ring (`ring-primary`), consistent with buttons.
+- **Style:** 32px tall, 3px corners, a 1px input-border stroke, filled with the desk ground so a field reads as a space to write in. Login fields are 44px.
+- **Focus:** a 2px ink-blue ring with a 2px offset. The caret is ink blue.
+- **Error / disabled:** the stroke turns red ink and a red message sits below. Disabled fields drop to 50% opacity.
+- **Units:** money settings show a suffix such as "/ month" inside the field.
 
-### Tables ("the register")
-- **Header:** `border-b-2 border-primary/60` double-rule under the header row (navy, like the navy header row of the PDF registers), column labels uppercase/tracked/11px.
-- **Rows:** hairline dividers, hover tint via `bg-muted/50` — no zebra striping.
-- **Numeric columns:** always `.figure` (tabular mono), typically right-context but not forced right-aligned everywhere existing layouts didn't already do so.
+### Navigation (the binding)
+- **Cover label:** at the top of the binding, a 3px box with a brass border at 45% on a darker maroon wash. It holds the 56px seal, "MSO" in 30px Zilla Slab and "Mogh Students Organization" in 11px cream at 75%.
+- **Groups:** three blocks split by short thread lines: Dashboard; the entry pages (Meetings, Loans, Members, Reserve Fund) in semibold full cream with brass icons; then the viewing and occasional pages (Profit Distribution, Budget, Reports, Audit Log, Settings) in medium cream at 70% with dimmer icons.
+- **Rows:** 40px, 3px corners, 14px text, 16px icon. Hover fills with binding hover and brightens the text.
+- **Active:** the brass label: a brass fill, maroon text and icon, semibold, with a fine inner edge and a 1px shadow below.
 
-### Navigation (sidebar)
-- **Style:** fixed deep seal-navy "counter," always dark regardless of app theme, with the seal's sun rising faintly from its foot (`--gradient-counter`, the Login panel's sunrise kept low; a background on `[data-sidebar="sidebar"]`, so it stays put while the links scroll).
-- **Letterhead:** the seal (64px) on the left; beside it "MOGH STUDENTS ORGANIZATION" (tracked mono, 10px, foreground at 60%) over "MSO" (30px bold). A hairline "horizon" closes it, with a short sun bar at its centre.
-- **Blocks:** three, split by `sidebar-border` hairlines, no headings: the Dashboard; the **entry pages**, where records are typed in, most used first (Meetings, Loans, Members, Reserve Fund); then the pages for viewing and occasional work (Budget, Reports, Profit Distribution, Audit Log, Settings). Each block is a `role="group"` with an `aria-label` for screen readers. No numbers.
-- **Item:** 40px row, the icon (15px) in a 28px square `rounded-sm` stamp, then the label at 14px.
-  - **Entry page:** stamp outlined in the sun (`sidebar-primary` at 60%) with a sun icon on the faint navy fill; label semibold at full brightness (`sidebar-accent-foreground`). "Sun outline = where you enter records; sun fill = where you are."
-  - **Other page:** stamp hairline `sidebar-border` with the icon at 60%; label medium, foreground at 60% (5.4:1 on the counter).
-- **Hover:** the row lifts to `sidebar-accent` at 50% and the label brightens; an entry stamp's outline goes to the full sun, another stamp's border brightens and its icon whitens.
-- **Active state:** the row is lifted navy (`sidebar-accent`) edged with a sun hairline (inset, 28%), the label semibold; the stamp is filled in the sun with a navy icon; a 3px sun tab sits flush with the sidebar's left edge. Never a sun wash on the row: sun over navy mixes to grey.
+### Page head
+The slab title on the double red rule, which draws across from the left in 420ms when the page opens. The whole page settles in over 260ms, rising 6px from 40% opacity. Both animations stop under reduced motion and when Settings turns animations off. Spinners keep turning.
 
-### Statement Header (signature component)
-The top app bar and every page's own header both carry the "letterhead" pattern: a small navy tracked-mono eyebrow line, the heading below it, and a sunrise rule closing the block. This recurs identically across all 13+ pages and is the single most repeated signature move in the system — it is what makes every page feel like a page from the same printed ledger.
+### Settings patterns
+- **Setting row:** the label and its help text on the left; the field, its hint and any error on the right. Rows are divided by borders inside a bound sheet.
+- **Sticky save bar:** fixed to the bottom of the page, sheet white, with a 2px top border that turns brass when there are unsaved changes. It says what is unsaved and in which sections ("Unsaved changes in Money rules") or shows a green tick for "All settings saved", with Discard (ghost) and Save changes (primary) on the right.
+- **Destructive footer strip:** at the foot of the data sheet, a strip on red ink at 4% above a border, explaining the action, with a red-outline button (Restore from backup, Clear all records) that opens a confirmation dialog.
 
-### Settings Rows
-- **Structure:** label (14px, medium) with a short help line (12px, muted, relaxed leading) on the left; the control right-aligned on the right, top-aligned with the label. Rows are separated by hairline `border-border` dividers with 12px vertical padding and 8px between label and control when they stack; on narrow windows the control drops below the label.
-- **Held-hint variant:** the Money rules rows always reserve the No-Reflow hint slot under the control, where an edited value shows the one in force ("In force now: 10%") or its error.
-- **Help copy** may carry a live preview of the setting as a figure ("Today reads 28/09/2026"), rendered through `.figure`.
+### Reports index
+One report per row inside a section sheet: a 32px icon well, the report name in 14px semibold, a scope line in ink-blue uppercase tracked type, a muted description, and the period picker with an outline View button on the right.
 
-### Unit Input
-- **Style:** one bordered field (`rounded-sm`, 40px tall, hairline `input` border, page-background fill) holding the number with its unit inside the border: an optional prefix (currency code, mono, muted 12px) and suffix (`%`, `/ month`, `rows`, muted 12px).
-- **Figures:** the number is right-aligned and tabular (`.figure`), so a column of unit inputs aligns like a register.
-- **Focus / Error / Disabled:** the whole field takes the navy focus ring (`focus-within`); invalid turns the border brick-red with the message in the row's hint slot; disabled fades the field to 50% (e.g. the interest rate while interest is switched off).
+### Login
+The left half is the binding: maroon cloth with a cream thread border inset 16px, and a cover label holding the 128px seal, the title in 36px slab and a tagline. The right half is the desk with one bound white form sheet (floating shadow, 32px padding). On narrow windows the binding panel is hidden and the seal sits above the form.
 
-### Segmented Control
-- **Style:** for two or three mutually exclusive, short options (theme, 12/24-hour). A `rounded-sm` hairline-bordered track on a muted wash (`muted` at 50%) with a 2px inset; segments are 32px tall with muted text, and the selected segment lifts onto the statement-card colour with ink text and `shadow-sm`. No accent fill on the selected segment: selection reads as a raised slip, not an accent.
-- **Use a Select instead** when options are long or more than three.
-
-### Sticky Save Bar
-- **Style:** a full-bleed bar pinned to the bottom of a settings form, statement-card background, with a `border-t-2` that is a neutral hairline when everything is saved and turns sunrise (`accent`) the moment there are unsaved changes (200ms colour transition).
-- **Content:** on the left, a live status line (`aria-live="polite"`): "Unsaved changes in Money rules and Display & lists", naming the dirty sections, or a teller-green check with "All settings saved". On the right, a ghost **Discard** and the primary **Save changes**, both disabled while clean.
-- **Rule:** settings are staged, never applied on change; "Reset to defaults" only fills the form, and Save or Discard still decides.
-
-### Report Index (Reports page)
-Reports are listed like the index of a register, not as a grid of equal cards: each section is one card (a header with its stamp icon and title over a hairline), and each report is a row in it.
-- **Row:** a 32px stamp icon; the report's name (14px semibold) with its scope under it ("PERIOD · INCEPTION – 05/10/2026", tracked mono 10px, navy); the description (12px muted); then the picker, when the report is for one member, loan or distribution, and the **View** button at the right edge. Rows are 12px top and bottom with hairline dividers.
-- **Widths:** the row follows its section card's width (`.report-row` in `index.css`, a container query), not the window's: from `54rem` the name, description and actions read across in columns, so descriptions and View buttons line up down the page; from `36rem` the description sits under the name with the actions on the right; narrower, everything stacks.
-
-### Attention Strip
-- **Style:** a full-width `rounded-sm` strip in the Attention Stamp colours (sun border at 50%, sun wash at 10%), led by a 36px square stamp icon box (`border-2`, sun at 50%, navy icon; sun in dark mode), with a semibold one-line statement plus a muted explanation, and actions on the right (a ghost link to the relevant settings, then the primary action). Used for the Dashboard backup reminder; it renders only while the condition holds rather than sitting as a permanent banner.
-- **Badge form:** the same colours on an outline `<Badge>` ("Backup due", "No backup"); the resolved state switches to the teller-green `secondary` badge ("Backed up").
-
-### Destructive Footer Strip
-- **Style:** a destructive action inside an otherwise safe section is walled off in its own footer strip at the bottom of the card: hairline top border, a faint brick-red wash (`destructive` at 4%), a title and one-line consequence on the left, and an outline button in brick-red (border at 50%, brick-red text, 10% brick-red hover wash) on the right.
-- **Confirmation:** the button always opens an alert dialog that names exactly what will be overwritten and that it cannot be undone. The confirm action is the solid brick-red button with a specific verb ("Choose file and restore"), with Cancel beside it.
+### Attention strip
+The backup reminder: a full-width strip in a brass wash (10%) with a brass border at 50%, an icon well, a semibold reason, a muted explanation, and a ghost link with a small primary action on the right.
 
 ## Do's and Don'ts
 
 ### Do:
-- **Do** run every monetary amount, date-as-number, count, or ID through the `.figure` utility class.
-- **Do** use the sunrise top-rule (`border-t-2 border-t-accent`) sparingly — one emphasized card per section, not every card.
-- **Do** map status meaning strictly: teller-green = positive, brick-red = negative, navy/default = neutral, outline = informational.
-- **Do** keep the sidebar and Login-page left panel the seal's deep navy in both light and dark themes.
-- **Do** use `rounded-sm` as the default corner radius for cards, buttons, inputs, badges, and avatars.
-- **Do** show the value in force under an edited money setting ("In force now: 10%") until it is saved. (The Settings worked example was removed on request, 2026-10-05, to shorten the page.)
-- **Do** stage settings behind a sticky save bar that names the unsaved sections; nothing applies until Save.
-- **Do** reserve the hint slot under editable money fields so revealing a hint or error never moves the rows below.
+- **Do** put the double red rule under every page title, and the 3px double margin-red border under every table head.
+- **Do** give every money column the `num` treatment: right-aligned tabular figures with the thin red rule on the left.
+- **Do** close summed tables with a total row on the ledger wash, with a single rule above and a double rule below.
+- **Do** keep the alternate-row stripes on every ledger table. The user chose them.
+- **Do** use the MSO seal as the only mark: on the cover label, in the header beside the signed-in name and on the Login cover. Never redraw or replace it.
+- **Do** label the Dashboard's large figure as Total Budget, the money in the bank account.
+- **Do** use the 3px maroon top edge on a sheet that stands for a page of the book, and 3px corners on everything you build.
+- **Do** write labels in sentence case at 13px for slip captions, and keep uppercase for column heads, badges, the Amounts note and form group labels.
 
 ### Don't:
-- **Don't** reintroduce filled gradient circles (`bg-gradient-primary` + white icon) for icon badges — the system uses bordered square "stamp" badges instead.
-- **Don't** use `rounded-full`/`rounded-xl`/`rounded-2xl` on cards, dialogs, or icon badges — reserve fully-rounded shapes for switches, radios, and spinners only.
-- **Don't** use raw ad-hoc colored `<span>` pills for status (e.g. `bg-emerald-100 text-emerald-700`) — always route status through the shared `<Badge>` component and its token-driven variants.
-- **Don't** imply live sync, multi-device presence, or network/connectivity status anywhere in the UI — this is a strictly offline, single-machine product.
-- **Don't** lay out settings as a grid of equal cards; group them by consequence, with the money section as the one sunrise-ruled card.
-- **Don't** colour a reminder or overdue-backup state brick-red; attention is the sun, and red is for loss and destructive actions.
-- **Don't** place a destructive action inline among ordinary settings rows; wall it off in a tinted footer strip behind a confirmation dialog.
+- **Don't** use green or red for anything except money meaning (in, paid and present; loss, overdue and destructive).
+- **Don't** set small text in brass on a white sheet. Brass is a fill, wash or border.
+- **Don't** add a second action colour. Actions are ink blue, and destructive actions are red ink.
+- **Don't** put the large balance figure on more than one place per screen, or turn slips into gradient hero numbers.
+- **Don't** add parchment textures, stitching, weave patterns or handwriting fonts. The binding is flat maroon with one solid thread line.
+- **Don't** show member registration or member numbers anywhere. Members have none.
+- **Don't** use proportional figures in columns of money.
+- **Don't** add web-font links. Fonts are bundled.

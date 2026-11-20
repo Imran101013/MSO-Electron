@@ -10,7 +10,7 @@ export default function AmountsNote({ currency, className }: { currency?: string
   return (
     <span
       className={cn(
-        "text-xs font-semibold text-black px-3 py-1 bg-accent/30 whitespace-nowrap",
+        "inline-flex w-fit items-center whitespace-nowrap rounded-sm border border-primary/20 bg-ledger-wash px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-primary",
         className,
       )}
     >

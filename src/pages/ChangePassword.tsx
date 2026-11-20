@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
-import { KeyRound, Loader2, Save } from "lucide-react";
+import { Loader2, Save } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -58,20 +58,16 @@ export default function ChangePassword() {
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-6" noValidate>
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b-2 border-accent/70 pb-4">
+      <div className="flex flex-wrap items-center justify-between gap-4 ledger-head pb-4">
         <div className="flex items-center gap-4">
-          <div className="w-11 h-11 rounded-sm border-2 border-primary/40 bg-primary/10 flex items-center justify-center">
-            <KeyRound className="w-5 h-5 text-primary" />
-          </div>
           <div>
-            <p className="tracked-label text-[10px] font-semibold text-primary uppercase">Account</p>
             <h2 className="text-2xl font-bold text-foreground mt-1">Login details</h2>
             <p className="text-sm text-muted-foreground mt-0.5">The username and password that open MSO on this computer</p>
           </div>
         </div>
       </div>
 
-      <Card className="rounded-sm shadow-sm border-t-2 border-t-accent max-w-3xl">
+      <Card className="rounded-sm shadow-sm ledger-sheet max-w-3xl">
         <div className="px-5 pt-5 pb-1">
           <h3 className="text-base font-bold text-foreground">One shared login</h3>
           <p className="text-sm text-muted-foreground mt-1 max-w-[68ch]">

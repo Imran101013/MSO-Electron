@@ -145,7 +145,7 @@ export default function ReportsPage() {
       </div>
 
       {/* Reporting period */}
-      <Card className="border border-border/60 border-t-2 border-t-accent shadow-sm rounded-sm">
+      <Card className="border border-border/60 ledger-sheet shadow-sm rounded-sm">
         <CardContent className="flex flex-wrap items-center gap-x-6 gap-y-3 px-5 py-4">
           <div className="flex min-w-[18rem] flex-1 items-start gap-3">
             <div className="w-8 h-8 rounded-sm border-2 border-primary/40 bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
@@ -451,7 +451,7 @@ function ReportRow({ icon: Icon, title, description, scope, action }: ReportRowP
 
 function ViewButton({ onClick, disabled }: { onClick: () => void; disabled?: boolean }) {
   return (
-    <Button size="sm" onClick={onClick} disabled={disabled} className="h-9 gap-2 shadow-sm flex items-center justify-center rounded-sm">
+    <Button size="sm" variant="outline" onClick={onClick} disabled={disabled} className="h-9 gap-2 flex items-center justify-center rounded-sm text-primary">
       <Eye className="w-3.5 h-3.5" /> View
     </Button>
   );

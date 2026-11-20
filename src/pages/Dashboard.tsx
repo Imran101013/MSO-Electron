@@ -9,10 +9,9 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   Users,
-  Wallet,
   HandCoins,
   PiggyBank,
   Calendar,
@@ -58,7 +57,7 @@ function niceTicks(max: number, count = 4) {
   return Array.from({ length: Math.ceil(max / step) + 1 }, (_, i) => i * step);
 }
 
-const axisTick = { fontSize: 11, fontFamily: "IBM Plex Mono", fill: "hsl(var(--muted-foreground))" };
+const axisTick = { fontSize: 11, fontFamily: "Public Sans", fill: "hsl(var(--muted-foreground))" };
 
 export default function Dashboard() {
   const { settings } = useSettings();
@@ -237,35 +236,30 @@ export default function Dashboard() {
   return (
     <div className="space-y-4">
       {/* Page Header — statement letterhead */}
-      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-1 border-b-2 border-accent/70 pb-3">
+      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-1 ledger-head pb-3">
         <div>
           <h2 className="text-2xl font-bold text-foreground mt-1">Dashboard</h2>
           <AmountsNote className="block" />
         </div>
-        <p className="text-sm text-muted-foreground sm:text-right">
-          {today}
-          <span className="block text-xs">Mogh Students Organisation</span>
-        </p>
+        {/* The balance the khata is kept for: the money in the bank. */}
+        <div className="sm:text-right">
+          <p className="text-[13px] font-medium text-muted-foreground">Total Budget · in the bank account</p>
+          <p className="figure text-[34px] font-semibold leading-none tracking-tight text-foreground">
+            {isLoading || budgetLoading ? "—" : totalBudget.toLocaleString()}
+          </p>
+          <p className="mt-1.5 text-xs text-muted-foreground">{today}</p>
+        </div>
       </div>
 
       <BackupReminder />
 
       {/* Stats Grid — printed summary slips */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)_minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1.3fr)] gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Total Members"
           value={isLoading ? "—" : totalMembers.toString()}
           icon={Users}
           iconColor="border-primary/40 bg-primary/10 text-primary"
-        />
-        <StatCard
-          title="Total Budget"
-          value={
-            isLoading || budgetLoading ? "—" : totalBudget.toLocaleString()
-          }
-          note="(In the bank account)"
-          icon={Wallet}
-          iconColor="border-secondary/40 bg-secondary/10 text-secondary"
         />
         <StatCard
           title="Loans Outstanding"
@@ -292,7 +286,7 @@ export default function Dashboard() {
       </div>
 
       {/* Quick Info — the active loan book beside the meeting calendar */}
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-4">
+      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <Card className="shadow-sm rounded-sm flex flex-col">
           <CardHeader className="flex-row items-center justify-between space-y-0 gap-3 px-5 py-3 border-b border-border">
             <CardTitle className="flex items-center gap-2 text-base">
@@ -324,7 +318,7 @@ export default function Dashboard() {
                     <TableHead className="h-9 px-5">Member</TableHead>
                     <TableHead className="h-9 px-3">Issued</TableHead>
                     <TableHead className="h-9 px-3">Due by</TableHead>
-                    <TableHead className="h-9 px-5 text-right">
+                    <TableHead className="h-9 px-5 num">
                       Outstanding
                     </TableHead>
                   </TableRow>
@@ -370,7 +364,7 @@ export default function Dashboard() {
                           </Badge>
                         )}
                       </TableCell>
-                      <TableCell className="px-3 py-2 text-right">
+                      <TableCell className="num px-3 py-2">
                         <p className="figure font-semibold text-foreground whitespace-nowrap">
                           {amount(loan.remaining_amount)}
                         </p>
@@ -383,6 +377,17 @@ export default function Dashboard() {
                     </TableRow>
                   ))}
                 </TableBody>
+                <TableFooter>
+                  <TableRow>
+                    <TableCell colSpan={3} className="px-5 py-2">
+                      Total outstanding
+                      <span className="figure ml-1.5 text-xs font-normal text-muted-foreground">
+                        {activeLoanRows.length} loan{activeLoanRows.length === 1 ? "" : "s"}
+                      </span>
+                    </TableCell>
+                    <TableCell className="num figure px-3 py-2 text-foreground">{amount(activeLoans)}</TableCell>
+                  </TableRow>
+                </TableFooter>
               </Table>
             ) : (
               <div className="flex items-center gap-3 px-5 py-5">
@@ -434,7 +439,7 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent className="p-0">
             {!meetingsLoading && (
-              <p className="px-5 pt-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <p className="px-5 pt-3 pb-0.5 text-[13px] font-semibold text-foreground">
                 Upcoming meeting
               </p>
             )}
@@ -513,7 +518,7 @@ export default function Dashboard() {
                 <div className="border-t border-border">
                   <div className="px-5 pt-2.5 pb-2">
                     <div className="flex items-baseline justify-between gap-3">
-                      <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      <p className="text-[13px] font-semibold text-foreground">
                         Last meeting
                       </p>
                       <p className="figure text-xs text-foreground whitespace-nowrap">

@@ -11,26 +11,31 @@ interface StatCardProps {
   /** A plain line under the value (no arrow), e.g. the date a figure is for. */
   note?: string;
   bgColor?: string;
+  /** Tone classes for the icon; only its text colours are used (e.g. "text-secondary"). */
   iconColor?: string;
 }
 
+/** A balance slip: what it is, the figure, and (ruled off below it) a note when there is one. */
 export default function StatCard({ title, value, icon: Icon, trend, trendUp, note, bgColor, iconColor }: StatCardProps) {
+  const iconText = (iconColor || "text-primary").split(/\s+/).filter((c) => /^(dark:)?text-/.test(c)).join(" ");
   return (
-    <Card className={cn("card-hover border-0 border-t-2 border-t-accent shadow-sm rounded-sm overflow-hidden relative bg-card", bgColor)}>
-      <CardContent className="p-3.5">
-        <div className="flex items-start justify-between gap-3">
-          <p className="tracked-label min-w-0 pt-1 text-[10px] font-semibold uppercase text-muted-foreground">{title}</p>
-          <div className={cn("w-8 h-8 rounded-sm border-2 flex items-center justify-center flex-shrink-0", iconColor || "border-primary/40 bg-primary/10 text-primary")}>
-            <Icon className="w-4 h-4" />
+    <Card className={cn("card-hover rounded-sm border border-border bg-card shadow-sm", bgColor)}>
+      <CardContent className="flex h-full flex-col p-4">
+        <p className="flex items-center gap-1.5 text-[13px] font-medium leading-tight text-muted-foreground">
+          <Icon className={cn("size-3.5 shrink-0", iconText)} aria-hidden />
+          <span className="min-w-0">{title}</span>
+        </p>
+        <p className="figure mt-2 break-words text-2xl font-semibold leading-tight text-foreground">{value}</p>
+        {(trend || note) && (
+          <div className="mt-2.5 border-t border-ledger-rule pt-1.5">
+            {trend && (
+              <p className={cn("figure flex items-center gap-1 text-xs font-medium", trendUp ? "text-secondary" : "text-destructive")}>
+                {trendUp ? "▲" : "▼"} {trend}
+              </p>
+            )}
+            {note && <p className="text-xs text-muted-foreground">{note}</p>}
           </div>
-        </div>
-        <p className="figure text-sm font-semibold text-[12px] mt-1 break-words">{value}</p>
-        {trend && (
-          <p className={cn("figure text-[11px] mt-1.5 font-medium flex items-center gap-1", trendUp ? "text-secondary" : "text-destructive")}>
-            {trendUp ? "▲" : "▼"} {trend}
-          </p>
         )}
-        {note && <p className="figure text-[11px] mt-1.5 text-muted-foreground">{note}</p>}
       </CardContent>
     </Card>
   );

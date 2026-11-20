@@ -224,7 +224,7 @@ export default function ProfitDistribution() {
   return (
     <div className="space-y-6">
       {/* Header — statement letterhead */}
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b-2 border-accent/70 pb-4">
+      <div className="flex flex-wrap items-center justify-between gap-4 ledger-head pb-4">
         <div>
           <h2 className="text-2xl font-bold text-foreground mt-1">Profit Distribution</h2>
           <p className="text-sm text-muted-foreground mt-0.5">
@@ -235,7 +235,7 @@ export default function ProfitDistribution() {
       </div>
 
       {/* The year's profit: inputs (or the saved figures) beside the worked-out slip */}
-      <Card className="rounded-sm border-t-2 border-t-accent shadow-sm overflow-hidden">
+      <Card className="rounded-sm ledger-sheet shadow-sm overflow-hidden">
         <div className="grid lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
           <section className="space-y-4 p-5" aria-label="Distribution details">
             <div className="flex items-baseline justify-between gap-3">
@@ -462,39 +462,39 @@ export default function ProfitDistribution() {
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
                   <TableHead className="h-9 px-5">Member</TableHead>
-                  <TableHead className="h-9 px-3 text-right">Savings on 31/12</TableHead>
-                  <TableHead className="h-9 px-3 text-right">Share</TableHead>
-                  <TableHead className="h-9 px-3 text-right">Share of {membersPct}%</TableHead>
-                  <TableHead className="h-9 px-3 text-right">Absences</TableHead>
-                  <TableHead className="h-9 px-3 text-right">Absence charge</TableHead>
-                  <TableHead className="h-9 px-5 text-right">Dividend</TableHead>
+                  <TableHead className="h-9 px-3 num">Savings on 31/12</TableHead>
+                  <TableHead className="h-9 px-3 num">Share</TableHead>
+                  <TableHead className="h-9 px-3 num">Share of {membersPct}%</TableHead>
+                  <TableHead className="h-9 px-3 num">Absences</TableHead>
+                  <TableHead className="h-9 px-3 num">Absence charge</TableHead>
+                  <TableHead className="h-9 px-5 num">Dividend</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {membersPaged.rows.map((r) => (
                   <TableRow key={r.memberId}>
                     <TableCell className="px-5 py-2 font-medium whitespace-nowrap">{r.name}</TableCell>
-                    <TableCell className="figure px-3 py-2 text-right">{r.savings > EPS ? amount(r.savings) : "—"}</TableCell>
-                    <TableCell className="figure px-3 py-2 text-right text-muted-foreground">{(r.ratio * 100).toFixed(2)}%</TableCell>
-                    <TableCell className="figure px-3 py-2 text-right">{amount(r.gross)}</TableCell>
-                    <TableCell className="figure px-3 py-2 text-right">{r.absences || "—"}</TableCell>
+                    <TableCell className="figure px-3 py-2 num">{r.savings > EPS ? amount(r.savings) : "—"}</TableCell>
+                    <TableCell className="figure px-3 py-2 num text-muted-foreground">{(r.ratio * 100).toFixed(2)}%</TableCell>
+                    <TableCell className="figure px-3 py-2 num">{amount(r.gross)}</TableCell>
+                    <TableCell className="figure px-3 py-2 num">{r.absences || "—"}</TableCell>
                     <TableCell className={cn("figure px-3 py-2 text-right", r.penalty > EPS && "text-destructive")}>
                       {r.penalty > EPS ? `−${amount(r.penalty)}` : "—"}
                       {r.waived > EPS && <span className="block text-xs text-muted-foreground">{amount(r.waived)} waived</span>}
                     </TableCell>
-                    <TableCell className="figure px-5 py-2 text-right font-semibold text-secondary">{amount(r.dividend)}</TableCell>
+                    <TableCell className="figure px-5 py-2 num font-semibold text-secondary">{amount(r.dividend)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
               <TableFooter>
                 <TableRow className="hover:bg-transparent">
                   <TableCell className="px-5 py-2.5 font-semibold">{view.rows.length} members</TableCell>
-                  <TableCell className="figure px-3 py-2.5 text-right font-semibold">{view.totalSavings > EPS ? amount(view.totalSavings) : "—"}</TableCell>
-                  <TableCell className="figure px-3 py-2.5 text-right">100.00%</TableCell>
-                  <TableCell className="figure px-3 py-2.5 text-right font-semibold">{amount(view.pool)}</TableCell>
-                  <TableCell className="figure px-3 py-2.5 text-right">{view.absences}</TableCell>
-                  <TableCell className="figure px-3 py-2.5 text-right">{view.absencePenalties > EPS ? `−${amount(view.absencePenalties)}` : "—"}</TableCell>
-                  <TableCell className="figure px-5 py-2.5 text-right font-bold">{amount(view.dividends)}</TableCell>
+                  <TableCell className="figure px-3 py-2.5 num font-semibold">{view.totalSavings > EPS ? amount(view.totalSavings) : "—"}</TableCell>
+                  <TableCell className="figure px-3 py-2.5 num">100.00%</TableCell>
+                  <TableCell className="figure px-3 py-2.5 num font-semibold">{amount(view.pool)}</TableCell>
+                  <TableCell className="figure px-3 py-2.5 num">{view.absences}</TableCell>
+                  <TableCell className="figure px-3 py-2.5 num">{view.absencePenalties > EPS ? `−${amount(view.absencePenalties)}` : "—"}</TableCell>
+                  <TableCell className="figure px-5 py-2.5 num font-bold">{amount(view.dividends)}</TableCell>
                 </TableRow>
               </TableFooter>
             </Table>
@@ -519,13 +519,13 @@ export default function ProfitDistribution() {
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
                   <TableHead className="h-9 px-5">Year · AGM</TableHead>
-                  <TableHead className="h-9 px-3 text-right">Bank profit</TableHead>
-                  <TableHead className="h-9 px-3 text-right"><span className="text-muted-foreground/60 mr-1">+</span>Loan interest</TableHead>
-                  <TableHead className="h-9 px-3 text-right"><span className="text-muted-foreground/60 mr-1">+</span>Penalties</TableHead>
-                  <TableHead className="h-9 px-3 text-right"><span className="text-muted-foreground/60 mr-1">+</span>Absence charges</TableHead>
-                  <TableHead className="h-9 px-3 text-right"><span className="text-muted-foreground/60 mr-1">=</span>Total</TableHead>
-                  <TableHead className="h-9 px-3 text-right">Reserve</TableHead>
-                  <TableHead className="h-9 px-5 text-right">Dividends</TableHead>
+                  <TableHead className="h-9 px-3 num">Bank profit</TableHead>
+                  <TableHead className="h-9 px-3 num"><span className="text-muted-foreground/60 mr-1">+</span>Loan interest</TableHead>
+                  <TableHead className="h-9 px-3 num"><span className="text-muted-foreground/60 mr-1">+</span>Penalties</TableHead>
+                  <TableHead className="h-9 px-3 num"><span className="text-muted-foreground/60 mr-1">+</span>Absence charges</TableHead>
+                  <TableHead className="h-9 px-3 num"><span className="text-muted-foreground/60 mr-1">=</span>Total</TableHead>
+                  <TableHead className="h-9 px-3 num">Reserve</TableHead>
+                  <TableHead className="h-9 px-5 num">Dividends</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -547,16 +547,16 @@ export default function ProfitDistribution() {
                         <p className="figure text-xs text-muted-foreground whitespace-nowrap">{fmt(String(d.date))}</p>
                         {oldMethod && <p className="text-xs text-muted-foreground">Old method: bank profit only</p>}
                       </TableCell>
-                      <TableCell className="figure px-3 py-2.5 text-right whitespace-nowrap">{amount(oldMethod ? total : Number(d.bankProfit || 0))}</TableCell>
-                      <TableCell className="figure px-3 py-2.5 text-right whitespace-nowrap">{oldMethod ? "—" : amount(Number(d.loanInterest || 0))}</TableCell>
-                      <TableCell className="figure px-3 py-2.5 text-right whitespace-nowrap">{oldMethod ? "—" : amount(Number(d.loanPenalties || 0))}</TableCell>
-                      <TableCell className="figure px-3 py-2.5 text-right whitespace-nowrap">{oldMethod ? "—" : amount(Number(d.absencePenalties || 0))}</TableCell>
-                      <TableCell className="figure px-3 py-2.5 text-right font-semibold whitespace-nowrap">{amount(total)}</TableCell>
-                      <TableCell className="figure px-3 py-2.5 text-right whitespace-nowrap">
+                      <TableCell className="figure px-3 py-2.5 num whitespace-nowrap">{amount(oldMethod ? total : Number(d.bankProfit || 0))}</TableCell>
+                      <TableCell className="figure px-3 py-2.5 num whitespace-nowrap">{oldMethod ? "—" : amount(Number(d.loanInterest || 0))}</TableCell>
+                      <TableCell className="figure px-3 py-2.5 num whitespace-nowrap">{oldMethod ? "—" : amount(Number(d.loanPenalties || 0))}</TableCell>
+                      <TableCell className="figure px-3 py-2.5 num whitespace-nowrap">{oldMethod ? "—" : amount(Number(d.absencePenalties || 0))}</TableCell>
+                      <TableCell className="figure px-3 py-2.5 num font-semibold whitespace-nowrap">{amount(total)}</TableCell>
+                      <TableCell className="figure px-3 py-2.5 num whitespace-nowrap">
                         {amount(reserve)}
                         <span className="block text-xs text-muted-foreground">{total > 0 ? `${Math.round((reserve / total) * 1000) / 10}%` : ""}</span>
                       </TableCell>
-                      <TableCell className="figure px-5 py-2.5 text-right font-semibold text-secondary whitespace-nowrap">
+                      <TableCell className="figure px-5 py-2.5 num font-semibold text-secondary whitespace-nowrap">
                         {amount(dividends)}
                         <span className="block text-xs font-normal text-muted-foreground">{d.memberAllocations.length} members</span>
                       </TableCell>

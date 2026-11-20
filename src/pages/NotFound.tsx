@@ -11,8 +11,8 @@ const NotFound = () => {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background">
       <div className="text-center">
-        <div className="w-16 h-16 rounded-2xl bg-gradient-primary flex items-center justify-center shadow-lg mx-auto mb-5">
-          <span className="text-2xl font-extrabold text-white">?</span>
+        <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-sm border border-primary/25 bg-ledger-wash">
+          <span className="font-display text-3xl font-bold text-primary">?</span>
         </div>
         <h1 className="mb-2 text-4xl font-bold text-foreground">404</h1>
         <p className="mb-5 text-base text-muted-foreground">Oops! This page doesn't exist.</p>

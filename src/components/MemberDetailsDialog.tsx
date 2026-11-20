@@ -11,6 +11,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useSettings } from "@/contexts/SettingsContext";
 import { dbQuery } from "@/lib/db";
 import { cn } from "@/lib/utils";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { parseLocalDate } from "@/hooks/useLoans";
 import { ATTENDANCE_LABEL, type AttendanceStatus } from "@/hooks/useAttendance";
 import ViewReportButton from "@/components/ViewReportButton";
@@ -62,7 +63,7 @@ export default function MemberDetailsDialog({ memberId, open, onOpenChange, onCh
   }, [open, memberId]);
 
   const amount = (v: number) => Number(v).toLocaleString("en-US", { maximumFractionDigits: 2 });
-  const day = (key: string | null) => (key ? format(parseLocalDate(key.slice(0, 10)), settings.dateFormat || "dd/MM/yyyy") : "-");
+  const day = (key: string | null) => (key ? format(parseLocalDate(key.slice(0, 10)), settings.dateFormat || "dd/MM/yyyy") : "—");
   const ready = record && record.member.id === memberId;
 
   const updatePhoto = () => {
@@ -109,7 +110,7 @@ export default function MemberDetailsDialog({ memberId, open, onOpenChange, onCh
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[900px] flex flex-col max-h-[90vh] p-0 gap-0 overflow-hidden rounded-sm border-t-2 border-t-accent">
+      <DialogContent className="sm:max-w-[900px] flex flex-col max-h-[90vh] p-0 gap-0 overflow-hidden rounded-sm ledger-sheet">
         {!ready ? (
           <>
             <DialogTitle className="sr-only">Member Details</DialogTitle>
@@ -130,8 +131,7 @@ export default function MemberDetailsDialog({ memberId, open, onOpenChange, onCh
                   </AvatarFallback>
                 </Avatar>
                 <div className="min-w-0 flex-1">
-                  <p className="tracked-label text-[10px] font-semibold text-primary uppercase">Member</p>
-                  <DialogTitle className="text-xl font-bold text-foreground leading-tight mt-1 truncate">{record.member.name}</DialogTitle>
+                  <DialogTitle className="text-xl font-bold text-foreground leading-tight truncate">{record.member.name}</DialogTitle>
                   <DialogDescription className="text-sm text-muted-foreground mt-0.5">
                     {record.member.father_name ? `Father: ${record.member.father_name} · ` : ""}Member since {day(record.member.join_date)}
                   </DialogDescription>
@@ -168,7 +168,7 @@ export default function MemberDetailsDialog({ memberId, open, onOpenChange, onCh
                 />
                 <SummaryTile
                   label="Attendance"
-                  value={record.recordedMeetings ? `${Math.round((record.attended / record.recordedMeetings) * 100)}%` : "-"}
+                  value={record.recordedMeetings ? `${Math.round((record.attended / record.recordedMeetings) * 100)}%` : "—"}
                   sub={
                     record.recordedMeetings
                       ? `${record.attended} of ${record.recordedMeetings} meetings${record.onLeaveMeetings ? ` · ${record.onLeaveMeetings} on leave` : ""}`
@@ -179,7 +179,7 @@ export default function MemberDetailsDialog({ memberId, open, onOpenChange, onCh
                 />
                 <SummaryTile
                   label="Last dividend"
-                  value={record.lastDividend ? amount(record.lastDividend.amount) : "-"}
+                  value={record.lastDividend ? amount(record.lastDividend.amount) : "—"}
                   sub={
                     !record.lastDividend
                       ? "No profit shared yet"
@@ -195,17 +195,17 @@ export default function MemberDetailsDialog({ memberId, open, onOpenChange, onCh
               <div>
                 <SectionLabel>Personal details</SectionLabel>
                 <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 rounded-sm border border-border/60 p-4">
-                  <Detail icon={User} label="Father's name" value={record.member.father_name || "-"} />
+                  <Detail icon={User} label="Father's name" value={record.member.father_name || "—"} />
                   <Detail
                     icon={Cake}
                     label="Date of birth"
-                    value={record.member.dob ? `${day(record.member.dob)} (${ageFrom(record.member.dob)} yrs)` : "-"}
+                    value={record.member.dob ? `${day(record.member.dob)} (${ageFrom(record.member.dob)} yrs)` : "—"}
                     mono
                   />
                   <Detail icon={CalendarDays} label="Member since" value={`${day(record.member.join_date)} · ${durationSince(record.member.join_date)}`} mono />
-                  <Detail icon={Phone} label="Phone" value={record.member.phone || "-"} mono />
-                  <Detail icon={Mail} label="Email" value={record.member.email || "-"} />
-                  <Detail icon={MapPin} label="Address" value={record.member.address || "-"} wide />
+                  <Detail icon={Phone} label="Phone" value={record.member.phone || "—"} mono />
+                  <Detail icon={Mail} label="Email" value={record.member.email || "—"} />
+                  <Detail icon={MapPin} label="Address" value={record.member.address || "—"} wide />
                 </dl>
               </div>
 
@@ -220,27 +220,31 @@ export default function MemberDetailsDialog({ memberId, open, onOpenChange, onCh
                   {record.savings.length === 0 ? (
                     <Empty>No contributions recorded yet.</Empty>
                   ) : (
-                    <div className="rounded-sm border border-border/60 overflow-hidden">
-                      <div className="grid grid-cols-12 px-3 py-2 bg-muted/50 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                        <span className="col-span-3">Date</span>
-                        <span className="col-span-3">Particulars</span>
-                        <span className="col-span-2">Attendance</span>
-                        <span className="col-span-2 text-right">Amount</span>
-                        <span className="col-span-2 text-right">Balance</span>
-                      </div>
-                      <div className="divide-y divide-border/60">
-                        {savingsPaged.rows.map((s, i) => (
-                          <div key={i} className="grid grid-cols-12 items-center px-3 py-2 text-sm hover:bg-muted/30 transition-colors">
-                            <span className="col-span-3 figure">{day(s.date)}</span>
-                            <span className={cn("col-span-3", s.kind !== "contribution" && "text-primary font-medium")}>{s.kind === "profit" ? "Profit share" : s.kind === "opening" ? "Brought forward" : "Contribution"}</span>
-                            <span className="col-span-2">
-                              {s.attendance === null ? <span className="text-xs text-muted-foreground">-</span> : <PresenceBadge status={s.attendance} />}
-                            </span>
-                            <span className="col-span-2 figure text-right font-semibold">{amount(s.amount)}</span>
-                            <span className="col-span-2 figure text-right text-muted-foreground">{amount(s.balance)}</span>
-                          </div>
-                        ))}
-                      </div>
+                    <div className="overflow-hidden rounded-sm border border-border">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="px-3">Date</TableHead>
+                            <TableHead className="px-3">Particulars</TableHead>
+                            <TableHead className="px-3">Attendance</TableHead>
+                            <TableHead className="num px-3">Amount</TableHead>
+                            <TableHead className="num px-3">Balance</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {savingsPaged.rows.map((s, i) => (
+                            <TableRow key={i}>
+                              <TableCell className="figure px-3 py-2">{day(s.date)}</TableCell>
+                              <TableCell className={cn("px-3 py-2", s.kind !== "contribution" && "font-medium text-primary")}>{s.kind === "profit" ? "Profit share" : s.kind === "opening" ? "Brought forward" : "Contribution"}</TableCell>
+                              <TableCell className="px-3 py-2">
+                                {s.attendance === null ? <span className="text-xs text-muted-foreground">—</span> : <PresenceBadge status={s.attendance} />}
+                              </TableCell>
+                              <TableCell className="num figure px-3 py-2 font-semibold">{amount(s.amount)}</TableCell>
+                              <TableCell className="num figure px-3 py-2 text-muted-foreground">{amount(s.balance)}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
                       <TablePager paged={savingsPaged} noun="entries" />
                     </div>
                   )}
@@ -361,8 +365,8 @@ function Empty({ children }: { children: ReactNode }) {
 
 function SummaryTile({ label, value, unit, sub, tone }: { label: string; value: string; unit?: string; sub: string; tone?: "good" | "bad" }) {
   return (
-    <div className="rounded-sm border border-border/60 border-t-2 border-t-accent bg-card px-3 py-3 min-w-0">
-      <p className="tracked-label text-[10px] font-semibold uppercase text-muted-foreground">{label}</p>
+    <div className="rounded-sm border border-border bg-card px-3 py-3 min-w-0">
+      <p className="text-[13px] font-medium leading-tight text-muted-foreground">{label}</p>
       <p className={cn("figure text-lg font-bold mt-1 leading-tight break-all", tone === "good" ? "text-secondary" : tone === "bad" ? "text-destructive" : "text-foreground")}>
         {unit && <span className="text-[11px] font-semibold text-muted-foreground mr-1">{unit}</span>}
         {value}

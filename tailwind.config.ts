@@ -14,8 +14,9 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ['"IBM Plex Sans"', "system-ui", "-apple-system", "sans-serif"],
-        mono: ['"IBM Plex Mono"', "ui-monospace", "monospace"],
+        sans: ['"Public Sans"', "system-ui", "-apple-system", "sans-serif"],
+        display: ['"Zilla Slab"', "Georgia", "serif"],
+        mono: ["ui-monospace", "Consolas", "monospace"],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -51,6 +52,16 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        binding: {
+          DEFAULT: "hsl(var(--binding))",
+          foreground: "hsl(var(--binding-foreground))",
+        },
+        ledger: {
+          rule: "hsl(var(--ledger-rule))",
+          margin: "hsl(var(--ledger-margin))",
+          wash: "hsl(var(--ledger-wash))",
+          zebra: "hsl(var(--ledger-zebra))",
+        },
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
           foreground: "hsl(var(--sidebar-foreground))",
@@ -60,13 +71,8 @@ export default {
           "accent-foreground": "hsl(var(--sidebar-accent-foreground))",
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
+          thread: "hsl(var(--sidebar-thread))",
         },
-      },
-      backgroundImage: {
-        'gradient-primary': 'var(--gradient-primary)',
-        'gradient-secondary': 'var(--gradient-secondary)',
-        'gradient-accent': 'var(--gradient-accent)',
-        'gradient-hero': 'var(--gradient-hero)',
       },
       boxShadow: {
         'sm': 'var(--shadow-sm)',

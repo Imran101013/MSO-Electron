@@ -28,20 +28,22 @@ export default function Login() {
 
   return (
     <div className="min-h-screen flex bg-background">
-      {/* Left panel — the counter, after hours */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-hero flex-col items-center justify-center p-12 relative overflow-hidden">
-        <div className="absolute inset-0 opacity-[0.06] bg-[linear-gradient(hsl(214_45%_80%)_1px,transparent_1px),linear-gradient(90deg,hsl(214_45%_80%)_1px,transparent_1px)] bg-[size:2.5rem_2.5rem]" />
-        <MsoMark className="relative w-36 h-36 mb-8 drop-shadow-lg" />
-        <h1 className="relative text-4xl font-bold text-white text-center leading-tight">
-          Mogh Students<br />Organisation
-        </h1>
-        <p className="relative tracked-label text-sidebar-primary mt-3 text-center text-xs uppercase">Savings &amp; Loan Register</p>
-        <p className="relative text-white/60 mt-4 text-center text-base max-w-xs">
+      {/* Left panel: the ledger's cloth cover, a thread line round its edge, with the seal on its label */}
+      <div className="relative hidden flex-col items-center justify-center overflow-hidden bg-binding p-12 lg:flex lg:w-1/2">
+        <div aria-hidden className="pointer-events-none absolute inset-4 rounded-sm border border-sidebar-thread/35" />
+        <div className="relative flex flex-col items-center rounded-sm border border-sidebar-primary/50 bg-sidebar-accent/40 px-10 py-9 shadow-[inset_0_0_0_4px_hsl(var(--binding)/0.4)]">
+          <MsoMark className="mb-6 h-32 w-32 drop-shadow-lg" />
+          <h1 className="text-center text-4xl font-bold leading-tight text-binding-foreground">
+            Mogh Students<br />Organisation
+          </h1>
+          <p className="tracked-label mt-3 text-center text-xs uppercase text-sidebar-primary">Savings &amp; Loan Register</p>
+        </div>
+        <p className="relative mt-6 max-w-xs text-center text-base text-binding-foreground/70">
           Manage members, finances, and meetings — all in one place.
         </p>
-        <div className="relative mt-12 flex grid-cols-2 gap-3 w-full max-w-xs">
+        <div className="relative mt-10 flex w-full max-w-xs gap-3">
           {["Members", "Budget", "Loans", "Meetings"].map((item) => (
-            <div key={item} className="border border-white/15 bg-white/[0.04] rounded-sm px-4 py-3 text-white/80 text-sm font-medium text-center">
+            <div key={item} className="rounded-sm border border-binding-foreground/20 bg-binding-foreground/[0.05] px-4 py-3 text-center text-sm font-medium text-binding-foreground/85">
               {item}
             </div>
           ))}
@@ -50,13 +52,12 @@ export default function Login() {
 
       {/* Right panel — the statement */}
       <div className="flex-1 flex items-center justify-center p-8 bg-muted/30">
-        <div className="w-full max-w-md space-y-8 bg-card border-t-2 border-t-accent rounded-sm shadow-lg p-8">
+        <div className="w-full max-w-md space-y-8 bg-card ledger-sheet rounded-sm shadow-lg p-8">
           <div className="text-center lg:hidden mb-2">
             <MsoMark className="w-20 h-20 mx-auto mb-3" />
           </div>
 
           <div>
-            <p className="tracked-label text-[10px] font-semibold text-primary uppercase">Sign in</p>
             <h2 className="text-3xl font-bold text-foreground mt-1">Welcome back</h2>
             <p className="text-muted-foreground mt-1">Sign in to your MSO account</p>
           </div>

@@ -175,7 +175,7 @@ export default function Members() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between border-b-2 border-accent/70 pb-4">
+      <div className="flex items-center justify-between ledger-head pb-4">
         <div>
           <h2 className="text-2xl font-bold text-foreground mt-1">Members</h2>
           <p className="text-sm text-muted-foreground mt-0.5">Manage organisation members</p>
@@ -276,7 +276,7 @@ export default function Members() {
       </div>
 
       {/* Search + List */}
-      <Card className="shadow-sm rounded-sm border-t-2 border-t-accent">
+      <Card className="shadow-sm rounded-sm ledger-sheet">
         <CardHeader className="pb-3">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -286,7 +286,7 @@ export default function Members() {
               onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
             />
             {showSuggestions && suggestions.length > 0 && (
-              <div className="absolute top-full left-0 right-0 mt-1 bg-background border-t-2 border-t-accent border-x border-b border-border rounded-sm shadow-lg z-50 overflow-hidden" onMouseDown={(e) => e.preventDefault()}>
+              <div className="absolute top-full left-0 right-0 mt-1 bg-background ledger-sheet border-x border-b border-border rounded-sm shadow-lg z-50 overflow-hidden" onMouseDown={(e) => e.preventDefault()}>
                 {suggestions.map((m) => (
                   <button key={m.id} type="button" onClick={() => { setSearchQuery(m.name); setShowSuggestions(false); setTimeout(() => handleViewDetails(m), 100); }}
                     className="w-full text-left px-4 py-2.5 hover:bg-muted transition-colors flex items-center gap-3 border-b border-border/50 last:border-0">
@@ -306,12 +306,12 @@ export default function Members() {
           ) : (
             // A ruled register sheet: each cell draws its own right and bottom rule, and the sheet
             // runs 1px past the card's right and bottom edges so the outermost rules are clipped.
-            <ul className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 -mr-px -mb-px border-t border-border/60">
+            <ul className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 -mr-px -mb-px border-t border-ledger-rule">
               {currentMembers.map((member) => (
-                <li key={member.id} className="flex items-center gap-3 px-3 py-2 border-r border-b border-border/60 transition-colors hover:bg-muted/50">
+                <li key={member.id} className="flex items-center gap-3 border-b border-r border-ledger-rule px-3 py-2.5 transition-colors hover:bg-primary/[0.04]">
                   <Avatar className="h-10 w-10 rounded-sm flex-shrink-0">
                     <AvatarImage src={member.profile_picture || undefined} />
-                    <AvatarFallback className="rounded-sm bg-primary/10 border border-primary/40 text-primary text-sm font-semibold">
+                    <AvatarFallback className="rounded-sm border border-primary/20 bg-ledger-wash text-sm font-semibold text-primary">
                       {initials(member.name)}
                     </AvatarFallback>
                   </Avatar>

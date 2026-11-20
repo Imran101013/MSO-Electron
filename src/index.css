@@ -1,139 +1,135 @@
-/* IBM Plex Sans and Mono are bundled from @fontsource (imported in main.tsx), so they show offline. */
+/* Public Sans and Zilla Slab are bundled from @fontsource (imported in main.tsx), so they show offline. */
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/*
-  DIRECTION CONTRACT
-  THESIS: The app reads as a trusted institutional counter, not another blue SaaS card grid — every screen behaves like a statement being printed at the window in front of you.
-  OWN-WORLD: the seal's navy counter ground + its rising-sun orange as the signature rule + white statement panels with steel-blue tints; IBM Plex Sans for chrome, IBM Plex Mono/tabular-nums for every figure; sunrise top-rules divide sections like a printed slip; status reads as an ink stamp, not a soft pill.
-  STORY: an admin opens the app, immediately reads it as "the ledger, digitized" — trustworthy, precise, built for money — and finds today's numbers and next task at a glance.
-  FIRST VIEWPORT: dark counter-grille sidebar (numbered nav) left, statement-letterhead header top, paper-white dashboard body with stamp-styled stat slips in a row and a brass-ruled "Upcoming" register beneath.
-  FORM: Bank Teller Counter & Statement Register — grounded direction 4 of 7 (ledger/committee/institutional/instrument-panel families), seed key 3ad2975d, chosen over Ledger Bindery (skeuomorphic leather) challenger on product clarity for dense financial tables.
-  FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, and DESIGN.md.
-*/
-
 @layer base {
-  /* The seal's colours (src/assets/mso-logo.png): navy ring and wordmark, the sun rising over
-     the book, steel-blue pages on white. Navy carries action and ink; the sun is the signature
-     rule and the attention stamp; green and brick red keep their money meanings. */
+  /* The bahi-khata: the organisation's red cloth-bound ledger. The binding (sidebar, login panel)
+     is maroon cloth; the pages are cool white sheets ruled like an account book, with blue row
+     lines and red rules; writing and actions are in ink blue. Brass (the seal's sun) marks the
+     open page and things that need attention. Green and red keep their money meanings. */
   :root {
     color-scheme: light;
 
-    --background: 216 33% 97%;
-    --foreground: 220 45% 13%;
+    --background: 213 28% 94%;
+    --foreground: 218 40% 14%;
 
     --card: 0 0% 100%;
-    --card-foreground: 220 45% 13%;
+    --card-foreground: 218 40% 14%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 220 45% 13%;
+    --popover-foreground: 218 40% 14%;
 
-    /* Seal navy #244271 */
-    --primary: 217 52% 29%;
+    /* Ink blue: buttons, links, focus, table headings */
+    --primary: 216 58% 30%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 152 45% 26%;
+    /* Money coming in, paid, present */
+    --secondary: 150 48% 27%;
     --secondary-foreground: 0 0% 100%;
 
-    --muted: 216 28% 93%;
-    --muted-foreground: 217 18% 37%;
+    --muted: 213 30% 95%;
+    --muted-foreground: 216 16% 38%;
 
-    /* The sun #E79C2A: rules, attention washes and fills (navy text on it), never small text */
-    --accent: 36 80% 54%;
-    --accent-foreground: 220 45% 13%;
+    /* Brass, the seal's sun: the open page and attention washes (ink text on it, never small text in it) */
+    --accent: 38 78% 52%;
+    --accent-foreground: 218 40% 14%;
 
-    --destructive: 5 60% 41%;
+    /* Red ink: overdue, loss, destructive actions */
+    --destructive: 3 66% 42%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 216 24% 86%;
-    --input: 216 24% 84%;
-    --ring: 217 52% 29%;
+    --border: 213 26% 85%;
+    --input: 213 24% 80%;
+    --ring: 216 58% 30%;
 
-    --radius: 0.625rem;
+    --radius: 0.375rem;
 
-    /* Dashboard loans chart: navy blue against teller green, apart in hue and lightness so the
-       two series stay distinct under colour-blind vision. */
-    --chart-issued: 217 50% 42%;
-    --chart-recovered: 154 50% 30%;
+    /* The ledger: the cloth binding, the blue row ruling, the red rules, the header wash and the
+       alternate-row tint. */
+    --binding: 358 56% 27%;
+    --binding-foreground: 34 45% 93%;
+    --ledger-rule: 212 45% 87%;
+    --ledger-margin: 2 68% 54%;
+    --ledger-wash: 212 70% 96%;
+    --ledger-zebra: 212 62% 97%;
 
-    --gradient-primary: linear-gradient(135deg, hsl(219 55% 22%), hsl(215 46% 40%));
-    --gradient-secondary: linear-gradient(135deg, hsl(152 45% 22%), hsl(152 44% 36%));
-    --gradient-accent: linear-gradient(135deg, hsl(32 82% 50%), hsl(40 86% 62%));
-    /* The login panel: the seal's navy, with the sun rising from below. */
-    --gradient-hero: radial-gradient(60% 34% at 50% 104%, hsl(40 95% 64% / 0.62), hsl(33 90% 52% / 0.26) 45%, transparent 75%), linear-gradient(170deg, hsl(221 58% 9%) 0%, hsl(219 54% 15%) 58%, hsl(218 52% 22%) 100%);
+    /* Dashboard loans chart: ink blue against green, apart in hue and lightness so the two
+       series stay distinct under colour-blind vision. */
+    --chart-issued: 216 55% 42%;
+    --chart-recovered: 150 45% 32%;
 
-    --shadow-sm: 0 1px 2px hsl(220 40% 20% / 0.07);
-    --shadow-md: 0 6px 18px hsl(220 40% 20% / 0.10), 0 2px 6px hsl(220 40% 16% / 0.06);
-    --shadow-lg: 0 16px 36px hsl(220 40% 20% / 0.14), 0 4px 10px hsl(220 40% 16% / 0.08);
+    --shadow-sm: 0 1px 2px hsl(218 40% 20% / 0.07);
+    --shadow-md: 0 6px 18px hsl(218 40% 20% / 0.10), 0 2px 6px hsl(218 40% 16% / 0.06);
+    --shadow-lg: 0 16px 36px hsl(218 40% 20% / 0.14), 0 4px 10px hsl(218 40% 16% / 0.08);
 
-    /* The counter: the seal's navy ring, the same in both themes. */
-    --sidebar-background: 219 54% 15%;
-    --sidebar-foreground: 214 32% 90%;
-    --sidebar-primary: 36 85% 57%;
-    --sidebar-primary-foreground: 221 55% 10%;
-    --sidebar-accent: 218 45% 22%;
-    --sidebar-accent-foreground: 214 35% 95%;
-    --sidebar-border: 218 40% 24%;
-    --sidebar-ring: 36 85% 57%;
-    /* The sun rising from the foot of the counter: the Login panel's sunrise, kept faint. */
-    --gradient-counter: radial-gradient(75% 50% at 50% 100%, hsl(40 95% 64% / 0.34), hsl(33 90% 52% / 0.12) 48%, transparent 80%);
+    /* The binding: maroon cloth in both themes, with a cream thread and a brass label. */
+    --sidebar-background: 358 56% 27%;
+    --sidebar-foreground: 30 40% 91%;
+    --sidebar-primary: 40 85% 60%;
+    --sidebar-primary-foreground: 358 60% 16%;
+    --sidebar-accent: 358 46% 33%;
+    --sidebar-accent-foreground: 36 60% 97%;
+    --sidebar-border: 358 38% 37%;
+    --sidebar-ring: 40 85% 60%;
+    --sidebar-thread: 36 55% 88%;
   }
 
   .dark {
     color-scheme: dark;
 
-    --background: 221 47% 7%;
-    --foreground: 214 32% 92%;
+    --background: 220 24% 8%;
+    --foreground: 213 30% 90%;
 
-    --card: 220 42% 11%;
-    --card-foreground: 214 32% 92%;
+    --card: 220 22% 11.5%;
+    --card-foreground: 213 30% 90%;
 
-    --popover: 220 42% 11%;
-    --popover-foreground: 214 32% 92%;
+    --popover: 220 22% 11.5%;
+    --popover-foreground: 213 30% 90%;
 
-    /* Navy lifted to the steel blue of the book's pages, so it reads on the dark ground */
-    --primary: 214 62% 72%;
-    --primary-foreground: 221 50% 10%;
+    --primary: 214 75% 74%;
+    --primary-foreground: 220 40% 9%;
 
-    --secondary: 152 44% 48%;
-    --secondary-foreground: 221 50% 8%;
+    --secondary: 150 42% 54%;
+    --secondary-foreground: 220 40% 8%;
 
-    --muted: 219 34% 16%;
-    --muted-foreground: 215 20% 68%;
+    --muted: 220 18% 16%;
+    --muted-foreground: 214 16% 67%;
 
-    --accent: 36 86% 58%;
-    --accent-foreground: 221 50% 8%;
+    --accent: 40 82% 58%;
+    --accent-foreground: 220 40% 9%;
 
-    --destructive: 4 76% 64%;
-    --destructive-foreground: 221 50% 8%;
+    --destructive: 3 78% 66%;
+    --destructive-foreground: 220 40% 8%;
 
-    --border: 219 30% 20%;
-    --input: 219 30% 22%;
-    --ring: 214 62% 72%;
+    --border: 220 18% 21%;
+    --input: 220 18% 25%;
+    --ring: 214 75% 74%;
 
-    --chart-issued: 214 62% 64%;
-    --chart-recovered: 154 44% 46%;
+    --binding: 358 45% 21%;
+    --binding-foreground: 30 40% 91%;
+    --ledger-rule: 218 22% 19%;
+    --ledger-margin: 3 65% 56%;
+    --ledger-wash: 216 30% 15%;
+    --ledger-zebra: 220 22% 13%;
 
-    --gradient-primary: linear-gradient(135deg, hsl(218 52% 28%), hsl(214 52% 44%));
-    --gradient-secondary: linear-gradient(135deg, hsl(152 40% 30%), hsl(152 44% 44%));
-    --gradient-accent: linear-gradient(135deg, hsl(32 84% 52%), hsl(40 88% 64%));
-    --gradient-hero: radial-gradient(60% 34% at 50% 104%, hsl(40 95% 62% / 0.50), hsl(33 90% 50% / 0.20) 45%, transparent 75%), linear-gradient(170deg, hsl(222 60% 5%) 0%, hsl(220 54% 10%) 58%, hsl(219 52% 17%) 100%);
+    --chart-issued: 214 70% 66%;
+    --chart-recovered: 150 42% 50%;
 
     --shadow-sm: 0 1px 3px hsl(222 60% 3% / 0.45);
     --shadow-md: 0 8px 20px hsl(222 60% 3% / 0.5);
     --shadow-lg: 0 16px 40px hsl(222 60% 3% / 0.6);
 
-    --sidebar-background: 221 54% 9%;
-    --sidebar-foreground: 214 30% 88%;
-    --sidebar-primary: 36 86% 58%;
-    --sidebar-primary-foreground: 221 55% 8%;
-    --sidebar-accent: 219 42% 16%;
-    --sidebar-accent-foreground: 214 32% 94%;
-    --sidebar-border: 219 40% 17%;
-    --sidebar-ring: 36 86% 58%;
-    --gradient-counter: radial-gradient(75% 50% at 50% 100%, hsl(40 95% 62% / 0.28), hsl(33 90% 50% / 0.10) 48%, transparent 80%);
+    --sidebar-background: 358 44% 18%;
+    --sidebar-foreground: 30 34% 88%;
+    --sidebar-primary: 40 82% 58%;
+    --sidebar-primary-foreground: 358 60% 12%;
+    --sidebar-accent: 358 38% 25%;
+    --sidebar-accent-foreground: 36 50% 96%;
+    --sidebar-border: 358 30% 28%;
+    --sidebar-ring: 40 82% 58%;
+    --sidebar-thread: 34 40% 78%;
   }
 }
 
@@ -143,7 +139,7 @@
   }
 
   html {
-    font-family: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+    font-family: 'Public Sans', system-ui, -apple-system, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -175,15 +171,20 @@
     background-color: hsl(var(--muted-foreground) / 0.55);
   }
 
-  /* The sidebar (the counter, components/Layout.tsx): the seal's sun rising from its foot. A
-     background on the panel itself, so it stays put while the links scroll over it. */
+  /* The binding (components/Layout.tsx): flat maroon cloth with one cream thread line down its
+     inner edge. On the panel itself, so it stays put while the links scroll. */
   [data-sidebar="sidebar"] {
-    background-image: var(--gradient-counter);
-    background-repeat: no-repeat;
-    background-position: bottom;
-    background-size: 100% 20rem;
+    position: relative;
   }
-  /* In a short window the links scroll: a navy thumb on the counter, not the page's steel one. */
+  [data-sidebar="sidebar"]::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    right: 7px;
+    border-right: 1px solid hsl(var(--sidebar-thread) / 0.35);
+    pointer-events: none;
+  }
   [data-sidebar="content"]::-webkit-scrollbar-thumb {
     background-color: hsl(var(--sidebar-border));
   }
@@ -194,12 +195,16 @@
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
-    letter-spacing: -0.005em;
   }
 
-  h1, h2, h3, h4, h5, h6 {
-    letter-spacing: -0.015em;
+  /* Headings are set in the slab, like the printed headings of an account book. */
+  h1, h2, h3 {
+    font-family: 'Zilla Slab', Georgia, serif;
     font-weight: 700;
+    letter-spacing: -0.005em;
+  }
+  h4, h5, h6 {
+    font-weight: 600;
   }
 
   /* Settings → Animations off (set by ThemeApplier). Zero durations rather than `none`, so
@@ -215,30 +220,89 @@
   }
 }
 
+@layer components {
+  /* The ledger table (components/ui/table.tsx). Alternate rows are tinted so a row can be followed
+     across wide money columns; :where() keeps these weaker than a row's own background, so a
+     highlighted or totals row keeps its colour. */
+  .ledger-table :where(tbody > tr:nth-child(even)) {
+    background-color: hsl(var(--ledger-zebra));
+  }
+  .ledger-table :where(tbody > tr:hover) {
+    background-color: hsl(var(--primary) / 0.05);
+  }
+  /* A totals row inside a table body: on the wash, with a rule above and a double rule below. */
+  .ledger-table tbody tr.ledger-total,
+  .ledger-table tfoot tr.ledger-total {
+    background-color: hsl(var(--ledger-wash));
+    font-weight: 600;
+    border-top: 1px solid hsl(var(--foreground) / 0.45);
+    border-bottom: 3px double hsl(var(--foreground) / 0.45);
+  }
+  /* Money columns: right-aligned tabular figures, each with a thin red rule on its left, as the
+     amount columns of an account book are ruled. */
+  .ledger-table :where(th.num, td.num) {
+    font-variant-numeric: tabular-nums lining-nums;
+    white-space: nowrap;
+    border-left: 1px solid hsl(var(--ledger-margin) / 0.28);
+  }
+  /* Stronger than the head's own text-left, so a money head sits over its figures. */
+  .ledger-table th.num,
+  .ledger-table td.num {
+    text-align: right;
+  }
+}
+
 @layer utilities {
-  /* Every monetary/numeric figure runs through this: dot-matrix statement register, tabular so columns line up. */
+  /* Every money amount, date-as-number and count: tabular lining figures, so columns line up. */
   .figure {
-    font-family: 'IBM Plex Mono', ui-monospace, monospace;
-    font-variant-numeric: tabular-nums;
-    letter-spacing: -0.01em;
+    font-variant-numeric: tabular-nums lining-nums;
+    letter-spacing: 0;
   }
   /* Urdu text (the meeting circular): a Nastaliq face where one is installed, else Segoe UI's Naskh. */
   .urdu {
     font-family: 'Jameel Noori Nastaleeq', 'Noto Nastaliq Urdu', 'Urdu Typesetting', 'Segoe UI', Tahoma, system-ui, sans-serif;
   }
+  /* Small capital labels: column heads, field labels, section tabs. */
   .tracked-label {
-    font-family: 'IBM Plex Mono', ui-monospace, monospace;
     letter-spacing: 0.08em;
+    font-weight: 600;
   }
   .glass {
     @apply bg-white/10 backdrop-blur-xl border border-white/15;
   }
-  /* Sunrise rule: the signature divider, in the seal's sun. */
-  .ledger-rule {
-    @apply border-t-2 border-accent;
+  /* The ledger heading rule: the double red line that closes a page title, drawn across from the
+     left when the page opens (turning the page). */
+  .ledger-head {
+    position: relative;
+  }
+  .ledger-head::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 4px;
+    border-top: 1px solid hsl(var(--ledger-margin) / 0.85);
+    border-bottom: 1px solid hsl(var(--ledger-margin) / 0.85);
+    transform-origin: left center;
+    animation: ledger-rule-draw 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  /* A page sheet bound at its top edge, as a bahi-khata's pages hang from the binding. */
+  .ledger-sheet {
+    border-top: 3px solid hsl(var(--binding));
+  }
+  /* Turning the page: each page's content settles in when it opens. */
+  .page-turn {
+    animation: page-turn 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .ledger-head::after,
+    .page-turn {
+      animation: none;
+    }
   }
   .card-hover {
-    @apply transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5;
+    @apply transition-shadow duration-200 hover:shadow-md;
   }
   /* Reports: one report per row, laid out by its section card's width (a container query), so it
      holds whatever the window size. Narrow: stacked. Medium: name and description on the left,
@@ -291,4 +355,13 @@
       grid-row: 1;
     }
   }
+}
+
+@keyframes ledger-rule-draw {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+@keyframes page-turn {
+  from { opacity: 0.4; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
 }

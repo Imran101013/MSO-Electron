@@ -43,7 +43,7 @@ This project began as a Lovable-generated Supabase app and has since moved entir
 - `src/components/Layout.tsx` — sidebar shell and top header, shown whenever someone is signed in.
 - `src/pages/*` — one page per route/nav item; most are large (10-30KB) single-file feature screens that call into the `OrganizationContext` hooks directly rather than sub-composing many components.
 - `src/components/ui/` — shadcn/ui primitives (Radix-based), configured via `components.json`; treat as generated/vendored, prefer composing them over editing them directly. Only the ones in use are kept; add another with the shadcn CLI (`npx shadcn@latest add <name>`), which also installs its Radix package.
-- Fonts: IBM Plex Sans and Mono are bundled from `@fontsource` (imported in `src/main.tsx`), so the app looks the same offline. Don't add web-font links.
+- Fonts: Public Sans (text and tabular figures) and Zilla Slab (headings) are bundled from `@fontsource` (imported in `src/main.tsx`), so the app looks the same offline. Don't add web-font links.
 - `src/config/organization.ts` — static organization-wide constants (loan interest rate, pagination sizes, PK phone-number regex patterns, date/currency formats). `src/contexts/SettingsContext.tsx` seeds its runtime `Settings` (persisted to `localStorage` under `hc_settings_v1`) from these defaults and lets the UI override them (e.g. theme, items-per-page) — check `SettingsContext` for the value actually in effect, not just the static config.
 - `src/utils/pdfReports.ts` — PDF generation (via `jspdf` and `jspdf-autotable`) backing the Reports page.
 - Path alias `@` → `src/` (configured in both `vite.config.ts` and `tsconfig`).

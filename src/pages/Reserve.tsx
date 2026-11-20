@@ -22,6 +22,7 @@ import StatCard from "@/components/StatCard";
 import AmountsNote from "@/components/AmountsNote";
 import ViewReportButton from "@/components/ViewReportButton";
 import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useSettings } from "@/contexts/SettingsContext";
 
 export default function Reserve() {
@@ -79,7 +80,7 @@ export default function Reserve() {
     <div className="space-y-6">
 
       {/* Header */}
-      <div className="flex items-center justify-between border-b-2 border-accent/70 pb-4">
+      <div className="flex items-center justify-between ledger-head pb-4">
         <div className="flex items-center gap-4">
           <div>
             <h2 className="text-2xl font-bold text-foreground mt-1">Reserve Fund</h2>
@@ -198,7 +199,7 @@ export default function Reserve() {
       </div>
 
       {/* Transactions Table */}
-      <Card className="shadow-sm rounded-sm border-0 border-t-2 border-t-accent">
+      <Card className="shadow-sm rounded-sm border ledger-sheet">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2 text-base">
@@ -233,61 +234,58 @@ export default function Reserve() {
               </Dialog>
             </div>
           ) : (
-            <div className="divide-y divide-border/60">
-              {/* Table header */}
-              <div className="grid grid-cols-[2.5rem_repeat(12,minmax(0,1fr))] px-5 py-2.5 bg-muted/50">
-                <span className="col-span-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">#</span>
-                <span className="col-span-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Type</span>
-                <span className="col-span-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Source / Spent At</span>
-                <span className="col-span-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Notes</span>
-                <span className="col-span-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Date</span>
-                <span className="col-span-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground text-right">Amount</span>
-              </div>
-
-              {/* Rows */}
-              {paged.rows.map((tx, idx) => {
-                const isInflow = tx.type !== "expense";
-                const label = tx.type === "expense" ? "Expense" : tx.type === "profit_allocation" ? "Profit Share" : tx.type === "opening" ? "Brought forward" : "Deposit";
-                return (
-                <div
-                  key={tx.id}
-                  className="grid grid-cols-[2.5rem_repeat(12,minmax(0,1fr))] px-5 py-2 items-center hover:bg-muted/30 transition-colors"
-                >
-                  <span className="figure col-span-1 text-xs text-muted-foreground">
-                    {reserveTransactions.length - (paged.offset + idx)}
-                  </span>
-
-                  <div className="col-span-2">
-                    <Badge variant={isInflow ? "secondary" : "destructive"}>
-                      {isInflow
-                        ? <TrendingUp className="w-3 h-3" />
-                        : <TrendingDown className="w-3 h-3" />}
-                      {label}
-                    </Badge>
-                  </div>
-
-                  <span className="col-span-3 text-sm text-foreground truncate pr-2">
-                    {tx.donorName || <span className="text-muted-foreground">—</span>}
-                  </span>
-
-                  <span className="col-span-3 text-xs text-muted-foreground truncate pr-2">
-                    {tx.notes || "—"}
-                  </span>
-
-                  <span className="figure col-span-2 text-xs text-muted-foreground">{format(parseLocalDate(String(tx.date).slice(0, 10)), settings.dateFormat)}</span>
-
-                  <span className={cn(
-                    "figure col-span-2 text-sm font-bold text-right whitespace-nowrap",
-                    isInflow
-                      ? "text-secondary"
-                      : "text-destructive"
-                  )}>
-                    {isInflow ? "+" : "-"}{tx.amount.toLocaleString()}
-                  </span>
-                </div>
-                );
-              })}
-
+            <div>
+              <Table className="table-fixed">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-14 pl-5">#</TableHead>
+                    <TableHead className="w-48">Type</TableHead>
+                    <TableHead className="w-[22%]">Source / Spent At</TableHead>
+                    <TableHead>Notes</TableHead>
+                    <TableHead className="w-32">Date</TableHead>
+                    <TableHead className="num w-36 pr-5">Amount</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {paged.rows.map((tx, idx) => {
+                    const isInflow = tx.type !== "expense";
+                    const label = tx.type === "expense" ? "Expense" : tx.type === "profit_allocation" ? "Profit Share" : tx.type === "opening" ? "Brought forward" : "Deposit";
+                    return (
+                      <TableRow key={tx.id}>
+                        <TableCell className="figure pl-5 text-xs text-muted-foreground">
+                          {reserveTransactions.length - (paged.offset + idx)}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={isInflow ? "secondary" : "destructive"}>
+                            {isInflow
+                              ? <TrendingUp className="w-3 h-3" />
+                              : <TrendingDown className="w-3 h-3" />}
+                            {label}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="break-words text-foreground">
+                          {tx.donorName || <span className="text-muted-foreground">—</span>}
+                        </TableCell>
+                        <TableCell className="break-words text-xs text-muted-foreground">
+                          {tx.notes || "—"}
+                        </TableCell>
+                        <TableCell className="figure text-xs text-muted-foreground">
+                          {format(parseLocalDate(String(tx.date).slice(0, 10)), settings.dateFormat)}
+                        </TableCell>
+                        <TableCell className={cn("num figure pr-5 font-semibold", isInflow ? "text-secondary" : "text-destructive")}>
+                          {isInflow ? "+" : "−"}{tx.amount.toLocaleString()}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+                <TableFooter>
+                  <TableRow>
+                    <TableCell colSpan={5} className="pl-5">Balance</TableCell>
+                    <TableCell className="num figure pr-5 text-foreground">{reserveFund.toLocaleString()}</TableCell>
+                  </TableRow>
+                </TableFooter>
+              </Table>
               <TablePager paged={paged} noun="transactions" />
             </div>
           )}

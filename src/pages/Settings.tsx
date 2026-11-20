@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { format } from "date-fns";
 import { toast } from "sonner";
-import { CheckCircle2, CircleDot, DatabaseBackup, Loader2, MessageCircle, RotateCcw, Save, Settings, Undo2, Upload } from "lucide-react";
+import { CheckCircle2, CircleDot, DatabaseBackup, Loader2, MessageCircle, RotateCcw, Save, Undo2, Upload } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -235,11 +235,8 @@ export default function SettingsPage() {
   return (
     <form onSubmit={handleSubmit(onSave, onInvalid)} className="flex flex-col gap-4" noValidate>
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b-2 border-accent/70 pb-3">
+      <div className="flex flex-wrap items-center justify-between gap-4 ledger-head pb-3">
         <div className="flex items-center gap-4">
-          <div className="w-11 h-11 rounded-sm border-2 border-primary/40 bg-primary/10 flex items-center justify-center">
-            <Settings className="w-5 h-5 text-primary" />
-          </div>
           <div>
             <h2 className="text-2xl font-bold text-foreground mt-1">Settings</h2>
             <p className="text-sm text-muted-foreground mt-0.5">Lending rules, display preferences and backups</p>
@@ -251,7 +248,7 @@ export default function SettingsPage() {
       </div>
 
       {/* Money rules */}
-      <Card className="rounded-sm border-t-2 border-t-accent shadow-sm [container-type:inline-size]">
+      <Card className="rounded-sm ledger-sheet shadow-sm [container-type:inline-size]">
         <SectionHead
           title="Money rules"
           description="Apply to loans issued and profit distributed after you save. Existing loans and past distributions keep the terms they were made with."
